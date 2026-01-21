@@ -69,6 +69,75 @@ vscode-extension/
 | Bead ID | Description | Status | Date |
 |---------|-------------|--------|------|
 | bd-001-init | Initial project scaffold | ✅ Complete | 2026-01-21 |
+| bd-002-apim | Anthropic parity + APIM architecture | ✅ Complete | 2026-01-21 |
+
+---
+
+### Bead: `bd-002-apim`
+**Status**: ✅ Complete  
+**Description**: Update skills to match Anthropic healthcare marketplace structure with Azure APIM-based MCP architecture
+
+#### Changes Tracked
+- [x] APIM architecture design for secure MCP exposure
+- [x] Clinical trial protocol skill with full waypoint architecture
+- [x] Prior auth skill update with subskill structure and demo assets
+- [x] Azure FHIR developer skill update (Anthropic format)
+- [x] Azure Health Data Services skill update + DICOM/MedTech references
+- [x] Plugin marketplace configuration (.claude-plugin/marketplace.json)
+
+#### Files Created/Updated
+```
+docs/architecture/
+└── APIM-ARCHITECTURE.md          # Azure APIM design for MCP security
+
+.github/skills/clinical-trial-protocol/
+├── SKILL.md                       # 6-waypoint workflow for FDA protocols
+├── references/
+│   ├── 00-initialize-intervention.md
+│   ├── 01-research-protocols.md
+│   ├── 02-protocol-foundation.md
+│   ├── 03-protocol-intervention.md
+│   ├── 04-protocol-operations.md
+│   └── 05-concatenate-protocol.md
+├── scripts/
+│   └── sample_size_calculator.py  # Statistical power analysis
+└── assets/
+    └── FDA-Clinical-Protocol-Template.md
+
+.github/skills/prior-auth-azure/
+├── SKILL.md                       # Updated workflow with MCP calls
+├── references/
+│   ├── 01-intake-assessment.md    # Validation subskill
+│   ├── 02-decision-notification.md # Decision subskill
+│   └── rubric.md                  # Decision rules
+└── assets/sample/
+    ├── pa_request.json
+    ├── ct_chest_report.txt
+    ├── pet_scan_report.txt
+    └── pulmonology_consultation.txt
+
+.github/skills/azure-fhir-developer/
+└── SKILL.md                       # Comprehensive FHIR R4 reference
+
+.github/skills/azure-health-data-services/
+├── SKILL.md                       # Workspace + service overview
+└── references/
+    ├── 01-dicom-service.md        # DICOMweb operations
+    └── 02-medtech-service.md      # IoT device ingestion
+
+.claude-plugin/
+└── marketplace.json               # Plugin registry with skills & MCP servers
+```
+
+#### MCP Server URLs (via Azure APIM)
+| Service | APIM Endpoint |
+|---------|---------------|
+| CMS Coverage | `https://healthcare-mcp.azure-api.net/cms-coverage/mcp` |
+| NPI Registry | `https://healthcare-mcp.azure-api.net/npi-registry/mcp` |
+| ICD-10 Codes | `https://healthcare-mcp.azure-api.net/icd10/mcp` |
+| Clinical Trials | `https://healthcare-mcp.azure-api.net/clinical-trials/mcp` |
+| FHIR Operations | `https://healthcare-mcp.azure-api.net/fhir/mcp` |
+| PubMed | `https://healthcare-mcp.azure-api.net/pubmed/mcp` |
 
 ---
 

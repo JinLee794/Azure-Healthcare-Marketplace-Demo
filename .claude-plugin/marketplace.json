@@ -1,0 +1,214 @@
+{
+  "name": "healthcare",
+  "version": "1.0.0",
+  "description": "Healthcare Marketplace for GitHub Copilot and Azure AI Agents - Skills and MCP servers for clinical trials, prior authorization, and FHIR development.",
+  "publisher": "microsoft-healthcare",
+  "repository": "https://github.com/microsoft/healthcare-for-azure",
+  
+  "skills": {
+    "azure-fhir-developer": {
+      "path": ".github/skills/azure-fhir-developer",
+      "displayName": "Azure FHIR Developer",
+      "description": "Build FHIR R4 applications with Azure API for FHIR, including coding systems and authentication patterns.",
+      "requirements": [],
+      "tags": ["fhir", "azure", "healthcare", "interoperability"]
+    },
+    "prior-auth-azure": {
+      "path": ".github/skills/prior-auth-azure",
+      "displayName": "Prior Authorization Review (Azure)",
+      "description": "Demo skill for prior auth request processing with NPI, ICD-10, and CMS Coverage validation via Azure APIM.",
+      "requirements": ["azure-mcp-npi-registry", "azure-mcp-icd10", "azure-mcp-cms-coverage"],
+      "tags": ["prior-auth", "revenue-cycle", "healthcare", "payer"]
+    },
+    "azure-health-data-services": {
+      "path": ".github/skills/azure-health-data-services",
+      "displayName": "Azure Health Data Services",
+      "description": "DICOM imaging, MedTech device data, and FHIR integration with Azure Health Data Services.",
+      "requirements": [],
+      "tags": ["dicom", "medtech", "imaging", "azure"]
+    },
+    "clinical-trial-protocol": {
+      "path": ".github/skills/clinical-trial-protocol",
+      "displayName": "Clinical Trial Protocol Generator",
+      "description": "Generate FDA/NIH-compliant clinical trial protocols using waypoint-based architecture.",
+      "requirements": ["python-scipy", "python-numpy", "azure-mcp-clinical-trials"],
+      "tags": ["clinical-trials", "fda", "protocol", "research"]
+    }
+  },
+  
+  "mcpServers": {
+    "cms-coverage": {
+      "displayName": "CMS Coverage Database",
+      "description": "Access Medicare LCDs/NCDs coverage policies via Azure APIM",
+      "url": "https://healthcare-mcp.azure-api.net/cms-coverage/mcp",
+      "transport": "sse",
+      "tools": [
+        {
+          "name": "cms_search_all",
+          "description": "Search CMS coverage database for LCDs and NCDs",
+          "parameters": {
+            "search_term": "string - Service or procedure to search",
+            "state": "string - Two-letter state code",
+            "max_results": "number - Maximum results (default 10)"
+          }
+        },
+        {
+          "name": "cms_get_policy",
+          "description": "Get detailed policy document by ID",
+          "parameters": {
+            "policy_id": "string - LCD or NCD identifier"
+          }
+        }
+      ]
+    },
+    "npi-registry": {
+      "displayName": "NPI Registry",
+      "description": "Access US National Provider Identifier (NPI) Registry via Azure APIM",
+      "url": "https://healthcare-mcp.azure-api.net/npi-registry/mcp",
+      "transport": "sse",
+      "tools": [
+        {
+          "name": "npi_lookup_provider",
+          "description": "Look up provider by NPI number",
+          "parameters": {
+            "npi": "string - 10-digit NPI number"
+          }
+        },
+        {
+          "name": "npi_search",
+          "description": "Search for providers by name, specialty, or location",
+          "parameters": {
+            "name": "string - Provider name (optional)",
+            "specialty": "string - Provider specialty (optional)",
+            "state": "string - Two-letter state code (optional)",
+            "city": "string - City name (optional)"
+          }
+        }
+      ]
+    },
+    "icd10-codes": {
+      "displayName": "ICD-10 Code Lookup",
+      "description": "Validate and retrieve ICD-10-CM diagnosis codes via Azure APIM",
+      "url": "https://healthcare-mcp.azure-api.net/icd10/mcp",
+      "transport": "sse",
+      "tools": [
+        {
+          "name": "icd10_validate",
+          "description": "Validate one or more ICD-10 codes",
+          "parameters": {
+            "codes": "array - List of ICD-10 codes to validate"
+          }
+        },
+        {
+          "name": "icd10_get_details",
+          "description": "Get detailed information for a single ICD-10 code",
+          "parameters": {
+            "code": "string - Single ICD-10 code"
+          }
+        },
+        {
+          "name": "icd10_search",
+          "description": "Search ICD-10 codes by description",
+          "parameters": {
+            "query": "string - Search term",
+            "max_results": "number - Maximum results (default 20)"
+          }
+        }
+      ]
+    },
+    "clinical-trials": {
+      "displayName": "ClinicalTrials.gov",
+      "description": "Search and retrieve clinical trial data from ClinicalTrials.gov via Azure APIM",
+      "url": "https://healthcare-mcp.azure-api.net/clinical-trials/mcp",
+      "transport": "sse",
+      "tools": [
+        {
+          "name": "trials_search",
+          "description": "Search for clinical trials by condition, intervention, sponsor, location, status, or phase",
+          "parameters": {
+            "condition": "string - Disease or condition (optional)",
+            "intervention": "string - Drug, device, or treatment (optional)",
+            "sponsor": "string - Sponsor name (optional)",
+            "location": "string - City, state, or country (optional)",
+            "status": "string - recruiting, active, completed, all (optional)",
+            "phase": "string - 1, 2, 3, 4, early_phase1 (optional)",
+            "max_results": "number - Maximum results (default 25, max 100)"
+          }
+        },
+        {
+          "name": "trials_details",
+          "description": "Get comprehensive details for a specific trial by NCT ID",
+          "parameters": {
+            "nct_id": "string - ClinicalTrials.gov NCT identifier"
+          }
+        }
+      ]
+    },
+    "fhir-operations": {
+      "displayName": "Azure FHIR Operations",
+      "description": "FHIR R4 operations via Azure API for FHIR",
+      "url": "https://healthcare-mcp.azure-api.net/fhir/mcp",
+      "transport": "sse",
+      "tools": [
+        {
+          "name": "fhir_search",
+          "description": "Search FHIR resources",
+          "parameters": {
+            "resource_type": "string - FHIR resource type (Patient, Observation, etc.)",
+            "parameters": "object - Search parameters"
+          }
+        },
+        {
+          "name": "fhir_read",
+          "description": "Read a specific FHIR resource",
+          "parameters": {
+            "resource_type": "string - FHIR resource type",
+            "id": "string - Resource ID"
+          }
+        },
+        {
+          "name": "fhir_validate",
+          "description": "Validate a FHIR resource",
+          "parameters": {
+            "resource": "object - FHIR resource to validate"
+          }
+        }
+      ]
+    },
+    "pubmed": {
+      "displayName": "PubMed Search",
+      "description": "Search biomedical literature from PubMed/MEDLINE via Azure APIM",
+      "url": "https://healthcare-mcp.azure-api.net/pubmed/mcp",
+      "transport": "sse",
+      "tools": [
+        {
+          "name": "pubmed_search",
+          "description": "Search PubMed for articles",
+          "parameters": {
+            "query": "string - Search query",
+            "max_results": "number - Maximum results (default 20)",
+            "sort": "string - relevance, date (default relevance)"
+          }
+        },
+        {
+          "name": "pubmed_get_abstract",
+          "description": "Get abstract for a specific PubMed article",
+          "parameters": {
+            "pmid": "string - PubMed ID"
+          }
+        }
+      ]
+    }
+  },
+  
+  "authentication": {
+    "type": "azure_ad",
+    "scopes": ["api://healthcare-mcp-gateway/.default"],
+    "instructions": "Authenticate using Azure AD. For VS Code, use the Azure Account extension. For CLI, run 'az login' and then 'az account get-access-token --resource api://healthcare-mcp-gateway'."
+  },
+  
+  "installation": {
+    "skills": "Skills are automatically loaded when the marketplace is added.",
+    "mcpServers": "MCP servers require Azure APIM subscription. Configure endpoints in your MCP client settings."
+  }
+}

@@ -1,455 +1,259 @@
 ---
 name: prior-auth-azure
-description: "Prior authorization workflows on Azure including coverage verification, PA request submission, and status tracking. Use for healthcare revenue cycle management."
-triggers:
-  - "prior auth"
-  - "prior authorization"
-  - "coverage verification"
-  - "insurance approval"
-  - "PA request"
+description: "Demo skill that processes prior authorization requests, performs initial validation checks (NPI, ICD-10, CMS Coverage, CPT), and generates medical necessity assessments using Azure MCP servers."
 ---
 
-# Prior Authorization on Azure Skill
+# Prior Authorization Review Skill (Azure)
 
-## Overview
-This skill provides guidance for implementing prior authorization workflows using Azure services, including coverage verification, PA request submission, and real-time decision support.
+Process prior authorization requests using AI-assisted review with MCP connectors for NPI Registry, ICD-10 codes, and CMS Coverage policies. This skill generates draft recommendations for human review.
 
-## Architecture
+**Target Users:** Prior authorization specialists, utilization management nurses, medical directors
+
+**Key Features:**
+- Two-subskill workflow (Intake & Assessment → Decision & Notification)
+- Parallel MCP validation for optimal performance
+- Structured waypoint files for audit trail
+- Human-in-the-loop decision confirmation
+- Azure APIM integration for secure MCP access
+
+---
+
+## Important Disclaimers
+
+> **DRAFT RECOMMENDATIONS ONLY:** This skill generates draft recommendations only. The payer organization remains fully responsible for all final authorization decisions.
+>
+> **HUMAN REVIEW REQUIRED:** All AI-generated recommendations require review and confirmation by appropriate professionals before becoming final decisions. Users may accept, reject, or override any recommendation with documented justification.
+>
+> **AI DECISION BEHAVIOR:** In default mode, AI recommends APPROVE or PEND only - never recommends DENY. Decision logic is configurable in the skill's rubric.md file.
+>
+> **COVERAGE POLICY LIMITATIONS:** Coverage policies are sourced from Medicare LCDs/NCDs via CMS Coverage MCP Connector. If this review is for a commercial or Medicare Advantage plan, payer-specific policies may differ and were not applied.
+
+---
+
+## Prerequisites
+
+### Required MCP Servers (via Azure APIM)
+
+1. **NPI MCP Connector** - Provider verification
+   - **Endpoint:** `https://healthcare-mcp.azure-api.net/npi-registry`
+   - **Tools:** `npi_lookup_provider(npi="...")`, `npi_verify_credentials(...)`
+   - **Use Cases:** Verify provider credentials, specialty, license state, active status
+
+2. **ICD-10 MCP Connector** - Diagnosis code validation
+   - **Endpoint:** `https://healthcare-mcp.azure-api.net/icd10`
+   - **Tools:** `icd10_validate(codes=[...])`, `icd10_get_details(code="...")`
+   - **Use Cases:** Batch validate ICD-10 codes, get detailed code information
+
+3. **CMS Coverage MCP Connector** - Policy lookup
+   - **Endpoint:** `https://healthcare-mcp.azure-api.net/cms-coverage`
+   - **Tools:** `cms_search_all(search_term="...", state="...", max_results=10)`
+   - **Use Cases:** Find applicable LCDs/NCDs for service
+
+---
+
+## Workflow Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    PRIOR AUTHORIZATION WORKFLOW                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                   │
-│  │   EHR/PMS    │───▶│  Azure API   │───▶│  Coverage    │                   │
-│  │              │    │  Management  │    │  Lookup      │                   │
-│  └──────────────┘    └──────────────┘    └──────────────┘                   │
-│                             │                    │                           │
-│                             ▼                    ▼                           │
-│                      ┌──────────────┐    ┌──────────────┐                   │
-│                      │  Logic Apps  │    │  Cosmos DB   │                   │
-│                      │  Workflow    │    │  (Policies)  │                   │
-│                      └──────────────┘    └──────────────┘                   │
-│                             │                                                │
-│                             ▼                                                │
-│                      ┌──────────────┐    ┌──────────────┐                   │
-│                      │  Payer API   │◀──▶│  X12 278     │                   │
-│                      │  Integration │    │  Processing  │                   │
-│                      └──────────────┘    └──────────────┘                   │
-│                             │                                                │
-│                             ▼                                                │
-│                      ┌──────────────┐                                       │
-│                      │   PA Status  │                                       │
-│                      │   Tracking   │                                       │
-│                      └──────────────┘                                       │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                 PRIOR AUTHORIZATION WORKFLOW                     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │ SUBSKILL 1: INTAKE & ASSESSMENT (3-4 minutes)              │ │
+│  │                                                             │ │
+│  │  1. Collect request details (member, service, provider)    │ │
+│  │  2. Parallel MCP validation:                               │ │
+│  │     • NPI Registry → Provider credentials                  │ │
+│  │     • ICD-10 → Diagnosis codes                             │ │
+│  │     • CMS Coverage → Applicable policies                   │ │
+│  │  3. Extract clinical data from documentation               │ │
+│  │  4. Map evidence to policy criteria                        │ │
+│  │  5. Generate recommendation (APPROVE/PEND)                 │ │
+│  │                                                             │ │
+│  │  OUTPUT: waypoints/assessment.json                         │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                            │                                    │
+│                            ▼                                    │
+│                 ┌──────────────────────┐                        │
+│                 │ HUMAN DECISION POINT │                        │
+│                 │  Review AI findings  │                        │
+│                 └──────────────────────┘                        │
+│                            │                                    │
+│                            ▼                                    │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │ SUBSKILL 2: DECISION & NOTIFICATION (1-2 minutes)          │ │
+│  │                                                             │ │
+│  │  1. Human confirms/overrides recommendation                │ │
+│  │  2. Generate authorization number (if approved)            │ │
+│  │  3. Create decision documentation                          │ │
+│  │  4. Generate notification letters                          │ │
+│  │                                                             │ │
+│  │  OUTPUT: waypoints/decision.json, outputs/letters/         │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## X12 278 Transaction
+---
 
-### Request Structure (278 Request)
-```
-ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *240115*1430*^*00501*000000001*0*P*:~
-GS*HI*SENDER*RECEIVER*20240115*1430*1*X*005010X217~
-ST*278*0001*005010X217~
-BHT*0007*11*REF123*20240115*1430~
-HL*1**20*1~
-NM1*X3*2*PAYER NAME*****PI*12345~
-HL*2*1*21*1~
-NM1*1P*2*PROVIDER GROUP*****XX*1234567890~
-HL*3*2*22*0~
-NM1*IL*1*SMITH*JOHN****MI*MEM123456~
-DMG*D8*19700101*M~
-TRN*1*PA123456*9012345678~
-UM*HS*I*3~
-HCR*A1~
-DTP*472*RD8*20240201-20240208~
-HI*ABK:E11.9~
-HI*ABF:J06.9~
-SV2*0120**HC:99213~
-SE*18*0001~
-GE*1*1~
-IEA*1*000000001~
-```
+## Subskill Descriptions
 
-### Response Structure (278 Response)
+### Subskill 1: Intake & Assessment (3-4 minutes)
+- Collects PA request details (member, service, provider, clinical docs)
+- Validates provider credentials via **NPI MCP**
+- Validates and retrieves ICD-10 code details via **ICD-10 MCP** (single batch call)
+- Validates CPT/HCPCS codes via **WebFetch to CMS Fee Schedule**
+- Searches coverage policies via **CMS Coverage MCP**
+- Extracts structured clinical data from documentation
+- Maps clinical evidence to policy criteria
+- Performs medical necessity assessment
+- Generates recommendation (APPROVE/PEND)
+- **Output:** `waypoints/assessment.json` (consolidated)
+- **Data Sources:** NPI MCP, ICD-10 MCP, CMS Coverage MCP (parallel), CMS Fee Schedule (web)
+
+### Subskill 2: Decision & Notification (1-2 minutes)
+- Reads assessment from Subskill 1
+- Presents findings for human review
+- Accepts human confirmation or override
+- Generates authorization number (if approved)
+- Creates decision waypoint
+- Generates notification letters (approval/denial/pend)
+- **Output:** `waypoints/decision.json`, `outputs/approval_letter.md` or `outputs/pend_letter.md`
+
+---
+
+## Execution Flow
+
+### Startup: Request Input Files
+
+**Option A: User provides files**
 ```
-ST*278*0001*005010X217~
-BHT*0007*15*REF123*20240115*1435~
-HL*1**20*1~
-NM1*X3*2*PAYER NAME*****PI*12345~
-HL*2*1*21*1~
-NM1*1P*2*PROVIDER GROUP*****XX*1234567890~
-HL*3*2*22*0~
-NM1*IL*1*SMITH*JOHN****MI*MEM123456~
-TRN*2*PA123456*9012345678~
-AAA*Y*72*~
-HCR*A1*AUTH123456~
-REF*BB*AUTH123456~
-DTP*472*RD8*20240201-20240208~
-SE*14*0001~
+To begin a prior authorization review, I need:
+  1. PA Request Form (member info, service details)
+  2. Clinical Documentation (progress notes, test results)
+  3. Provider Information (NPI, credentials)
+
+Please provide the file paths or paste the content.
 ```
 
-## FHIR-based Prior Authorization
-
-### CRD (Coverage Requirements Discovery)
-
-**Request Hook: order-sign**
-```json
-{
-  "hookInstance": "abc123",
-  "hook": "order-sign",
-  "context": {
-    "patientId": "Patient/123",
-    "encounterId": "Encounter/456",
-    "draftOrders": {
-      "resourceType": "Bundle",
-      "entry": [{
-        "resource": {
-          "resourceType": "ServiceRequest",
-          "status": "draft",
-          "intent": "order",
-          "code": {
-            "coding": [{
-              "system": "http://www.ama-assn.org/go/cpt",
-              "code": "27447",
-              "display": "Total knee arthroplasty"
-            }]
-          },
-          "subject": { "reference": "Patient/123" }
-        }
-      }]
-    }
-  },
-  "prefetch": {
-    "patient": { "resourceType": "Patient", "id": "123" },
-    "coverage": { "resourceType": "Coverage", "id": "cov123" }
-  }
-}
+**Option B: Demo mode**
+```
+Would you like to use sample PA request files for demonstration?
+Sample files are in: assets/sample/
 ```
 
-**Response with PA Requirement**
-```json
-{
-  "cards": [{
-    "uuid": "card-1",
-    "summary": "Prior authorization required for Total Knee Arthroplasty",
-    "indicator": "warning",
-    "source": {
-      "label": "Payer Coverage Policy"
-    },
-    "suggestions": [{
-      "label": "Launch Prior Auth Request",
-      "actions": [{
-        "type": "create",
-        "description": "Create prior authorization request",
-        "resource": {
-          "resourceType": "Task",
-          "status": "requested",
-          "intent": "order",
-          "code": {
-            "coding": [{
-              "system": "http://hl7.org/fhir/us/davinci-crd/CodeSystem/task-type",
-              "code": "pa-request"
-            }]
-          }
-        }
-      }]
-    }],
-    "links": [{
-      "label": "SMART App: Prior Auth Request",
-      "url": "https://pa-app.azurewebsites.net/launch",
-      "type": "smart"
-    }]
-  }]
-}
+- **Demo mode note:** When sample files are used, the sample data contains demo NPI and sample member ID. This combination triggers demo mode, which skips the NPI MCP lookup for this specific provider only. All other MCP calls execute normally.
+
+---
+
+## Implementation Requirements
+
+1. **Always read subskill files:** Don't execute from memory. Read the actual subskill markdown file and follow instructions.
+
+2. **Auto-detect resume:** Check for existing `waypoints/assessment.json` on startup. If found and status is not "assessment_complete", offer to resume.
+
+3. **Parallel MCP execution:** In Subskill 1, execute NPI, ICD-10, and Coverage MCP calls in parallel for optimal performance.
+
+4. **Preserve user data:** Never overwrite waypoint files without asking confirmation or backing up.
+
+5. **Clear progress indicators:** Show users what's happening during operations (MCP queries, data analysis).
+
+6. **Graceful degradation:** If optional data missing, continue with available data and note limitations.
+
+7. **Validate outputs:** Check that waypoint files have expected structure before proceeding.
+
+### MCP Tool Call Transparency (REQUIRED)
+
+When invoking MCP tools, always inform the user:
+- BEFORE: What tool is being called and why
+- AFTER: Success notification with summary of results
+
+**Example:**
+```
+Searching CMS Coverage MCP for applicable policies...
+✅ CMS Coverage MCP completed - Found policy: L34567 - Knee Arthroplasty LCD
 ```
 
-### DTR (Documentation Templates and Rules)
+### Common Mistakes to Avoid
 
-**Questionnaire for PA Documentation**
-```json
-{
-  "resourceType": "Questionnaire",
-  "id": "knee-replacement-pa",
-  "status": "active",
-  "title": "Total Knee Arthroplasty Prior Authorization",
-  "item": [
-    {
-      "linkId": "1",
-      "text": "Patient Information",
-      "type": "group",
-      "item": [
-        {
-          "linkId": "1.1",
-          "text": "Has the patient tried conservative treatment?",
-          "type": "boolean",
-          "required": true
-        },
-        {
-          "linkId": "1.2",
-          "text": "Duration of conservative treatment",
-          "type": "choice",
-          "answerOption": [
-            { "valueString": "Less than 3 months" },
-            { "valueString": "3-6 months" },
-            { "valueString": "More than 6 months" }
-          ],
-          "enableWhen": [{
-            "question": "1.1",
-            "operator": "=",
-            "answerBoolean": true
-          }]
-        }
-      ]
-    },
-    {
-      "linkId": "2",
-      "text": "Clinical Findings",
-      "type": "group",
-      "item": [
-        {
-          "linkId": "2.1",
-          "text": "X-ray findings",
-          "type": "choice",
-          "required": true,
-          "answerOption": [
-            { "valueString": "Normal" },
-            { "valueString": "Mild osteoarthritis" },
-            { "valueString": "Moderate osteoarthritis" },
-            { "valueString": "Severe osteoarthritis" }
-          ]
-        }
-      ]
-    }
-  ]
-}
+**MCP and Validation:**
+- ❌ Don't call `icd10_validate()` multiple times - validate all codes in one batch
+- ❌ Don't call `icd10_get_details()` with array parameter - it takes single code only
+- ❌ Don't skip CPT/HCPCS validation - it's required even though no MCP exists
+- ❌ Don't forget to display MCP success notifications after each connector invocation
+
+**Decision Policy Enforcement (CRITICAL):**
+- ❌ Don't ignore provider verification status when calculating recommendation
+- ❌ Don't make decisions without first reading rubric.md
+- ✅ DO read rubric.md FIRST to understand current policy
+- ✅ DO apply the decision rules specified in rubric.md
+
+---
+
+## Error Handling
+
+**Missing MCP Servers:**
+If required MCP connectors not available, display error listing missing connectors.
+
+**Missing Subskill Prerequisites:**
+If Subskill 2 invoked without `waypoints/assessment.json`, notify user to complete Subskill 1 first.
+
+**File Write Errors:**
+If unable to write waypoint files, display error with file path, check permissions/disk space, and offer retry.
+
+**Data Quality Issues:**
+If clinical data extraction confidence <60%, warn user with confidence score and low-confidence areas. Offer options to: continue, request additional documentation, or abort.
+
+---
+
+## Quality Checks
+
+Before completing workflow, verify:
+
+- [ ] All required waypoint files created
+- [ ] Decision has clear rationale documented
+- [ ] All required fields populated
+- [ ] Output files generated successfully
+
+---
+
+## Sample Data
+
+Sample case files are included in `assets/sample/` for demonstration purposes. When using sample files, the skill operates in demo mode which:
+
+- Skips NPI MCP lookup for the sample provider only
+- Executes all other MCP calls (ICD-10, CMS Coverage) normally
+- Demonstrates the complete workflow with a pre-configured case
+
+---
+
+## Azure-Specific Integration
+
+### Azure APIM Endpoint Configuration
+
+```yaml
+mcp_servers:
+  npi-registry:
+    url: https://healthcare-mcp.azure-api.net/npi-registry
+    auth: azure_ad_token
+  icd10-codes:
+    url: https://healthcare-mcp.azure-api.net/icd10
+    auth: azure_ad_token
+  cms-coverage:
+    url: https://healthcare-mcp.azure-api.net/cms-coverage
+    auth: azure_ad_token
 ```
 
-### PAS (Prior Authorization Support)
+### FHIR Integration
 
-**Claim for Prior Auth**
+Assessment data can be stored as FHIR resources:
+
 ```json
 {
   "resourceType": "Claim",
-  "id": "pa-claim-001",
-  "status": "active",
-  "type": {
-    "coding": [{
-      "system": "http://terminology.hl7.org/CodeSystem/claim-type",
-      "code": "institutional"
-    }]
-  },
   "use": "preauthorization",
-  "patient": { "reference": "Patient/123" },
-  "created": "2024-01-15",
-  "insurer": { "reference": "Organization/payer-001" },
-  "provider": { "reference": "Organization/provider-001" },
-  "priority": { "coding": [{ "code": "normal" }] },
-  "insurance": [{
-    "sequence": 1,
-    "focal": true,
-    "coverage": { "reference": "Coverage/cov-001" }
-  }],
-  "diagnosis": [{
-    "sequence": 1,
-    "diagnosisCodeableConcept": {
-      "coding": [{
-        "system": "http://hl7.org/fhir/sid/icd-10-cm",
-        "code": "M17.11",
-        "display": "Primary osteoarthritis, right knee"
-      }]
-    }
-  }],
-  "procedure": [{
-    "sequence": 1,
-    "procedureCodeableConcept": {
-      "coding": [{
-        "system": "http://www.ama-assn.org/go/cpt",
-        "code": "27447",
-        "display": "Total knee arthroplasty"
-      }]
-    }
-  }],
-  "item": [{
-    "sequence": 1,
-    "productOrService": {
-      "coding": [{
-        "system": "http://www.ama-assn.org/go/cpt",
-        "code": "27447"
-      }]
-    },
-    "servicedDate": "2024-02-01",
-    "locationCodeableConcept": {
-      "coding": [{
-        "system": "https://www.cms.gov/Medicare/Coding/place-of-service-codes",
-        "code": "21",
-        "display": "Inpatient Hospital"
-      }]
-    }
-  }],
-  "supportingInfo": [{
-    "sequence": 1,
-    "category": {
-      "coding": [{
-        "system": "http://hl7.org/fhir/us/davinci-pas/CodeSystem/PASSupportingInfoType",
-        "code": "questionnaire-response"
-      }]
-    },
-    "valueReference": {
-      "reference": "QuestionnaireResponse/qr-001"
-    }
-  }]
-}
-```
-
-**ClaimResponse (Authorization)**
-```json
-{
-  "resourceType": "ClaimResponse",
-  "id": "pa-response-001",
   "status": "active",
-  "type": {
-    "coding": [{
-      "system": "http://terminology.hl7.org/CodeSystem/claim-type",
-      "code": "institutional"
-    }]
-  },
-  "use": "preauthorization",
   "patient": { "reference": "Patient/123" },
-  "created": "2024-01-15T14:35:00Z",
-  "insurer": { "reference": "Organization/payer-001" },
-  "outcome": "complete",
-  "preAuthRef": "AUTH123456",
-  "preAuthPeriod": {
-    "start": "2024-02-01",
-    "end": "2024-02-28"
-  },
-  "item": [{
-    "itemSequence": 1,
-    "adjudication": [{
-      "category": {
-        "coding": [{
-          "code": "submitted"
-        }]
-      }
-    }]
-  }]
+  "insurance": [{ "coverage": { "reference": "Coverage/456" }}]
 }
 ```
-
-## Azure Implementation
-
-### Logic App Workflow
-```json
-{
-  "definition": {
-    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
-    "triggers": {
-      "When_PA_Request_Received": {
-        "type": "Request",
-        "kind": "Http",
-        "inputs": {
-          "schema": {
-            "type": "object",
-            "properties": {
-              "patientId": { "type": "string" },
-              "procedureCode": { "type": "string" },
-              "diagnosisCode": { "type": "string" }
-            }
-          }
-        }
-      }
-    },
-    "actions": {
-      "Check_Coverage_Policy": {
-        "type": "Http",
-        "inputs": {
-          "method": "GET",
-          "uri": "https://coverage-api.azurewebsites.net/api/policy",
-          "queries": {
-            "procedureCode": "@triggerBody()?['procedureCode']",
-            "payerId": "@triggerBody()?['payerId']"
-          }
-        }
-      },
-      "Determine_PA_Required": {
-        "type": "If",
-        "expression": {
-          "equals": ["@body('Check_Coverage_Policy')?['paRequired']", true]
-        },
-        "actions": {
-          "Submit_To_Payer": {
-            "type": "Http",
-            "inputs": {
-              "method": "POST",
-              "uri": "@body('Check_Coverage_Policy')?['submissionEndpoint']",
-              "body": "@triggerBody()"
-            }
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-### Coverage Policy Database (Cosmos DB)
-```json
-{
-  "id": "policy-001",
-  "payerId": "PAYER123",
-  "procedureCode": "27447",
-  "procedureDescription": "Total Knee Arthroplasty",
-  "paRequired": true,
-  "criteria": [
-    {
-      "type": "diagnosis",
-      "codes": ["M17.0", "M17.1", "M17.10", "M17.11", "M17.12"],
-      "required": true
-    },
-    {
-      "type": "conservative_treatment",
-      "minDuration": "3 months",
-      "required": true
-    },
-    {
-      "type": "imaging",
-      "modality": "X-ray",
-      "required": true
-    }
-  ],
-  "turnaroundTime": {
-    "urgent": "24 hours",
-    "standard": "5 business days"
-  },
-  "validityPeriod": "30 days",
-  "documentation": [
-    "History and physical",
-    "Conservative treatment records",
-    "Imaging reports"
-  ]
-}
-```
-
-## Status Codes
-
-| Code | Description |
-|------|-------------|
-| A1 | Certified in total |
-| A2 | Certified with changes |
-| A3 | Pended |
-| A4 | Cancelled |
-| A6 | Denied |
-| CT | Contact payer |
-
-## Best Practices
-
-1. **Real-time eligibility check** before PA submission
-2. **Cache coverage policies** to reduce API calls
-3. **Implement retry logic** for payer API failures
-4. **Track PA status** with Event Grid notifications
-5. **Use DTR** to gather required documentation upfront
-6. **Store audit trail** for compliance
