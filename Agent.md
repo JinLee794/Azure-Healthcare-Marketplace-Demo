@@ -70,6 +70,59 @@ vscode-extension/
 |---------|-------------|--------|------|
 | bd-001-init | Initial project scaffold | ✅ Complete | 2026-01-21 |
 | bd-002-apim | Anthropic parity + APIM architecture | ✅ Complete | 2026-01-21 |
+| bd-003-iac | Production IaC with private networking | ✅ Complete | 2026-01-21 |
+
+---
+
+### Bead: `bd-003-iac`
+**Status**: ✅ Complete  
+**Description**: Production-grade Infrastructure as Code with APIM Standard v2, private VNet, Function Apps, and AI Foundry
+
+#### Changes Tracked
+- [x] VNet Bicep module with 4 subnets (agent, pe, apim, function)
+- [x] APIM Standard v2 module with Healthcare MCP APIs
+- [x] Private endpoints and DNS zones module
+- [x] Function Apps module for MCP servers (6x)
+- [x] AI Foundry module with model deployments
+- [x] Dependent resources (Storage, AI Search, Cosmos DB, App Insights)
+- [x] Main orchestration template
+- [x] Updated Jupyter notebook for deployment walkthrough
+
+#### Files Created
+```
+deploy/infra/
+├── main.bicep                     # Main orchestration template
+├── main.bicepparam                # Parameter file
+└── modules/
+    ├── vnet.bicep                 # VNet with 4 subnets
+    ├── apim.bicep                 # APIM Standard v2 + MCP APIs
+    ├── private-endpoints.bicep    # Private endpoints + DNS zones
+    ├── function-apps.bicep        # 6 Function Apps for MCP servers
+    ├── ai-foundry.bicep           # AI Services + Project
+    └── dependent-resources.bicep  # Storage, Search, Cosmos, Insights
+
+deploy/
+└── deploy-healthcare-mcp.ipynb    # Deployment notebook (updated)
+```
+
+#### Network Architecture
+```
+VNet: 192.168.0.0/16
+├── agent-subnet (192.168.0.0/24)    - AI Foundry agents (Container Apps)
+├── pe-subnet (192.168.1.0/24)       - Private endpoints for all services
+├── apim-subnet (192.168.2.0/24)     - APIM Standard v2
+└── function-subnet (192.168.3.0/24) - Function Apps (MCP servers)
+```
+
+#### Private Endpoints Configured
+| Service | Group ID | DNS Zone |
+|---------|----------|----------|
+| AI Services | account | privatelink.services.ai.azure.com |
+| AI Search | searchService | privatelink.search.windows.net |
+| Storage | blob | privatelink.blob.core.windows.net |
+| Cosmos DB | Sql | privatelink.documents.azure.com |
+| APIM | Gateway | privatelink.azure-api.net |
+| Function Apps | sites | privatelink.azurewebsites.net |
 
 ---
 

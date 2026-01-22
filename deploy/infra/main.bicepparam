@@ -1,0 +1,68 @@
+using 'main.bicep'
+
+// Healthcare MCP Infrastructure Parameters
+
+// Required: Azure region (must support AI Services and APIM Standard v2)
+param location = 'eastus2'
+
+// Required: Base name for all resources (3-15 characters, alphanumeric and hyphens)
+param baseName = 'healthcaremcp'
+
+// Required: APIM publisher email (used for notifications)
+param apimPublisherEmail = 'jinle@microsoft.com'
+
+// APIM publisher organization name
+param apimPublisherName = 'Healthcare MCP Platform'
+
+// APIM SKU - Standard v2 for Foundry agents, Premium for advanced features
+param apimSku = 'StandardV2'
+
+// VNet address space (must be /16 or larger) - must match subnet prefixes in vnet module
+param vnetAddressPrefix = '192.168.0.0/16'
+
+// Enable public network access for development (set to false for production)
+param enablePublicAccess = false
+
+// Optional: Override Cosmos DB region if primary region has capacity issues
+// Recommended regions with good Cosmos DB availability:
+//   - 'westus2'        - West US 2 (typically best availability)
+//   - 'westeurope'     - West Europe
+//   - 'northeurope'    - North Europe  
+//   - 'southeastasia'  - Southeast Asia
+//   - 'australiaeast'  - Australia East
+//   - 'canadacentral'  - Canada Central
+//   - 'uksouth'        - UK South
+//   - 'japaneast'      - Japan East
+//   - 'brazilsouth'    - Brazil South
+// Leave empty ('') to use the same region as other resources
+param cosmosDbLocation = 'westus2'
+
+// AI Model deployments
+param modelDeployments = [
+  {
+    name: 'gpt-4o'
+    model: 'gpt-4o'
+    version: '2024-08-06'
+    capacity: 10
+  }
+  {
+    name: 'gpt-4o-mini'
+    model: 'gpt-4o-mini'
+    version: '2024-07-18'
+    capacity: 10
+  }
+  {
+    name: 'text-embedding-3-large'
+    model: 'text-embedding-3-large'
+    version: '1'
+    capacity: 10
+  }
+]
+
+// Resource tags
+param tags = {
+  project: 'healthcare-mcp'
+  environment: 'production'
+  managedBy: 'bicep'
+  costCenter: 'healthcare-it'
+}
