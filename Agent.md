@@ -71,6 +71,54 @@ vscode-extension/
 | bd-001-init | Initial project scaffold | ✅ Complete | 2026-01-21 |
 | bd-002-apim | Anthropic parity + APIM architecture | ✅ Complete | 2026-01-21 |
 | bd-003-iac | Production IaC with private networking | ✅ Complete | 2026-01-21 |
+| bd-004-retrieval | Retrieval architecture + Anthropic parity completion | ✅ Complete | 2026-01-21 |
+
+---
+
+### Bead: `bd-004-retrieval`
+**Status**: ✅ Complete  
+**Description**: Retrieval architecture decision (Azure AI Search + Cosmos DB hybrid) and Anthropic healthcare parity completion
+
+#### Changes Tracked
+- [x] Retrieval architecture decision document (AI Search vs Cosmos DB)
+- [x] MCP tools reference document for prior-auth skill
+- [x] FHIR project scaffold script (Anthropic parity)
+- [x] Gap analysis: Azure project exceeds Anthropic (4 skills vs 3, 6 MCP servers vs 4)
+
+#### Files Created
+```
+docs/architecture/
+└── RETRIEVAL-ARCHITECTURE.md      # Hybrid retrieval architecture decision
+
+.github/skills/prior-auth-azure/references/
+└── tools.md                       # MCP tools reference for prior auth
+
+.github/skills/azure-fhir-developer/scripts/
+└── setup_fhir_project.py          # FastAPI project scaffold script
+```
+
+#### Architecture Decision Summary
+
+| Data Type | Service | Rationale |
+|-----------|---------|-----------|
+| CMS Policies | Cosmos DB | Structured docs, point reads, ACID |
+| Provider Cache | Cosmos DB | TTL-based caching, fast lookups |
+| Audit Logs | Cosmos DB | Transactional writes, compliance |
+| Clinical Guidelines | AI Search | Semantic/vector search, RAG |
+| PubMed Literature | AI Search | Full-text + hybrid retrieval |
+| Protocol Templates | AI Search + Blob | Large docs with semantic index |
+
+#### Anthropic Parity Status
+
+| Component | Anthropic | Azure | Status |
+|-----------|-----------|-------|--------|
+| Skills | 3 | 4 | ✅ Exceeds |
+| MCP Servers | 4 | 6 | ✅ Exceeds |
+| Plugin Manifest | ✅ | ✅ | ✅ Match |
+| Sample Data | ✅ | ✅ | ✅ Match |
+| Decision Rubric | ✅ | ✅ | ✅ Match |
+| Tools Reference | ✅ | ✅ | ✅ Match |
+| Setup Scripts | ✅ | ✅ | ✅ Match |
 
 ---
 

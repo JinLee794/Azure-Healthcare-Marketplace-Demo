@@ -146,8 +146,8 @@ module aiFoundry 'modules/ai-foundry.bicep' = {
   name: 'ai-foundry-deployment'
   params: {
     location: location
-    aiServicesName: '${baseName}-aiservices'
-    aiProjectName: '${baseName}-aiproject'
+    aiServicesName: '${baseName}-aiservices-${uniqueSuffix}'
+    aiProjectName: '${baseName}-aiproject-${uniqueSuffix}'
     agentSubnetId: vnet.outputs.agentSubnetId
     storageAccountId: dependentResources.outputs.storageAccountId
     aiSearchId: dependentResources.outputs.aiSearchId
@@ -164,6 +164,7 @@ module functionApps 'modules/function-apps.bicep' = {
     location: location
     baseName: baseName
     functionSubnetId: vnet.outputs.functionSubnetId
+    apimSubnetId: vnet.outputs.apimSubnetId
     storageAccountId: dependentResources.outputs.storageAccountId
     storageAccountName: dependentResources.outputs.storageAccountName
     appInsightsInstrumentationKey: dependentResources.outputs.appInsightsInstrumentationKey
@@ -177,15 +178,17 @@ module apim 'modules/apim.bicep' = {
   name: 'apim-deployment'
   params: {
     location: location
-    apimName: '${baseName}-apim'
+    apimName: '${baseName}-apim-${uniqueSuffix}'
     publisherEmail: apimPublisherEmail
     publisherName: apimPublisherName
     skuName: apimSku
     vnetId: vnet.outputs.vnetId
     apimSubnetId: vnet.outputs.apimSubnetId
+    functionAppBaseName: baseName
     publicNetworkAccess: enablePublicAccess ? 'Enabled' : 'Enabled' // APIM needs external access for gateway
     tags: tags
   }
+  dependsOn: [functionApps]  // Ensure Function Apps exist before configuring backends
 }
 
 // 6. Private Endpoints for all services
@@ -280,3 +283,28 @@ output cosmosDbId string = dependentResources.outputs.cosmosDbId
 output cosmosDbEndpoint string = dependentResources.outputs.cosmosDbEndpoint
 output appInsightsId string = dependentResources.outputs.appInsightsId
 output appInsightsConnectionString string = dependentResources.outputs.appInsightsConnectionString
+
+// ============================================================================
+// AZD-SPECIFIC OUTPUTS
+// These outputs are used by Azure Developer CLI for service discovery
+// Format: SERVICE_<service-name-upper>_<property>
+// ============================================================================
+
+// APIM Gateway URL for MCP endpoints
+output SERVICE_APIM_GATEWAY_URL string = apim.outputs.apimGatewayUrl
+
+// AI Services endpoint
+output SERVICE_AI_SERVICES_ENDPOINT string = aiFoundry.outputs.aiServicesEndpoint
+
+// Resource Group name (for azd)
+output AZURE_RESOURCE_GROUP string = resourceGroup().name
+
+// Function App resource names for azd service mapping
+// Note: azd uses these to find the target resources for deployment
+// Output names must match: SERVICE_<service-name-with-underscores>_RESOURCE_NAME
+output SERVICE_NPI_LOOKUP_RESOURCE_NAME string = functionApps.outputs.functionAppNames[0]
+output SERVICE_ICD10_VALIDATION_RESOURCE_NAME string = functionApps.outputs.functionAppNames[1]
+output SERVICE_CMS_COVERAGE_RESOURCE_NAME string = functionApps.outputs.functionAppNames[2]
+output SERVICE_FHIR_OPERATIONS_RESOURCE_NAME string = functionApps.outputs.functionAppNames[3]
+output SERVICE_PUBMED_RESOURCE_NAME string = functionApps.outputs.functionAppNames[4]
+output SERVICE_CLINICAL_TRIALS_RESOURCE_NAME string = functionApps.outputs.functionAppNames[5]

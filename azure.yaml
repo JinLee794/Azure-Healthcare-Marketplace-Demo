@@ -1,0 +1,90 @@
+# Azure Developer CLI (azd) configuration for Healthcare MCP Platform
+# Deploys infrastructure and MCP server Function Apps
+name: healthcare-mcp
+
+metadata:
+  template: healthcare-mcp@1.0.0
+
+# Infrastructure configuration
+infra:
+  provider: bicep
+  path: deploy/infra
+  module: main
+
+# Service definitions - each MCP server is a separate Function App
+# Resource names are output from Bicep deployment
+services:
+  npi-lookup:
+    project: ./src/mcp-servers/npi-lookup
+    host: function
+    language: python
+    
+  icd10-validation:
+    project: ./src/mcp-servers/icd10-validation
+    host: function
+    language: python
+    
+  cms-coverage:
+    project: ./src/mcp-servers/cms-coverage
+    host: function
+    language: python
+    
+  fhir-operations:
+    project: ./src/mcp-servers/fhir-operations
+    host: function
+    language: python
+    
+  pubmed:
+    project: ./src/mcp-servers/pubmed
+    host: function
+    language: python
+    
+  clinical-trials:
+    project: ./src/mcp-servers/clinical-trials
+    host: function
+    language: python
+
+# Pipeline configuration for CI/CD
+pipeline:
+  provider: github
+
+# Hooks for custom deployment steps
+hooks:
+  preprovision:
+    shell: sh
+    run: |
+      echo "=========================================="
+      echo "Healthcare MCP Platform - Infrastructure"
+      echo "=========================================="
+      echo "Environment: ${AZURE_ENV_NAME}"
+      echo "Location: ${AZURE_LOCATION}"
+      echo ""
+    
+  postprovision:
+    shell: sh
+    run: |
+      echo "=========================================="
+      echo "Infrastructure deployed successfully!"
+      echo "=========================================="
+      echo ""
+      echo "APIM Gateway URL: ${SERVICE_APIM_GATEWAY_URL}"
+      echo "AI Services Endpoint: ${SERVICE_AI_SERVICES_ENDPOINT}"
+      echo ""
+      echo "MCP Server Endpoints (via APIM):"
+      echo "  - NPI Lookup:       ${SERVICE_APIM_GATEWAY_URL}/mcp/npi"
+      echo "  - ICD-10 Validation: ${SERVICE_APIM_GATEWAY_URL}/mcp/icd10"
+      echo "  - CMS Coverage:     ${SERVICE_APIM_GATEWAY_URL}/mcp/cms"
+      echo "  - FHIR Operations:  ${SERVICE_APIM_GATEWAY_URL}/mcp/fhir"
+      echo "  - PubMed:           ${SERVICE_APIM_GATEWAY_URL}/mcp/pubmed"
+      echo "  - Clinical Trials:  ${SERVICE_APIM_GATEWAY_URL}/mcp/clinical-trials"
+      echo ""
+      
+  predeploy:
+    shell: sh
+    run: |
+      echo "Deploying MCP servers to Azure Function Apps..."
+      
+  postdeploy:
+    shell: sh
+    run: ./scripts/postdeploy.sh
+    continueOnError: true

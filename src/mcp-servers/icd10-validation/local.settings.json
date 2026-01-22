@@ -1,0 +1,9 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "MCP_SERVER_NAME": "icd10-validation",
+    "MCP_PROTOCOL_VERSION": "2024-11-05"
+  }
+}

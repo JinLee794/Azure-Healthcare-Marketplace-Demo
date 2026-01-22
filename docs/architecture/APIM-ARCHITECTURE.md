@@ -348,3 +348,155 @@ ApiManagementGatewayLogs
 3. [ ] Configure OAuth 2.0 with Microsoft Entra ID
 4. [ ] Set up monitoring dashboards
 5. [ ] Document authentication flow for consumers
+
+---
+
+## APIM MCP Server Configuration (Post-Deployment)
+
+After deploying the infrastructure with `azd provision` and `azd deploy`, you need to configure the MCP servers in APIM. 
+
+### Option 1: Automated Setup Script (Recommended)
+
+The repository includes automated scripts that run after `azd deploy`:
+
+```bash
+# Scripts are run automatically via azd postdeploy hook
+# Or run manually:
+cd scripts
+pip install -r requirements.txt
+python setup_mcp_servers.py
+
+# Or use the bash script:
+./setup-mcp-servers.sh
+```
+
+The scripts will:
+1. Create APIM backends for each Function App
+2. Create MCP-compatible APIs with proper operations
+3. Apply MCP policies (CORS, headers, error handling)
+4. Add APIs to the healthcare-mcp product
+5. Generate VS Code `.vscode/mcp.json` configuration
+
+### Option 2: Azure Portal (Manual)
+
+For each MCP server (npi-lookup, icd10-validation, cms-coverage, fhir-operations, pubmed, clinical-trials):
+
+1. **Navigate to APIM** in the Azure Portal
+2. Go to **APIs** > **MCP Servers** > **+ Create MCP server**
+3. Select **Expose an existing MCP server**
+4. Configure the backend:
+
+   | Server | Backend MCP Server URL |
+   |--------|------------------------|
+   | NPI Lookup | `https://{base}-npi-lookup-func.azurewebsites.net/api/mcp` |
+   | ICD-10 Validation | `https://{base}-icd10-validation-func.azurewebsites.net/api/mcp` |
+   | CMS Coverage | `https://{base}-cms-coverage-func.azurewebsites.net/api/mcp` |
+   | FHIR Operations | `https://{base}-fhir-operations-func.azurewebsites.net/api/mcp` |
+   | PubMed | `https://{base}-pubmed-func.azurewebsites.net/api/mcp` |
+   | Clinical Trials | `https://{base}-clinical-trials-func.azurewebsites.net/api/mcp` |
+
+5. Set **Transport type** to **Streamable HTTP**
+6. Configure the MCP server name and base path (e.g., `npi-lookup-mcp`, path: `mcp/npi`)
+7. Click **Create**
+
+### Prerequisites
+
+- MCP servers deployed and running (Azure Functions)
+- MCP Protocol version `2025-06-18` (required by APIM)
+- Streamable HTTP transport on `/mcp` endpoint
+
+### VS Code MCP Configuration
+
+After registration, add to `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "healthcare-npi": {
+      "type": "http",
+      "url": "https://{apim-name}.azure-api.net/npi-lookup-mcp/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimSubscriptionKey}"
+      }
+    },
+    "healthcare-icd10": {
+      "type": "http", 
+      "url": "https://{apim-name}.azure-api.net/icd10-validation-mcp/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimSubscriptionKey}"
+      }
+    },
+    "healthcare-cms": {
+      "type": "http",
+      "url": "https://{apim-name}.azure-api.net/cms-coverage-mcp/mcp", 
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimSubscriptionKey}"
+      }
+    },
+    "healthcare-fhir": {
+      "type": "http",
+      "url": "https://{apim-name}.azure-api.net/fhir-operations-mcp/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimSubscriptionKey}"
+      }
+    },
+    "healthcare-pubmed": {
+      "type": "http",
+      "url": "https://{apim-name}.azure-api.net/pubmed-mcp/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimSubscriptionKey}"
+      }
+    },
+    "healthcare-clinical-trials": {
+      "type": "http",
+      "url": "https://{apim-name}.azure-api.net/clinical-trials-mcp/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimSubscriptionKey}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "id": "apimSubscriptionKey",
+      "type": "promptString",
+      "description": "APIM Subscription Key for Healthcare MCP APIs",
+      "password": true
+    }
+  ]
+}
+```
+
+### Alternative: Direct Function App Access (Development)
+
+For development without APIM, you can connect directly to the Function Apps:
+
+```json
+{
+  "servers": {
+    "healthcare-npi-direct": {
+      "type": "http",
+      "url": "https://{base}-npi-lookup-func.azurewebsites.net/api/mcp"
+    }
+  }
+}
+```
+
+> **Note**: Direct access bypasses APIM policies (rate limiting, authentication). Only use for development.
+
+### Verifying MCP Server Registration
+
+Test with curl:
+
+```bash
+# List available tools
+curl -X POST "https://{apim-name}.azure-api.net/npi-lookup-mcp/mcp" \
+  -H "Content-Type: application/json" \
+  -H "Ocp-Apim-Subscription-Key: {key}" \
+  -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
+
+# Call a tool
+curl -X POST "https://{apim-name}.azure-api.net/npi-lookup-mcp/mcp" \
+  -H "Content-Type: application/json" \
+  -H "Ocp-Apim-Subscription-Key: {key}" \
+  -d '{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "lookup_npi", "arguments": {"npi": "1234567890"}}, "id": 2}'
+```

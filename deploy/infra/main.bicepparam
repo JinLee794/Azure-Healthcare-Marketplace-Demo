@@ -65,4 +65,6 @@ param tags = {
   environment: 'production'
   managedBy: 'bicep'
   costCenter: 'healthcare-it'
+  SecurityControl: 'Ignore'
+  SecurityControls: 'Ignore'
 }

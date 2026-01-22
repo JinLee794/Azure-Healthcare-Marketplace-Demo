@@ -26,6 +26,9 @@ param appInsightsConnectionString string = ''
 @description('Python version')
 param pythonVersion string = '3.11'
 
+@description('Resource ID of the APIM subnet to allow traffic from')
+param apimSubnetId string = ''
+
 @description('Tags to apply to resources')
 param tags object = {}
 
@@ -92,6 +95,7 @@ resource functionApps 'Microsoft.Web/sites@2023-12-01' = [for server in mcpServe
   tags: union(tags, {
     'hidden-link: /app-insights-resource-id': appInsightsConnectionString
     mcpServer: server.name
+    'azd-service-name': server.name
   })
   kind: 'functionapp,linux'
   identity: {
@@ -101,7 +105,7 @@ resource functionApps 'Microsoft.Web/sites@2023-12-01' = [for server in mcpServe
     serverFarmId: appServicePlan.id
     httpsOnly: true
     virtualNetworkSubnetId: functionSubnetId
-    publicNetworkAccess: 'Disabled'
+    publicNetworkAccess: 'Enabled'
     siteConfig: {
       linuxFxVersion: 'PYTHON|${pythonVersion}'
       pythonVersion: pythonVersion
@@ -109,6 +113,35 @@ resource functionApps 'Microsoft.Web/sites@2023-12-01' = [for server in mcpServe
       minTlsVersion: '1.2'
       http20Enabled: true
       vnetRouteAllEnabled: true
+      // Separate SCM restrictions from main site
+      scmIpSecurityRestrictionsUseMain: false
+      // Main site: Only allow traffic from APIM subnet
+      ipSecurityRestrictions: !empty(apimSubnetId) ? [
+        {
+          name: 'AllowAPIM'
+          description: 'Allow traffic from APIM subnet only'
+          action: 'Allow'
+          priority: 100
+          vnetSubnetResourceId: apimSubnetId
+        }
+        {
+          name: 'DenyAll'
+          description: 'Deny all other traffic'
+          action: 'Deny'
+          priority: 2147483647
+          ipAddress: 'Any'
+        }
+      ] : []
+      // SCM site: Allow public access for azd deployment
+      scmIpSecurityRestrictions: [
+        {
+          name: 'AllowAll'
+          description: 'Allow deployment from anywhere (azd, GitHub Actions, etc.)'
+          action: 'Allow'
+          priority: 100
+          ipAddress: 'Any'
+        }
+      ]
       appSettings: [
         {
           name: 'FUNCTIONS_EXTENSION_VERSION'

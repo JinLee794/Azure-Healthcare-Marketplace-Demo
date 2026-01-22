@@ -85,9 +85,12 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
   }
 }
 
-// AI Search
+// Unique suffix for globally unique resource names
+var uniqueSuffix = uniqueString(resourceGroup().id)
+
+// AI Search - name must be globally unique
 resource aiSearch 'Microsoft.Search/searchServices@2024-06-01-preview' = {
-  name: '${baseName}-search'
+  name: '${baseName}-search-${uniqueSuffix}'
   location: location
   tags: tags
   sku: {
@@ -111,11 +114,11 @@ resource aiSearch 'Microsoft.Search/searchServices@2024-06-01-preview' = {
   }
 }
 
-// Cosmos DB Account
+// Cosmos DB Account - name must be globally unique
 // Note: cosmosDbLocation allows deploying to a different region if primary has capacity issues
 // Zone redundancy disabled by default for better availability (demo/dev scenarios)
 resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
-  name: '${baseName}-cosmos'
+  name: '${baseName}-cosmos-${uniqueSuffix}'
   location: cosmosDbLocation
   tags: tags
   kind: 'GlobalDocumentDB'

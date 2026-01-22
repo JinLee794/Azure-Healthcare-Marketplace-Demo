@@ -35,6 +35,9 @@ param apimSubnetId string
 @description('Enable public network access')
 param publicNetworkAccess string = 'Enabled'
 
+@description('Base name for Function App backends')
+param functionAppBaseName string = ''
+
 @description('Tags to apply to resources')
 param tags object = {}
 
@@ -85,7 +88,101 @@ resource namedValueMcpVersion 'Microsoft.ApiManagement/service/namedValues@2023-
   name: 'mcp-protocol-version'
   properties: {
     displayName: 'mcp-protocol-version'
-    value: '2024-11-05'
+    value: '2025-06-18'
+  }
+}
+
+// ============================================================================
+// Backend Configuration - Route to Function Apps
+// ============================================================================
+
+resource npiBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
+  parent: apim
+  name: 'npi-lookup-backend'
+  properties: {
+    title: 'NPI Lookup Function App'
+    description: 'Backend for NPI Lookup MCP Server'
+    url: 'https://${functionAppBaseName}-npi-lookup-func.azurewebsites.net/api'
+    protocol: 'http'
+    tls: {
+      validateCertificateChain: true
+      validateCertificateName: true
+    }
+  }
+}
+
+resource icd10Backend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
+  parent: apim
+  name: 'icd10-validation-backend'
+  properties: {
+    title: 'ICD-10 Validation Function App'
+    description: 'Backend for ICD-10 Validation MCP Server'
+    url: 'https://${functionAppBaseName}-icd10-validation-func.azurewebsites.net/api'
+    protocol: 'http'
+    tls: {
+      validateCertificateChain: true
+      validateCertificateName: true
+    }
+  }
+}
+
+resource cmsBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
+  parent: apim
+  name: 'cms-coverage-backend'
+  properties: {
+    title: 'CMS Coverage Function App'
+    description: 'Backend for CMS Coverage MCP Server'
+    url: 'https://${functionAppBaseName}-cms-coverage-func.azurewebsites.net/api'
+    protocol: 'http'
+    tls: {
+      validateCertificateChain: true
+      validateCertificateName: true
+    }
+  }
+}
+
+resource fhirBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
+  parent: apim
+  name: 'fhir-operations-backend'
+  properties: {
+    title: 'FHIR Operations Function App'
+    description: 'Backend for FHIR Operations MCP Server'
+    url: 'https://${functionAppBaseName}-fhir-operations-func.azurewebsites.net/api'
+    protocol: 'http'
+    tls: {
+      validateCertificateChain: true
+      validateCertificateName: true
+    }
+  }
+}
+
+resource pubmedBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
+  parent: apim
+  name: 'pubmed-backend'
+  properties: {
+    title: 'PubMed Function App'
+    description: 'Backend for PubMed MCP Server'
+    url: 'https://${functionAppBaseName}-pubmed-func.azurewebsites.net/api'
+    protocol: 'http'
+    tls: {
+      validateCertificateChain: true
+      validateCertificateName: true
+    }
+  }
+}
+
+resource clinicalTrialsBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
+  parent: apim
+  name: 'clinical-trials-backend'
+  properties: {
+    title: 'Clinical Trials Function App'
+    description: 'Backend for Clinical Trials MCP Server'
+    url: 'https://${functionAppBaseName}-clinical-trials-func.azurewebsites.net/api'
+    protocol: 'http'
+    tls: {
+      validateCertificateChain: true
+      validateCertificateName: true
+    }
   }
 }
 
@@ -229,10 +326,463 @@ resource clinicalTrialsApiProductLink 'Microsoft.ApiManagement/service/products/
   name: clinicalTrialsApi.name
 }
 
-// Global policy for MCP protocol handling
-resource globalPolicy 'Microsoft.ApiManagement/service/policies@2023-09-01-preview' = {
-  parent: apim
+// ============================================================================
+// MCP Discovery Operations (/.well-known/mcp)
+// Each MCP server exposes discovery endpoint for Foundry agent integration
+// ============================================================================
+
+resource npiDiscoveryOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: npiApi
+  name: 'mcp-discovery'
+  properties: {
+    displayName: 'MCP Discovery'
+    method: 'GET'
+    urlTemplate: '/.well-known/mcp'
+    description: 'Returns MCP server capabilities and tool definitions for NPI Lookup'
+    responses: [
+      {
+        statusCode: 200
+        description: 'MCP server manifest'
+        representations: [
+          {
+            contentType: 'application/json'
+          }
+        ]
+      }
+    ]
+  }
+}
+
+resource icd10DiscoveryOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: icd10Api
+  name: 'mcp-discovery'
+  properties: {
+    displayName: 'MCP Discovery'
+    method: 'GET'
+    urlTemplate: '/.well-known/mcp'
+    description: 'Returns MCP server capabilities and tool definitions for ICD-10 Validation'
+    responses: [
+      {
+        statusCode: 200
+        description: 'MCP server manifest'
+        representations: [
+          {
+            contentType: 'application/json'
+          }
+        ]
+      }
+    ]
+  }
+}
+
+resource cmsDiscoveryOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: cmsApi
+  name: 'mcp-discovery'
+  properties: {
+    displayName: 'MCP Discovery'
+    method: 'GET'
+    urlTemplate: '/.well-known/mcp'
+    description: 'Returns MCP server capabilities and tool definitions for CMS Coverage'
+    responses: [
+      {
+        statusCode: 200
+        description: 'MCP server manifest'
+        representations: [
+          {
+            contentType: 'application/json'
+          }
+        ]
+      }
+    ]
+  }
+}
+
+resource fhirDiscoveryOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: fhirApi
+  name: 'mcp-discovery'
+  properties: {
+    displayName: 'MCP Discovery'
+    method: 'GET'
+    urlTemplate: '/.well-known/mcp'
+    description: 'Returns MCP server capabilities and tool definitions for FHIR Operations'
+    responses: [
+      {
+        statusCode: 200
+        description: 'MCP server manifest'
+        representations: [
+          {
+            contentType: 'application/json'
+          }
+        ]
+      }
+    ]
+  }
+}
+
+resource pubmedDiscoveryOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: pubmedApi
+  name: 'mcp-discovery'
+  properties: {
+    displayName: 'MCP Discovery'
+    method: 'GET'
+    urlTemplate: '/.well-known/mcp'
+    description: 'Returns MCP server capabilities and tool definitions for PubMed Search'
+    responses: [
+      {
+        statusCode: 200
+        description: 'MCP server manifest'
+        representations: [
+          {
+            contentType: 'application/json'
+          }
+        ]
+      }
+    ]
+  }
+}
+
+resource clinicalTrialsDiscoveryOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: clinicalTrialsApi
+  name: 'mcp-discovery'
+  properties: {
+    displayName: 'MCP Discovery'
+    method: 'GET'
+    urlTemplate: '/.well-known/mcp'
+    description: 'Returns MCP server capabilities and tool definitions for Clinical Trials'
+    responses: [
+      {
+        statusCode: 200
+        description: 'MCP server manifest'
+        representations: [
+          {
+            contentType: 'application/json'
+          }
+        ]
+      }
+    ]
+  }
+}
+
+// ============================================================================
+// MCP Message Operations (POST /mcp)
+// Main endpoint for MCP protocol messages (tools/call, etc.)
+// ============================================================================
+
+resource npiMessageOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: npiApi
+  name: 'mcp-message'
+  properties: {
+    displayName: 'MCP Message'
+    method: 'POST'
+    urlTemplate: '/mcp'
+    description: 'Handle MCP protocol messages for NPI Lookup tools'
+    request: {
+      representations: [
+        {
+          contentType: 'application/json'
+        }
+      ]
+    }
+    responses: [
+      {
+        statusCode: 200
+        description: 'MCP response'
+        representations: [
+          {
+            contentType: 'application/json'
+          }
+        ]
+      }
+    ]
+  }
+}
+
+resource icd10MessageOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: icd10Api
+  name: 'mcp-message'
+  properties: {
+    displayName: 'MCP Message'
+    method: 'POST'
+    urlTemplate: '/mcp'
+    description: 'Handle MCP protocol messages for ICD-10 Validation tools'
+    request: {
+      representations: [
+        {
+          contentType: 'application/json'
+        }
+      ]
+    }
+    responses: [
+      {
+        statusCode: 200
+        description: 'MCP response'
+        representations: [
+          {
+            contentType: 'application/json'
+          }
+        ]
+      }
+    ]
+  }
+}
+
+resource cmsMessageOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: cmsApi
+  name: 'mcp-message'
+  properties: {
+    displayName: 'MCP Message'
+    method: 'POST'
+    urlTemplate: '/mcp'
+    description: 'Handle MCP protocol messages for CMS Coverage tools'
+    request: {
+      representations: [
+        {
+          contentType: 'application/json'
+        }
+      ]
+    }
+    responses: [
+      {
+        statusCode: 200
+        description: 'MCP response'
+        representations: [
+          {
+            contentType: 'application/json'
+          }
+        ]
+      }
+    ]
+  }
+}
+
+resource fhirMessageOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: fhirApi
+  name: 'mcp-message'
+  properties: {
+    displayName: 'MCP Message'
+    method: 'POST'
+    urlTemplate: '/mcp'
+    description: 'Handle MCP protocol messages for FHIR Operations tools'
+    request: {
+      representations: [
+        {
+          contentType: 'application/json'
+        }
+      ]
+    }
+    responses: [
+      {
+        statusCode: 200
+        description: 'MCP response'
+        representations: [
+          {
+            contentType: 'application/json'
+          }
+        ]
+      }
+    ]
+  }
+}
+
+resource pubmedMessageOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: pubmedApi
+  name: 'mcp-message'
+  properties: {
+    displayName: 'MCP Message'
+    method: 'POST'
+    urlTemplate: '/mcp'
+    description: 'Handle MCP protocol messages for PubMed Search tools'
+    request: {
+      representations: [
+        {
+          contentType: 'application/json'
+        }
+      ]
+    }
+    responses: [
+      {
+        statusCode: 200
+        description: 'MCP response'
+        representations: [
+          {
+            contentType: 'application/json'
+          }
+        ]
+      }
+    ]
+  }
+}
+
+resource clinicalTrialsMessageOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: clinicalTrialsApi
+  name: 'mcp-message'
+  properties: {
+    displayName: 'MCP Message'
+    method: 'POST'
+    urlTemplate: '/mcp'
+    description: 'Handle MCP protocol messages for Clinical Trials tools'
+    request: {
+      representations: [
+        {
+          contentType: 'application/json'
+        }
+      ]
+    }
+    responses: [
+      {
+        statusCode: 200
+        description: 'MCP response'
+        representations: [
+          {
+            contentType: 'application/json'
+          }
+        ]
+      }
+    ]
+  }
+}
+
+// ============================================================================
+// API-Level Policies - Route to Backend Function Apps
+// ============================================================================
+
+resource npiApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-01-preview' = {
+  parent: npiApi
   name: 'policy'
+  dependsOn: [npiBackend]
+  properties: {
+    format: 'xml'
+    value: '''
+<policies>
+  <inbound>
+    <base />
+    <set-backend-service backend-id="npi-lookup-backend" />
+  </inbound>
+  <backend><base /></backend>
+  <outbound><base /></outbound>
+  <on-error><base /></on-error>
+</policies>
+'''
+  }
+}
+
+resource icd10ApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-01-preview' = {
+  parent: icd10Api
+  name: 'policy'
+  dependsOn: [icd10Backend]
+  properties: {
+    format: 'xml'
+    value: '''
+<policies>
+  <inbound>
+    <base />
+    <set-backend-service backend-id="icd10-validation-backend" />
+  </inbound>
+  <backend><base /></backend>
+  <outbound><base /></outbound>
+  <on-error><base /></on-error>
+</policies>
+'''
+  }
+}
+
+resource cmsApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-01-preview' = {
+  parent: cmsApi
+  name: 'policy'
+  dependsOn: [cmsBackend]
+  properties: {
+    format: 'xml'
+    value: '''
+<policies>
+  <inbound>
+    <base />
+    <set-backend-service backend-id="cms-coverage-backend" />
+  </inbound>
+  <backend><base /></backend>
+  <outbound><base /></outbound>
+  <on-error><base /></on-error>
+</policies>
+'''
+  }
+}
+
+resource fhirApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-01-preview' = {
+  parent: fhirApi
+  name: 'policy'
+  dependsOn: [fhirBackend]
+  properties: {
+    format: 'xml'
+    value: '''
+<policies>
+  <inbound>
+    <base />
+    <set-backend-service backend-id="fhir-operations-backend" />
+  </inbound>
+  <backend><base /></backend>
+  <outbound><base /></outbound>
+  <on-error><base /></on-error>
+</policies>
+'''
+  }
+}
+
+resource pubmedApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-01-preview' = {
+  parent: pubmedApi
+  name: 'policy'
+  dependsOn: [pubmedBackend]
+  properties: {
+    format: 'xml'
+    value: '''
+<policies>
+  <inbound>
+    <base />
+    <set-backend-service backend-id="pubmed-backend" />
+  </inbound>
+  <backend><base /></backend>
+  <outbound><base /></outbound>
+  <on-error><base /></on-error>
+</policies>
+'''
+  }
+}
+
+resource clinicalTrialsApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-01-preview' = {
+  parent: clinicalTrialsApi
+  name: 'policy'
+  dependsOn: [clinicalTrialsBackend]
+  properties: {
+    format: 'xml'
+    value: '''
+<policies>
+  <inbound>
+    <base />
+    <set-backend-service backend-id="clinical-trials-backend" />
+  </inbound>
+  <backend><base /></backend>
+  <outbound><base /></outbound>
+  <on-error><base /></on-error>
+</policies>
+'''
+  }
+}
+
+// ============================================================================
+// Product-Level Policy for Healthcare MCP APIs
+// Applied only to APIs in the healthcare-mcp product, not globally
+// ============================================================================
+
+resource healthcareMcpProductPolicy 'Microsoft.ApiManagement/service/products/policies@2023-09-01-preview' = {
+  parent: healthcareMcpProduct
+  name: 'policy'
+  dependsOn: [
+    namedValueMcpVersion
+    npiApiProductLink
+    icd10ApiProductLink
+    cmsApiProductLink
+    fhirApiProductLink
+    pubmedApiProductLink
+    clinicalTrialsApiProductLink
+  ]
   properties: {
     format: 'xml'
     value: '''
@@ -267,9 +817,28 @@ resource globalPolicy 'Microsoft.ApiManagement/service/policies@2023-09-01-previ
     <set-header name="X-Frame-Options" exists-action="override">
       <value>DENY</value>
     </set-header>
+    <set-header name="Content-Type" exists-action="override">
+      <value>application/json</value>
+    </set-header>
   </outbound>
   <on-error>
     <base />
+    <return-response>
+      <set-status code="500" reason="Internal Server Error" />
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+      </set-header>
+      <set-body>@{
+        return new JObject(
+          new JProperty("jsonrpc", "2.0"),
+          new JProperty("error", new JObject(
+            new JProperty("code", -32603),
+            new JProperty("message", "Internal error processing MCP request")
+          )),
+          new JProperty("id", null)
+        ).ToString();
+      }</set-body>
+    </return-response>
   </on-error>
 </policies>
 '''

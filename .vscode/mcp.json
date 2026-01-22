@@ -1,0 +1,54 @@
+{
+  "servers": {
+    "healthcare-npi-lookup": {
+      "type": "http",
+      "url": "https://healthcaremcp-apim-v4nrndu5paa6o.azure-api.net/mcp/npi-lookup/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimSubscriptionKey}"
+      }
+    },
+    "healthcare-icd10-validation": {
+      "type": "http",
+      "url": "https://healthcaremcp-apim-v4nrndu5paa6o.azure-api.net/mcp/icd10-validation/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimSubscriptionKey}"
+      }
+    },
+    "healthcare-cms-coverage": {
+      "type": "http",
+      "url": "https://healthcaremcp-apim-v4nrndu5paa6o.azure-api.net/mcp/cms-coverage/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimSubscriptionKey}"
+      }
+    },
+    "healthcare-fhir-operations": {
+      "type": "http",
+      "url": "https://healthcaremcp-apim-v4nrndu5paa6o.azure-api.net/mcp/fhir-operations/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimSubscriptionKey}"
+      }
+    },
+    "healthcare-pubmed": {
+      "type": "http",
+      "url": "https://healthcaremcp-apim-v4nrndu5paa6o.azure-api.net/mcp/pubmed/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimSubscriptionKey}"
+      }
+    },
+    "healthcare-clinical-trials": {
+      "type": "http",
+      "url": "https://healthcaremcp-apim-v4nrndu5paa6o.azure-api.net/mcp/clinical-trials/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimSubscriptionKey}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "id": "apimSubscriptionKey",
+      "type": "promptString",
+      "description": "APIM Subscription Key for Healthcare MCP APIs",
+      "password": true
+    }
+  ]
+}
