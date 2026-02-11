@@ -29,6 +29,9 @@ param pythonVersion string = '3.11'
 @description('Resource ID of the APIM subnet to allow traffic from')
 param apimSubnetId string = ''
 
+@description('Log Analytics Workspace resource ID for diagnostic settings')
+param logAnalyticsId string = ''
+
 @description('Tags to apply to resources')
 param tags object = {}
 
@@ -175,8 +178,12 @@ resource functionApps 'Microsoft.Web/sites@2023-12-01' = [for server in mcpServe
           value: '2025-06-18'
         }
         {
-          name: 'WEBSITE_RUN_FROM_PACKAGE'
-          value: '1'
+          name: 'ENABLE_ORYX_BUILD'
+          value: 'true'
+        }
+        {
+          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
+          value: 'true'
         }
         {
           name: 'WEBSITE_VNET_ROUTE_ALL'
@@ -194,6 +201,32 @@ resource functionApps 'Microsoft.Web/sites@2023-12-01' = [for server in mcpServe
         supportCredentials: false
       }
     }
+  }
+}]
+
+// ============================================================================
+// Diagnostic Settings - Send Function App logs to Log Analytics
+// Linux Elastic Premium only supports FunctionAppLogs category
+// App Insights SDK (configured via app settings) captures HTTP/request telemetry
+// ============================================================================
+
+resource functionAppDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = [for (server, i) in mcpServers: if (!empty(logAnalyticsId)) {
+  name: '${server.name}-audit-diagnostics'
+  scope: functionApps[i]
+  properties: {
+    workspaceId: logAnalyticsId
+    logs: [
+      {
+        category: 'FunctionAppLogs'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
   }
 }]
 

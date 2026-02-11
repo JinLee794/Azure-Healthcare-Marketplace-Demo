@@ -1,0 +1,48 @@
+<!--
+    Lightweight passthrough policy for debugging APIM → Function App connectivity.
+    NO OAuth. NO PRM. Just backend routing with function key auth + tracing.
+    
+    Uses APIM subscription key for front-door security.
+    Injects x-functions-key for backend auth.
+    Rewrites /mcp/{server}/mcp → /mcp on the backend.
+-->
+<policies>
+    <inbound>
+        <base />
+        <!-- Trace for debugging -->
+        <trace source="mcp-passthrough" severity="information">
+            <message>@($"Inbound: Method={context.Request.Method}, Path={context.Request.Url.Path}, OriginalUrl={context.Request.OriginalUrl.ToString()}")</message>
+        </trace>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+        <!-- Trace outbound for debugging -->
+        <trace source="mcp-passthrough" severity="information">
+            <message>@($"Outbound: StatusCode={context.Response.StatusCode}, BackendUrl={context.Request.Url.ToString()}")</message>
+        </trace>
+    </outbound>
+    <on-error>
+        <base />
+        <trace source="mcp-passthrough" severity="error">
+            <message>@($"Error: {context.LastError?.Message ?? "unknown"}, Source={context.LastError?.Source ?? "unknown"}")</message>
+        </trace>
+        <return-response>
+            <set-status code="502" reason="Backend Error" />
+            <set-header name="Content-Type" exists-action="override">
+                <value>application/json</value>
+            </set-header>
+            <set-body>@{
+                return new JObject(
+                    new JProperty("error", "Backend connectivity failure"),
+                    new JProperty("detail", context.LastError?.Message ?? "unknown"),
+                    new JProperty("source", context.LastError?.Source ?? "unknown"),
+                    new JProperty("reason", context.LastError?.Reason ?? "unknown"),
+                    new JProperty("backendUrl", context.Request.Url?.ToString() ?? "unknown")
+                ).ToString();
+            }</set-body>
+        </return-response>
+    </on-error>
+</policies>

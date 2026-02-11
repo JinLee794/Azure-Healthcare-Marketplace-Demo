@@ -201,6 +201,9 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
             {
               service: 'Microsoft.KeyVault'
             }
+            {
+              service: 'Microsoft.Web'
+            }
           ]
         }
       }

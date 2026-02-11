@@ -191,7 +191,7 @@ resource mcpSessionContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases
   }
 }
 
-// Application Insights
+// Application Insights (workspace-based)
 resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: '${baseName}-insights'
   location: location
@@ -199,6 +199,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   kind: 'web'
   properties: {
     Application_Type: 'web'
+    WorkspaceResourceId: logAnalytics.id
     publicNetworkAccessForIngestion: 'Enabled'
     publicNetworkAccessForQuery: 'Enabled'
     RetentionInDays: 90

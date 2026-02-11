@@ -38,6 +38,15 @@ param publicNetworkAccess string = 'Enabled'
 @description('Base name for Function App backends')
 param functionAppBaseName string = ''
 
+@description('Application Insights resource ID')
+param appInsightsId string = ''
+
+@description('Application Insights Instrumentation Key')
+param appInsightsInstrumentationKey string = ''
+
+@description('Log Analytics Workspace resource ID for diagnostic settings')
+param logAnalyticsId string = ''
+
 @description('Tags to apply to resources')
 param tags object = {}
 
@@ -192,6 +201,91 @@ resource clinicalTrialsBackend 'Microsoft.ApiManagement/service/backends@2023-09
 // This module only creates APIM service, backends, and base product configuration
 // The OAuth module adds proper token validation and function key authentication
 // ============================================================================
+
+// ============================================================================
+// Application Insights Logger for APIM
+// Enables request/response telemetry and audit traceability
+// ============================================================================
+
+resource apimLogger 'Microsoft.ApiManagement/service/loggers@2023-09-01-preview' = if (!empty(appInsightsInstrumentationKey)) {
+  parent: apim
+  name: 'appinsights-logger'
+  properties: {
+    loggerType: 'applicationInsights'
+    description: 'Application Insights logger for audit traceability'
+    credentials: {
+      instrumentationKey: appInsightsInstrumentationKey
+    }
+    resourceId: appInsightsId
+  }
+}
+
+// Enable Application Insights diagnostics on all APIM APIs
+resource apimDiagnosticsAppInsights 'Microsoft.ApiManagement/service/diagnostics@2023-09-01-preview' = if (!empty(appInsightsInstrumentationKey)) {
+  parent: apim
+  name: 'applicationinsights'
+  properties: {
+    alwaysLog: 'allErrors'
+    loggerId: apimLogger.id
+    logClientIp: true
+    httpCorrelationProtocol: 'W3C'
+    verbosity: 'information'
+    operationNameFormat: 'Url'
+    sampling: {
+      samplingType: 'fixed'
+      percentage: 100
+    }
+    frontend: {
+      request: {
+        headers: ['Authorization', 'Content-Type', 'X-Forwarded-For']
+        body: { bytes: 8192 }
+      }
+      response: {
+        headers: ['Content-Type', 'WWW-Authenticate']
+        body: { bytes: 8192 }
+      }
+    }
+    backend: {
+      request: {
+        headers: ['Content-Type']
+        body: { bytes: 8192 }
+      }
+      response: {
+        headers: ['Content-Type']
+        body: { bytes: 8192 }
+      }
+    }
+  }
+}
+
+// ============================================================================
+// Diagnostic Settings - Send APIM platform logs to Log Analytics
+// Provides audit trail for gateway events, management operations, and WebSocket logs
+// ============================================================================
+
+resource apimDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (!empty(logAnalyticsId)) {
+  name: 'apim-audit-diagnostics'
+  scope: apim
+  properties: {
+    workspaceId: logAnalyticsId
+    logs: [
+      {
+        categoryGroup: 'audit'
+        enabled: true
+      }
+      {
+        categoryGroup: 'allLogs'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
+  }
+}
 
 output apimId string = apim.id
 output apimName string = apim.name

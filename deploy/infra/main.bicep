@@ -176,6 +176,7 @@ module functionApps 'modules/function-apps.bicep' = {
     storageAccountName: dependentResources.outputs.storageAccountName
     appInsightsInstrumentationKey: dependentResources.outputs.appInsightsInstrumentationKey
     appInsightsConnectionString: dependentResources.outputs.appInsightsConnectionString
+    logAnalyticsId: dependentResources.outputs.logAnalyticsId
     tags: tags
   }
 }
@@ -192,6 +193,9 @@ module apim 'modules/apim.bicep' = {
     vnetId: vnet.outputs.vnetId
     apimSubnetId: vnet.outputs.apimSubnetId
     functionAppBaseName: baseName
+    appInsightsId: dependentResources.outputs.appInsightsId
+    appInsightsInstrumentationKey: dependentResources.outputs.appInsightsInstrumentationKey
+    logAnalyticsId: dependentResources.outputs.logAnalyticsId
     publicNetworkAccess: enablePublicAccess ? 'Enabled' : 'Enabled' // APIM needs external access for gateway
     tags: tags
   }
@@ -229,6 +233,16 @@ module apimMcpOAuth 'modules/apim-mcp-oauth.bicep' = {
     functionAppBaseName: baseName
   }
   dependsOn: [functionApps]  // Ensure Function Apps exist for host key retrieval
+}
+
+// 8b. APIM MCP Passthrough (Lightweight debug - no OAuth, subscription key only)
+module apimMcpPassthrough 'modules/apim-mcp-passthrough.bicep' = {
+  name: 'apim-mcp-passthrough-deployment'
+  params: {
+    apimServiceName: apim.outputs.apimName
+    functionAppBaseName: baseName
+  }
+  dependsOn: [functionApps]
 }
 
 // 9. Private Endpoints for all services
@@ -309,6 +323,9 @@ output mcpTenantId string = mcpEntraApp.outputs.mcpAppTenantId
 output mcpPrmEndpoint string = apimMcpOAuth.outputs.prmEndpoint
 output mcpIdentityId string = mcpUserIdentity.outputs.identityId
 output mcpIdentityClientId string = mcpUserIdentity.outputs.identityClientId
+
+// MCP Passthrough (Debug)
+output mcpPassthroughApiPath string = apimMcpPassthrough.outputs.passthroughApiPath
 
 // AI Foundry
 output aiServicesId string = aiFoundry.outputs.aiServicesId

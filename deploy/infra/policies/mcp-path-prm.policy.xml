@@ -1,0 +1,78 @@
+<!--
+    Azure API Management Policy for Path-Based Protected Resource Metadata (RFC 9728)
+    
+    Per RFC 9728 Section 3.1, for a protected resource at:
+      https://example.com/mcp/npi/mcp
+    The PRM discovery URL is:
+      https://example.com/.well-known/oauth-protected-resource/mcp/npi/mcp
+    
+    This policy extracts the resource path from the operation's URL template
+    and constructs the correct 'resource' property value.
+    
+    Note: Authentication is disabled for this endpoint to allow anonymous access
+    as per RFC 9728 requirements.
+-->
+<policies>
+    <inbound>
+        <!-- Return Protected Resource Metadata according to RFC 9728 -->
+        <return-response>
+            <set-status code="200" reason="OK" />
+            <set-header name="Content-Type" exists-action="override">
+                <value>application/json</value>
+            </set-header>
+            <set-header name="Cache-Control" exists-action="override">
+                <value>public, max-age=3600</value>
+            </set-header>
+            <set-body>@{
+                var gatewayUrl = "{{APIMGatewayURL}}".TrimEnd('/');
+                
+                // Get the operation's URL template which contains the full path
+                // Format: /.well-known/oauth-protected-resource/mcp/{server}/mcp
+                var urlTemplate = context.Operation.UrlTemplate;
+                
+                // Extract resource path by removing the well-known prefix
+                var wellKnownPrefix = "/.well-known/oauth-protected-resource";
+                var resourcePath = "";
+                
+                if (urlTemplate.StartsWith(wellKnownPrefix)) {
+                    resourcePath = urlTemplate.Substring(wellKnownPrefix.Length);
+                }
+                
+                // Construct the full resource URL
+                var resourceUrl = gatewayUrl + resourcePath;
+                
+                return JsonConvert.SerializeObject(new {
+                    // The resource identifier - MUST match the protected resource URL per RFC 9728
+                    resource = resourceUrl,
+                    
+                    // OAuth 2.0 authorization server endpoints
+                    authorization_servers = new[] {
+                        $"https://login.microsoftonline.com/{{McpTenantId}}/v2.0"
+                    },
+                    
+                    // How the bearer token should be presented
+                    bearer_methods_supported = new[] {
+                        "header"
+                    },
+                    
+                    // Scopes required to access this resource
+                    scopes_supported = new[] {
+                        "{{McpClientId}}/user_impersonate"
+                    },
+                    
+                    // Resource documentation (optional but helpful)
+                    resource_documentation = "https://github.com/modelcontextprotocol/specification"
+                });
+            }</set-body>
+        </return-response>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

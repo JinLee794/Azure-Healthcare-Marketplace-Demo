@@ -419,6 +419,144 @@ resource clinicalTrialsPrmPolicy 'Microsoft.ApiManagement/service/apis/operation
 }
 
 // ============================================================================
+// Per-MCP-Endpoint PRM (RFC 9728 compliant - at the exact resource path)
+// These endpoints allow VS Code MCP client to discover OAuth info at the
+// path relative to the MCP endpoint: /mcp/{server}/mcp/.well-known/...
+// ============================================================================
+
+// ----- NPI MCP Endpoint PRM -----
+resource npiMcpPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: mcpApi
+  name: 'npi-mcp-prm'
+  properties: {
+    displayName: 'NPI MCP - Protected Resource Metadata'
+    method: 'GET'
+    urlTemplate: '/npi/mcp/.well-known/oauth-protected-resource'
+    description: 'OAuth discovery at MCP endpoint path (RFC 9728)'
+  }
+}
+
+resource npiMcpPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: npiMcpPrmOperation
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/mcp-endpoint-prm.policy.xml')
+  }
+  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}
+
+// ----- ICD-10 MCP Endpoint PRM -----
+resource icd10McpPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: mcpApi
+  name: 'icd10-mcp-prm'
+  properties: {
+    displayName: 'ICD-10 MCP - Protected Resource Metadata'
+    method: 'GET'
+    urlTemplate: '/icd10/mcp/.well-known/oauth-protected-resource'
+    description: 'OAuth discovery at MCP endpoint path (RFC 9728)'
+  }
+}
+
+resource icd10McpPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: icd10McpPrmOperation
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/mcp-endpoint-prm.policy.xml')
+  }
+  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}
+
+// ----- CMS MCP Endpoint PRM -----
+resource cmsMcpPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: mcpApi
+  name: 'cms-mcp-prm'
+  properties: {
+    displayName: 'CMS MCP - Protected Resource Metadata'
+    method: 'GET'
+    urlTemplate: '/cms/mcp/.well-known/oauth-protected-resource'
+    description: 'OAuth discovery at MCP endpoint path (RFC 9728)'
+  }
+}
+
+resource cmsMcpPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: cmsMcpPrmOperation
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/mcp-endpoint-prm.policy.xml')
+  }
+  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}
+
+// ----- FHIR MCP Endpoint PRM -----
+resource fhirMcpPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: mcpApi
+  name: 'fhir-mcp-prm'
+  properties: {
+    displayName: 'FHIR MCP - Protected Resource Metadata'
+    method: 'GET'
+    urlTemplate: '/fhir/mcp/.well-known/oauth-protected-resource'
+    description: 'OAuth discovery at MCP endpoint path (RFC 9728)'
+  }
+}
+
+resource fhirMcpPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: fhirMcpPrmOperation
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/mcp-endpoint-prm.policy.xml')
+  }
+  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}
+
+// ----- PubMed MCP Endpoint PRM -----
+resource pubmedMcpPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: mcpApi
+  name: 'pubmed-mcp-prm'
+  properties: {
+    displayName: 'PubMed MCP - Protected Resource Metadata'
+    method: 'GET'
+    urlTemplate: '/pubmed/mcp/.well-known/oauth-protected-resource'
+    description: 'OAuth discovery at MCP endpoint path (RFC 9728)'
+  }
+}
+
+resource pubmedMcpPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: pubmedMcpPrmOperation
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/mcp-endpoint-prm.policy.xml')
+  }
+  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}
+
+// ----- Clinical Trials MCP Endpoint PRM -----
+resource clinicalTrialsMcpPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: mcpApi
+  name: 'clinical-trials-mcp-prm'
+  properties: {
+    displayName: 'Clinical Trials MCP - Protected Resource Metadata'
+    method: 'GET'
+    urlTemplate: '/clinical-trials/mcp/.well-known/oauth-protected-resource'
+    description: 'OAuth discovery at MCP endpoint path (RFC 9728)'
+  }
+}
+
+resource clinicalTrialsMcpPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: clinicalTrialsMcpPrmOperation
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/mcp-endpoint-prm.policy.xml')
+  }
+  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}
+
+// ============================================================================
 // MCP Server Operations
 // ============================================================================
 
@@ -470,13 +608,12 @@ resource npiGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@
   <backend><base /></backend>
   <outbound><base /></outbound>
   <on-error>
-    <base />
     <choose>
-      <when condition="@(context.Response.StatusCode == 401)">
+      <when condition="@(context.LastError != null)">
         <return-response>
           <set-status code="401" reason="Unauthorized" />
           <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/mcp/.well-known/oauth-protected-resource"</value>
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/npi/mcp"</value>
           </set-header>
           <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
         </return-response>
@@ -514,13 +651,12 @@ resource npiPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies
   <backend><base /></backend>
   <outbound><base /></outbound>
   <on-error>
-    <base />
     <choose>
-      <when condition="@(context.Response.StatusCode == 401)">
+      <when condition="@(context.LastError != null)">
         <return-response>
           <set-status code="401" reason="Unauthorized" />
           <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/mcp/.well-known/oauth-protected-resource"</value>
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/npi/mcp"</value>
           </set-header>
           <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
         </return-response>
@@ -581,13 +717,12 @@ resource icd10GetPolicy 'Microsoft.ApiManagement/service/apis/operations/policie
   <backend><base /></backend>
   <outbound><base /></outbound>
   <on-error>
-    <base />
     <choose>
-      <when condition="@(context.Response.StatusCode == 401)">
+      <when condition="@(context.LastError != null)">
         <return-response>
           <set-status code="401" reason="Unauthorized" />
           <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/mcp/.well-known/oauth-protected-resource"</value>
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/icd10/mcp"</value>
           </set-header>
           <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
         </return-response>
@@ -625,13 +760,12 @@ resource icd10PostPolicy 'Microsoft.ApiManagement/service/apis/operations/polici
   <backend><base /></backend>
   <outbound><base /></outbound>
   <on-error>
-    <base />
     <choose>
-      <when condition="@(context.Response.StatusCode == 401)">
+      <when condition="@(context.LastError != null)">
         <return-response>
           <set-status code="401" reason="Unauthorized" />
           <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/mcp/.well-known/oauth-protected-resource"</value>
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/icd10/mcp"</value>
           </set-header>
           <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
         </return-response>
@@ -692,13 +826,12 @@ resource cmsGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@
   <backend><base /></backend>
   <outbound><base /></outbound>
   <on-error>
-    <base />
     <choose>
-      <when condition="@(context.Response.StatusCode == 401)">
+      <when condition="@(context.LastError != null)">
         <return-response>
           <set-status code="401" reason="Unauthorized" />
           <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/mcp/.well-known/oauth-protected-resource"</value>
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/cms/mcp"</value>
           </set-header>
           <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
         </return-response>
@@ -736,13 +869,12 @@ resource cmsPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies
   <backend><base /></backend>
   <outbound><base /></outbound>
   <on-error>
-    <base />
     <choose>
-      <when condition="@(context.Response.StatusCode == 401)">
+      <when condition="@(context.LastError != null)">
         <return-response>
           <set-status code="401" reason="Unauthorized" />
           <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/mcp/.well-known/oauth-protected-resource"</value>
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/cms/mcp"</value>
           </set-header>
           <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
         </return-response>
@@ -803,13 +935,12 @@ resource fhirGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies
   <backend><base /></backend>
   <outbound><base /></outbound>
   <on-error>
-    <base />
     <choose>
-      <when condition="@(context.Response.StatusCode == 401)">
+      <when condition="@(context.LastError != null)">
         <return-response>
           <set-status code="401" reason="Unauthorized" />
           <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/mcp/.well-known/oauth-protected-resource"</value>
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/fhir/mcp"</value>
           </set-header>
           <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
         </return-response>
@@ -847,13 +978,12 @@ resource fhirPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policie
   <backend><base /></backend>
   <outbound><base /></outbound>
   <on-error>
-    <base />
     <choose>
-      <when condition="@(context.Response.StatusCode == 401)">
+      <when condition="@(context.LastError != null)">
         <return-response>
           <set-status code="401" reason="Unauthorized" />
           <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/mcp/.well-known/oauth-protected-resource"</value>
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/fhir/mcp"</value>
           </set-header>
           <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
         </return-response>
@@ -914,13 +1044,12 @@ resource pubmedGetPolicy 'Microsoft.ApiManagement/service/apis/operations/polici
   <backend><base /></backend>
   <outbound><base /></outbound>
   <on-error>
-    <base />
     <choose>
-      <when condition="@(context.Response.StatusCode == 401)">
+      <when condition="@(context.LastError != null)">
         <return-response>
           <set-status code="401" reason="Unauthorized" />
           <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/mcp/.well-known/oauth-protected-resource"</value>
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/pubmed/mcp"</value>
           </set-header>
           <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
         </return-response>
@@ -958,13 +1087,12 @@ resource pubmedPostPolicy 'Microsoft.ApiManagement/service/apis/operations/polic
   <backend><base /></backend>
   <outbound><base /></outbound>
   <on-error>
-    <base />
     <choose>
-      <when condition="@(context.Response.StatusCode == 401)">
+      <when condition="@(context.LastError != null)">
         <return-response>
           <set-status code="401" reason="Unauthorized" />
           <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/mcp/.well-known/oauth-protected-resource"</value>
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/pubmed/mcp"</value>
           </set-header>
           <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
         </return-response>
@@ -1025,13 +1153,12 @@ resource clinicalTrialsGetPolicy 'Microsoft.ApiManagement/service/apis/operation
   <backend><base /></backend>
   <outbound><base /></outbound>
   <on-error>
-    <base />
     <choose>
-      <when condition="@(context.Response.StatusCode == 401)">
+      <when condition="@(context.LastError != null)">
         <return-response>
           <set-status code="401" reason="Unauthorized" />
           <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/mcp/.well-known/oauth-protected-resource"</value>
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/clinical-trials/mcp"</value>
           </set-header>
           <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
         </return-response>
@@ -1069,13 +1196,12 @@ resource clinicalTrialsPostPolicy 'Microsoft.ApiManagement/service/apis/operatio
   <backend><base /></backend>
   <outbound><base /></outbound>
   <on-error>
-    <base />
     <choose>
-      <when condition="@(context.Response.StatusCode == 401)">
+      <when condition="@(context.LastError != null)">
         <return-response>
           <set-status code="401" reason="Unauthorized" />
           <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/mcp/.well-known/oauth-protected-resource"</value>
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/clinical-trials/mcp"</value>
           </set-header>
           <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
         </return-response>
@@ -1121,6 +1247,143 @@ resource prmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@202
   properties: {
     format: 'rawxml'
     value: loadTextContent('../policies/mcp-prm.policy.xml')
+  }
+  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}
+
+// ============================================================================
+// Path-Based PRM Endpoints (RFC 9728 Section 3.1)
+// For resource at /mcp/{server}/mcp, PRM is at /.well-known/oauth-protected-resource/mcp/{server}/mcp
+// ============================================================================
+
+// ----- NPI Path-Based PRM -----
+resource npiPathPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: prmApi
+  name: 'npi-path-prm'
+  properties: {
+    displayName: 'NPI - Path-Based PRM'
+    method: 'GET'
+    urlTemplate: '/.well-known/oauth-protected-resource/mcp/npi/mcp'
+    description: 'RFC 9728 path-based PRM for NPI MCP server'
+  }
+}
+
+resource npiPathPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: npiPathPrmOperation
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/mcp-path-prm.policy.xml')
+  }
+  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}
+
+// ----- ICD-10 Path-Based PRM -----
+resource icd10PathPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: prmApi
+  name: 'icd10-path-prm'
+  properties: {
+    displayName: 'ICD-10 - Path-Based PRM'
+    method: 'GET'
+    urlTemplate: '/.well-known/oauth-protected-resource/mcp/icd10/mcp'
+    description: 'RFC 9728 path-based PRM for ICD-10 MCP server'
+  }
+}
+
+resource icd10PathPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: icd10PathPrmOperation
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/mcp-path-prm.policy.xml')
+  }
+  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}
+
+// ----- CMS Path-Based PRM -----
+resource cmsPathPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: prmApi
+  name: 'cms-path-prm'
+  properties: {
+    displayName: 'CMS - Path-Based PRM'
+    method: 'GET'
+    urlTemplate: '/.well-known/oauth-protected-resource/mcp/cms/mcp'
+    description: 'RFC 9728 path-based PRM for CMS MCP server'
+  }
+}
+
+resource cmsPathPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: cmsPathPrmOperation
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/mcp-path-prm.policy.xml')
+  }
+  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}
+
+// ----- FHIR Path-Based PRM -----
+resource fhirPathPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: prmApi
+  name: 'fhir-path-prm'
+  properties: {
+    displayName: 'FHIR - Path-Based PRM'
+    method: 'GET'
+    urlTemplate: '/.well-known/oauth-protected-resource/mcp/fhir/mcp'
+    description: 'RFC 9728 path-based PRM for FHIR MCP server'
+  }
+}
+
+resource fhirPathPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: fhirPathPrmOperation
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/mcp-path-prm.policy.xml')
+  }
+  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}
+
+// ----- PubMed Path-Based PRM -----
+resource pubmedPathPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: prmApi
+  name: 'pubmed-path-prm'
+  properties: {
+    displayName: 'PubMed - Path-Based PRM'
+    method: 'GET'
+    urlTemplate: '/.well-known/oauth-protected-resource/mcp/pubmed/mcp'
+    description: 'RFC 9728 path-based PRM for PubMed MCP server'
+  }
+}
+
+resource pubmedPathPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: pubmedPathPrmOperation
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/mcp-path-prm.policy.xml')
+  }
+  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}
+
+// ----- Clinical Trials Path-Based PRM -----
+resource clinicalTrialsPathPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: prmApi
+  name: 'clinical-trials-path-prm'
+  properties: {
+    displayName: 'Clinical Trials - Path-Based PRM'
+    method: 'GET'
+    urlTemplate: '/.well-known/oauth-protected-resource/mcp/clinical-trials/mcp'
+    description: 'RFC 9728 path-based PRM for Clinical Trials MCP server'
+  }
+}
+
+resource clinicalTrialsPathPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: clinicalTrialsPathPrmOperation
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/mcp-path-prm.policy.xml')
   }
   dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
 }
