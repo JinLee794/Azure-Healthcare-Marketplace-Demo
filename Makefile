@@ -4,26 +4,53 @@ LOG_DIR := .local-logs
 
 .PHONY: local-start local-stop local-logs local-start-npi local-start-icd10 local-start-cms local-start-fhir local-start-pubmed local-start-clinical setup-mcp-config eval-contracts eval-latency-local eval-native-local eval-all
 
-local-start: local-start-npi local-start-icd10 local-start-cms local-start-fhir local-start-pubmed local-start-clinical
+define START_SERVER
+	@bash -c 'mkdir -p "$(LOG_DIR)"; \
+	  pids=$$(lsof -ti tcp:$(3) -sTCP:LISTEN 2>/dev/null || true); \
+	  if [ -n "$$pids" ]; then \
+	    echo "Port $(3) already has listener(s): $$pids. Restarting $(1)..."; \
+	    kill $$pids 2>/dev/null || true; \
+	    for _ in $$(seq 1 10); do \
+	      if ! lsof -ti tcp:$(3) -sTCP:LISTEN >/dev/null 2>&1; then break; fi; \
+	      sleep 0.1; \
+	    done; \
+	    pids=$$(lsof -ti tcp:$(3) -sTCP:LISTEN 2>/dev/null || true); \
+	    if [ -n "$$pids" ]; then \
+	      echo "Port $(3) still busy after SIGTERM. Force stopping: $$pids"; \
+	      kill -9 $$pids 2>/dev/null || true; \
+	    fi; \
+	    for _ in $$(seq 1 10); do \
+	      if ! lsof -ti tcp:$(3) -sTCP:LISTEN >/dev/null 2>&1; then break; fi; \
+	      sleep 0.1; \
+	    done; \
+	  fi; \
+	  if lsof -ti tcp:$(3) -sTCP:LISTEN >/dev/null 2>&1; then \
+	    echo "ERROR: Port $(3) is still in use. Could not start $(1)."; \
+	    exit 1; \
+	  fi; \
+	  ./scripts/local-test.sh $(1) $(3) > "$(LOG_DIR)/$(2).log" 2>&1 & echo $$! > "$(LOG_DIR)/$(2).pid"'
+endef
+
+local-start: local-stop local-start-npi local-start-icd10 local-start-cms local-start-fhir local-start-pubmed local-start-clinical
 	@echo "All MCP servers started. Logs: $(LOG_DIR)/<server>.log"
 
 local-start-npi:
-	@bash -c 'mkdir -p "$(LOG_DIR)"; ./scripts/local-test.sh npi-lookup 7071 > "$(LOG_DIR)/npi-lookup.log" 2>&1 & echo $$! > "$(LOG_DIR)/npi-lookup.pid"'
+	$(call START_SERVER,npi-lookup,npi-lookup,7071)
 
 local-start-icd10:
-	@bash -c 'mkdir -p "$(LOG_DIR)"; ./scripts/local-test.sh icd10-validation 7072 > "$(LOG_DIR)/icd10-validation.log" 2>&1 & echo $$! > "$(LOG_DIR)/icd10-validation.pid"'
+	$(call START_SERVER,icd10-validation,icd10-validation,7072)
 
 local-start-cms:
-	@bash -c 'mkdir -p "$(LOG_DIR)"; ./scripts/local-test.sh cms-coverage 7073 > "$(LOG_DIR)/cms-coverage.log" 2>&1 & echo $$! > "$(LOG_DIR)/cms-coverage.pid"'
+	$(call START_SERVER,cms-coverage,cms-coverage,7073)
 
 local-start-fhir:
-	@bash -c 'mkdir -p "$(LOG_DIR)"; ./scripts/local-test.sh fhir-operations 7074 > "$(LOG_DIR)/fhir-operations.log" 2>&1 & echo $$! > "$(LOG_DIR)/fhir-operations.pid"'
+	$(call START_SERVER,fhir-operations,fhir-operations,7074)
 
 local-start-pubmed:
-	@bash -c 'mkdir -p "$(LOG_DIR)"; ./scripts/local-test.sh pubmed 7075 > "$(LOG_DIR)/pubmed.log" 2>&1 & echo $$! > "$(LOG_DIR)/pubmed.pid"'
+	$(call START_SERVER,pubmed,pubmed,7075)
 
 local-start-clinical:
-	@bash -c 'mkdir -p "$(LOG_DIR)"; ./scripts/local-test.sh clinical-trials 7076 > "$(LOG_DIR)/clinical-trials.log" 2>&1 & echo $$! > "$(LOG_DIR)/clinical-trials.pid"'
+	$(call START_SERVER,clinical-trials,clinical-trials,7076)
 
 local-stop:
 	@bash -c 'if [ -d "$(LOG_DIR)" ]; then \
@@ -34,6 +61,11 @@ local-stop:
 	      if kill -0 $$pid >/dev/null 2>&1; then \
 	        echo "Stopping $$name (pid $$pid)"; \
 	        kill $$pid; \
+	        sleep 0.2; \
+	        if kill -0 $$pid >/dev/null 2>&1; then \
+	          echo "Force stopping $$name (pid $$pid)"; \
+	          kill -9 $$pid 2>/dev/null || true; \
+	        fi; \
 	      else \
 	        echo "Process not running for $$name (pid $$pid)"; \
 	      fi; \
@@ -48,6 +80,12 @@ local-stop:
 	  if [ -n "$$pids" ]; then \
 	    echo "Stopping listener(s) on port $$port: $$pids"; \
 	    kill $$pids 2>/dev/null || true; \
+	    sleep 0.2; \
+	    pids=$$(lsof -ti tcp:$$port 2>/dev/null || true); \
+	    if [ -n "$$pids" ]; then \
+	      echo "Force stopping listener(s) on port $$port: $$pids"; \
+	      kill -9 $$pids 2>/dev/null || true; \
+	    fi; \
 	  fi; \
 	done'
 
@@ -65,6 +103,6 @@ eval-latency-local:
 	@python3 ./scripts/eval_latency.py --config ./scripts/evals/mcp-latency.local.json
 
 eval-native-local:
-	@src/agents/.venv/bin/python ./scripts/eval_native_agent_framework.py --config ./scripts/evals/native-agent-framework.local.json
+	@src/agents/.venv/bin/python ./scripts/eval_native_agent_framework.py --config ./scripts/evals/native-agent-framework.local.json --wait-for-servers-seconds 30
 
 eval-all: eval-contracts eval-latency-local eval-native-local

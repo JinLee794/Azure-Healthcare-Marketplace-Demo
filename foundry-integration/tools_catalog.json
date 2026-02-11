@@ -24,10 +24,12 @@
           "inputSchema": {
             "type": "object",
             "properties": {
-              "name": { "type": "string", "description": "Patient name (partial match)" },
+              "family": { "type": "string", "description": "Patient family (last) name" },
+              "given": { "type": "string", "description": "Patient given (first) name" },
               "identifier": { "type": "string", "description": "Patient identifier (MRN)" },
               "birthdate": { "type": "string", "format": "date" },
-              "gender": { "type": "string", "enum": ["male", "female", "other", "unknown"] }
+              "gender": { "type": "string", "enum": ["male", "female", "other", "unknown"] },
+              "count": { "type": "integer", "description": "Max result count", "default": 10 }
             }
           }
         },
@@ -37,48 +39,35 @@
           "inputSchema": {
             "type": "object",
             "properties": {
-              "patientId": { "type": "string", "description": "FHIR Patient resource ID" }
+              "patient_id": { "type": "string", "description": "FHIR Patient resource ID" }
             },
-            "required": ["patientId"]
+            "required": ["patient_id"]
           }
         },
         {
-          "name": "search_observations",
-          "description": "Search for clinical observations for a patient",
+          "name": "get_patient_observations",
+          "description": "Retrieve clinical observations for a patient",
           "inputSchema": {
             "type": "object",
             "properties": {
-              "patientId": { "type": "string" },
+              "patient_id": { "type": "string" },
               "category": { "type": "string", "enum": ["vital-signs", "laboratory", "social-history", "imaging"] },
               "code": { "type": "string", "description": "LOINC code" },
-              "dateFrom": { "type": "string", "format": "date" },
-              "dateTo": { "type": "string", "format": "date" }
+              "count": { "type": "integer", "description": "Max result count", "default": 20 }
             },
-            "required": ["patientId"]
+            "required": ["patient_id"]
           }
         },
         {
-          "name": "get_patient_coverage",
-          "description": "Retrieve insurance coverage for a patient",
-          "inputSchema": {
-            "type": "object",
-            "properties": {
-              "patientId": { "type": "string" }
-            },
-            "required": ["patientId"]
-          }
-        },
-        {
-          "name": "validate_fhir_resource",
+          "name": "validate_resource",
           "description": "Validate a FHIR resource against profiles",
           "inputSchema": {
             "type": "object",
             "properties": {
-              "resourceType": { "type": "string" },
-              "resource": { "type": "string", "description": "FHIR resource JSON" },
-              "profile": { "type": "string", "description": "Profile URL" }
+              "resource_type": { "type": "string" },
+              "resource": { "type": "object", "description": "FHIR resource JSON object" }
             },
-            "required": ["resourceType", "resource"]
+            "required": ["resource_type", "resource"]
           }
         }
       ],
@@ -92,7 +81,7 @@
     {
       "id": "healthcare.coverage-policy",
       "name": "Coverage Policy Tools",
-      "description": "Tools for checking insurance coverage policies and prior authorization requirements",
+      "description": "Tools for Medicare coverage policy lookup and medical necessity checks",
       "version": "1.0.0",
       "publisher": "Healthcare IT",
       "category": "Healthcare",
@@ -107,39 +96,54 @@
       },
       "capabilities": [
         {
-          "name": "check_coverage_policy",
-          "description": "Check if a procedure requires prior authorization",
+          "name": "search_coverage",
+          "description": "Search Medicare coverage determinations (LCD/NCD)",
           "inputSchema": {
             "type": "object",
             "properties": {
-              "cptCode": { "type": "string", "description": "CPT procedure code" },
-              "icd10Code": { "type": "string", "description": "ICD-10 diagnosis code" },
-              "payerId": { "type": "string", "description": "Insurance payer ID" }
+              "query": { "type": "string", "description": "Search term" },
+              "coverage_type": { "type": "string", "enum": ["all", "lcd", "ncd"], "default": "all" },
+              "limit": { "type": "integer", "minimum": 1, "maximum": 20, "default": 10 }
             },
-            "required": ["cptCode"]
+            "required": ["query"]
           }
         },
         {
-          "name": "get_ncd_details",
-          "description": "Get National Coverage Determination details",
+          "name": "get_coverage_by_cpt",
+          "description": "Get Medicare coverage details for a CPT/HCPCS code",
           "inputSchema": {
             "type": "object",
             "properties": {
-              "ncdId": { "type": "string", "description": "NCD identifier" }
+              "cpt_code": { "type": "string", "description": "CPT or HCPCS procedure code" }
             },
-            "required": ["ncdId"]
+            "required": ["cpt_code"]
           }
         },
         {
-          "name": "get_lcd_details",
-          "description": "Get Local Coverage Determination details",
+          "name": "get_coverage_by_icd10",
+          "description": "Get Medicare coverage details related to an ICD-10 code",
           "inputSchema": {
             "type": "object",
             "properties": {
-              "lcdId": { "type": "string", "description": "LCD identifier" },
-              "macId": { "type": "string", "description": "Medicare Administrative Contractor ID" }
+              "icd10_code": { "type": "string", "description": "ICD-10 diagnosis code" }
             },
-            "required": ["lcdId"]
+            "required": ["icd10_code"]
+          }
+        },
+        {
+          "name": "check_medical_necessity",
+          "description": "Check likely medical necessity for CPT + ICD-10 combinations",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "cpt_code": { "type": "string", "description": "CPT or HCPCS procedure code" },
+              "icd10_codes": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Supporting diagnosis codes"
+              }
+            },
+            "required": ["cpt_code", "icd10_codes"]
           }
         }
       ],

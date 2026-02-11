@@ -24,6 +24,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 try:
     from agent_framework_lab_gaia import Evaluation, Prediction, Task, TaskResult
@@ -95,6 +96,50 @@ def _run_task(task: Task, timeout_seconds: float) -> TaskResult:
             runtime_seconds=elapsed,
             error=str(exc),
         )
+
+
+def _health_url_from_mcp_url(mcp_url: str) -> str:
+    parsed = urlparse(mcp_url)
+    return urlunparse(parsed._replace(path="/health", params="", query="", fragment=""))
+
+
+def _is_endpoint_healthy(health_url: str, timeout_seconds: float) -> bool:
+    try:
+        req = urllib.request.Request(url=health_url, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+            return 200 <= int(resp.status) < 300
+    except Exception:
+        return False
+
+
+def _check_endpoints_ready(
+    tasks: list[Task],
+    wait_seconds: float,
+    probe_timeout_seconds: float,
+    probe_interval_seconds: float,
+) -> list[tuple[str, str]]:
+    endpoints: dict[str, str] = {}
+    for task in tasks:
+        url = str((task.metadata or {}).get("url") or "")
+        if url and url not in endpoints:
+            endpoints[url] = _health_url_from_mcp_url(url)
+
+    if not endpoints:
+        return []
+
+    deadline = time.perf_counter() + max(0.0, wait_seconds)
+    while True:
+        missing: list[tuple[str, str]] = []
+        for mcp_url, health_url in endpoints.items():
+            if not _is_endpoint_healthy(health_url, timeout_seconds=probe_timeout_seconds):
+                missing.append((mcp_url, health_url))
+
+        if not missing:
+            return []
+        if time.perf_counter() >= deadline:
+            return missing
+
+        time.sleep(max(0.1, probe_interval_seconds))
 
 
 def _evaluate(task: Task, prediction: Prediction) -> Evaluation:
@@ -184,6 +229,29 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", required=True, help="Path to eval config JSON")
     parser.add_argument("--parallel", type=int, default=3, help="Parallel task workers")
     parser.add_argument("--timeout-seconds", type=float, default=20.0, help="Per-request timeout")
+    parser.add_argument(
+        "--wait-for-servers-seconds",
+        type=float,
+        default=0.0,
+        help="Optional time budget to wait for endpoint /health checks before running evals",
+    )
+    parser.add_argument(
+        "--probe-timeout-seconds",
+        type=float,
+        default=1.5,
+        help="Timeout for each endpoint /health probe",
+    )
+    parser.add_argument(
+        "--probe-interval-seconds",
+        type=float,
+        default=0.5,
+        help="Polling interval between endpoint readiness probes",
+    )
+    parser.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="Skip endpoint readiness preflight",
+    )
     parser.add_argument("--out", default="", help="Optional JSONL output path for TaskResult records")
     return parser.parse_args()
 
@@ -218,6 +286,25 @@ def main() -> int:
                 },
             )
         )
+
+    if not args.skip_preflight:
+        missing = _check_endpoints_ready(
+            tasks=tasks,
+            wait_seconds=args.wait_for_servers_seconds,
+            probe_timeout_seconds=args.probe_timeout_seconds,
+            probe_interval_seconds=args.probe_interval_seconds,
+        )
+        if missing:
+            wait_note = (
+                f" within {args.wait_for_servers_seconds:.1f}s"
+                if args.wait_for_servers_seconds > 0
+                else ""
+            )
+            print(f"MCP endpoint preflight failed{wait_note}:")
+            for mcp_url, health_url in missing:
+                print(f"  - {mcp_url} (health: {health_url})")
+            print("Start missing local servers (for example, `make local-start`) and rerun.")
+            return 1
 
     results = _run(tasks, parallel=args.parallel, timeout_seconds=args.timeout_seconds)
 
