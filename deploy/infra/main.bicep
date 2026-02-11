@@ -76,6 +76,12 @@ param tags object = {
   managedBy: 'bicep'
 }
 
+@description('Display name for the MCP Entra application')
+param mcpEntraAppDisplayName string = 'Healthcare MCP API'
+
+@description('Unique name for the MCP Entra application')
+param mcpEntraAppUniqueName string = ''
+
 @description('Optional: Override region for Cosmos DB if primary region has capacity issues')
 @allowed([
   ''
@@ -112,6 +118,7 @@ param cosmosDbLocation string = ''
 
 var uniqueSuffix = uniqueString(resourceGroup().id)
 var publicNetworkAccess = enablePublicAccess ? 'Enabled' : 'Disabled'
+var mcpAppUniqueName = empty(mcpEntraAppUniqueName) ? 'healthcare-mcp-${uniqueSuffix}' : mcpEntraAppUniqueName
 
 // ============================================================================
 // MODULES
@@ -191,7 +198,40 @@ module apim 'modules/apim.bicep' = {
   dependsOn: [functionApps]  // Ensure Function Apps exist before configuring backends
 }
 
-// 6. Private Endpoints for all services
+// 6. User-Assigned Managed Identity for MCP OAuth
+module mcpUserIdentity 'modules/mcp-user-identity.bicep' = {
+  name: 'mcp-user-identity-deployment'
+  params: {
+    identityName: '${baseName}-mcp-identity-${uniqueSuffix}'
+    location: location
+    tags: tags
+  }
+}
+
+// 7. MCP Entra App Registration with Federated Identity Credential
+module mcpEntraApp 'modules/mcp-entra-app.bicep' = {
+  name: 'mcp-entra-app-deployment'
+  params: {
+    mcpAppUniqueName: mcpAppUniqueName
+    mcpAppDisplayName: mcpEntraAppDisplayName
+    userAssignedIdentityPrincipalId: mcpUserIdentity.outputs.identityPrincipalId
+    apimGatewayUrl: apim.outputs.apimGatewayUrl
+  }
+}
+
+// 8. APIM MCP OAuth Configuration (PRM endpoint + token validation)
+module apimMcpOAuth 'modules/apim-mcp-oauth.bicep' = {
+  name: 'apim-mcp-oauth-deployment'
+  params: {
+    apimServiceName: apim.outputs.apimName
+    mcpAppId: mcpEntraApp.outputs.mcpAppId
+    mcpAppTenantId: mcpEntraApp.outputs.mcpAppTenantId
+    functionAppBaseName: baseName
+  }
+  dependsOn: [functionApps]  // Ensure Function Apps exist for host key retrieval
+}
+
+// 9. Private Endpoints for all services
 module privateEndpoints 'modules/private-endpoints.bicep' = {
   name: 'private-endpoints-deployment'
   params: {
@@ -262,6 +302,13 @@ output apimId string = apim.outputs.apimId
 output apimName string = apim.outputs.apimName
 output apimGatewayUrl string = apim.outputs.apimGatewayUrl
 output apimManagementUrl string = apim.outputs.apimManagementUrl
+
+// MCP OAuth Configuration
+output mcpClientId string = mcpEntraApp.outputs.mcpAppId
+output mcpTenantId string = mcpEntraApp.outputs.mcpAppTenantId
+output mcpPrmEndpoint string = apimMcpOAuth.outputs.prmEndpoint
+output mcpIdentityId string = mcpUserIdentity.outputs.identityId
+output mcpIdentityClientId string = mcpUserIdentity.outputs.identityClientId
 
 // AI Foundry
 output aiServicesId string = aiFoundry.outputs.aiServicesId

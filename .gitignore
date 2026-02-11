@@ -1,0 +1,71 @@
+# Azurite (Azure Storage Emulator)
+__azurite_db_*.json
+__blobstorage__/
+__queuestorage__/
+__tablestorage__/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.pip-cache/
+
+# JavaScript/Node.js
+node_modules/
+npm-debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+dist/
+build/
+.next/
+.nuxt/
+.cache/
+.parcel-cache
+.eslintcache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Bicep
+*.bicepparams.json
+.local-logs
+voicetree*

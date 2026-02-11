@@ -1,0 +1,84 @@
+<!--
+    Azure API Management Policy for Protected Resource Metadata (RFC 9728)
+    
+    This policy returns Protected Resource Metadata information for OAuth 2.0
+    protected resources. It dynamically constructs the resource URL based on
+    the request context to comply with RFC 9728 requirements.
+    
+    The 'resource' property MUST match the protected resource URL per RFC 9728.
+    
+    Supported patterns:
+    - /.well-known/oauth-protected-resource → resource = gateway base URL  
+    - /mcp/.well-known/oauth-protected-resource → resource = gateway base URL (for all MCP servers)
+    - /mcp/{server}/.well-known/oauth-protected-resource → resource = /mcp/{server}/mcp
+    
+    Note: Authentication is disabled for this endpoint to allow anonymous access
+    as per RFC 9728 requirements - clients need to discover auth info before authenticating.
+-->
+<policies>
+    <inbound>
+        <!-- Return Protected Resource Metadata according to RFC 9728 -->
+        <return-response>
+            <set-status code="200" reason="OK" />
+            <set-header name="Content-Type" exists-action="override">
+                <value>application/json</value>
+            </set-header>
+            <set-header name="Cache-Control" exists-action="override">
+                <value>public, max-age=3600</value>
+            </set-header>
+            <set-body>@{
+                var gatewayUrl = "{{APIMGatewayURL}}".TrimEnd('/');
+                var requestPath = context.Request.Url.Path;
+                
+                // Parse the request path to determine which MCP server is being queried
+                // Expected patterns:
+                // - /.well-known/oauth-protected-resource (root)
+                // - /mcp/.well-known/oauth-protected-resource (mcp api root)
+                // - Path already rewritten by API path - check for server segment
+                
+                string resourceUrl = gatewayUrl;
+                
+                // Check if this is accessed via the MCP API (path = "mcp")
+                var apiPath = context.Api.Path;
+                if (!string.IsNullOrEmpty(apiPath) && apiPath != "/") {
+                    // We're in the mcp API, resource should be the base gateway for all servers
+                    // Individual servers authenticate against the same OAuth resource
+                    resourceUrl = gatewayUrl;
+                }
+                
+                return JsonConvert.SerializeObject(new {
+                    // The resource identifier - base gateway URL for all MCP servers
+                    // This allows one OAuth token to work across all MCP server endpoints
+                    resource = resourceUrl,
+                    
+                    // OAuth 2.0 authorization server endpoints
+                    authorization_servers = new[] {
+                        $"https://login.microsoftonline.com/{{McpTenantId}}/v2.0"
+                    },
+                    
+                    // How the bearer token should be presented
+                    bearer_methods_supported = new[] {
+                        "header"
+                    },
+                    
+                    // Scopes required to access this resource
+                    scopes_supported = new[] {
+                        "{{McpClientId}}/user_impersonate"
+                    },
+                    
+                    // Resource documentation (optional but helpful)
+                    resource_documentation = "https://github.com/modelcontextprotocol/specification"
+                });
+            }</set-body>
+        </return-response>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

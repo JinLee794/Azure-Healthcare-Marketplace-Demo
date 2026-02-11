@@ -1,0 +1,71 @@
+<!--
+    Azure API Management Policy for Per-Server Protected Resource Metadata (RFC 9728)
+    
+    This policy returns Protected Resource Metadata for a specific MCP server.
+    It extracts the server name from the request path and constructs the correct
+    resource URL to comply with RFC 9728 requirements.
+    
+    URL pattern: /mcp/{server}/.well-known/oauth-protected-resource
+    Returns: resource = https://{gateway}/mcp/{server}/mcp
+    
+    Note: Authentication is disabled for this endpoint to allow anonymous access
+    as per RFC 9728 requirements - clients need to discover auth info before authenticating.
+-->
+<policies>
+    <inbound>
+        <!-- Return Protected Resource Metadata according to RFC 9728 -->
+        <return-response>
+            <set-status code="200" reason="OK" />
+            <set-header name="Content-Type" exists-action="override">
+                <value>application/json</value>
+            </set-header>
+            <set-header name="Cache-Control" exists-action="override">
+                <value>public, max-age=3600</value>
+            </set-header>
+            <set-body>@{
+                var gatewayUrl = "{{APIMGatewayURL}}".TrimEnd('/');
+                var requestPath = context.Request.Url.Path;
+                
+                // Extract server name from path: /mcp/{server}/.well-known/oauth-protected-resource
+                // After API path stripping, we get: /{server}/.well-known/oauth-protected-resource
+                var pathParts = requestPath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+                var serverName = pathParts.Length > 0 ? pathParts[0] : "";
+                
+                // Construct the resource URL for this specific MCP server
+                var resourceUrl = $"{gatewayUrl}/mcp/{serverName}/mcp";
+                
+                return JsonConvert.SerializeObject(new {
+                    // The resource identifier - MUST match the protected resource URL per RFC 9728
+                    resource = resourceUrl,
+                    
+                    // OAuth 2.0 authorization server endpoints
+                    authorization_servers = new[] {
+                        $"https://login.microsoftonline.com/{{McpTenantId}}/v2.0"
+                    },
+                    
+                    // How the bearer token should be presented
+                    bearer_methods_supported = new[] {
+                        "header"
+                    },
+                    
+                    // Scopes required to access this resource
+                    scopes_supported = new[] {
+                        "{{McpClientId}}/user_impersonate"
+                    },
+                    
+                    // Resource documentation (optional but helpful)
+                    resource_documentation = "https://github.com/modelcontextprotocol/specification"
+                });
+            }</set-body>
+        </return-response>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

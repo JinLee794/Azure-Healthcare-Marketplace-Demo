@@ -55,36 +55,31 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
 }
 
 // MCP Server configurations
+// MCP Server configurations - routes are exposed at root level (/.well-known/mcp and /mcp)
 var mcpServers = [
   {
     name: 'npi-lookup'
     displayName: 'NPI Lookup MCP Server'
-    apiPath: '/api/mcp/npi'
   }
   {
     name: 'icd10-validation'
     displayName: 'ICD-10 Validation MCP Server'
-    apiPath: '/api/mcp/icd10'
   }
   {
     name: 'cms-coverage'
     displayName: 'CMS Coverage MCP Server'
-    apiPath: '/api/mcp/cms'
   }
   {
     name: 'fhir-operations'
     displayName: 'FHIR Operations MCP Server'
-    apiPath: '/api/mcp/fhir'
   }
   {
     name: 'pubmed'
     displayName: 'PubMed MCP Server'
-    apiPath: '/api/mcp/pubmed'
   }
   {
     name: 'clinical-trials'
     displayName: 'Clinical Trials MCP Server'
-    apiPath: '/api/mcp/clinical-trials'
   }
 ]
 
@@ -177,7 +172,7 @@ resource functionApps 'Microsoft.Web/sites@2023-12-01' = [for server in mcpServe
         }
         {
           name: 'MCP_PROTOCOL_VERSION'
-          value: '2024-11-05'
+          value: '2025-06-18'
         }
         {
           name: 'WEBSITE_RUN_FROM_PACKAGE'
@@ -209,9 +204,9 @@ output functionAppHostnames array = [for (server, i) in mcpServers: functionApps
 output functionAppPrincipalIds array = [for (server, i) in mcpServers: functionApps[i].identity.principalId]
 output appServicePlanId string = appServicePlan.id
 
-// Output for APIM backend configuration
+// Output for APIM backend configuration - Function Apps expose MCP endpoints at root level
 output mcpServerEndpoints array = [for (server, i) in mcpServers: {
   name: server.name
   displayName: server.displayName
-  backendUrl: 'https://${functionApps[i].properties.defaultHostName}${server.apiPath}'
+  backendUrl: 'https://${functionApps[i].properties.defaultHostName}'
 }]
