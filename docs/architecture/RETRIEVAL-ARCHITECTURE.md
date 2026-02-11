@@ -1,11 +1,14 @@
-# Retrieval Architecture: Azure AI Search vs Cosmos DB
+# Retrieval Architecture: AHDS, Azure AI Search & Cosmos DB
 
 ## Executive Summary
 
-For the Healthcare Marketplace, we recommend a **hybrid architecture** using both Azure AI Search and Cosmos DB:
+The Healthcare Marketplace uses a **multi-tier retrieval architecture** where Azure Health Data Services (AHDS) provides the clinical data foundation, Cosmos DB handles structured operational data, and Azure AI Search powers semantic retrieval:
 
 | Data Type | Recommended Service | Rationale |
-|-----------|---------------------|-----------|
+|-----------|---------------------|----------|
+| Patient Records & Clinical Data | **Azure Health Data Services (FHIR R4)** | Authoritative clinical data store; FHIR-native queries via `fhir-operations` MCP server |
+| Observations & Vitals | **Azure Health Data Services (FHIR R4)** | Structured clinical observations including MedTech device-ingested data |
+| Medical Imaging | **Azure Health Data Services (DICOM)** | DICOMweb storage and retrieval; linked to FHIR via ImagingStudy resources |
 | CMS Coverage Policies | **Cosmos DB** | Structured documents, known IDs, transactional reads |
 | Provider Directory (NPI) | **External API** | NPPES API is authoritative, no need to replicate |
 | ICD-10 Codes | **External API** | NLM Clinical Tables API is comprehensive |
@@ -14,9 +17,71 @@ For the Healthcare Marketplace, we recommend a **hybrid architecture** using bot
 | Audit Logs/Waypoints | **Cosmos DB** | JSON documents, transactional writes |
 | Protocol Templates | **Azure Blob + AI Search** | Large documents with semantic indexing |
 
+### How the tiers connect
+
+```mermaid
+flowchart LR
+    AGENT["Agent / Copilot"] --> APIM["APIM Gateway"]
+
+    APIM --> FHIR_MCP["fhir-operations MCP Server"]
+    APIM --> CMS_MCP["cms-coverage MCP Server"]
+    APIM --> OTHER_MCP["Other MCP Servers\n(NPI, ICD-10, PubMed, Trials)"]
+
+    FHIR_MCP --> AHDS["Azure Health Data Services (FHIR R4 / DICOM / MedTech)"]
+    CMS_MCP --> COSMOS[("Cosmos DB")]
+    OTHER_MCP --> SEARCH["Azure AI Search"]
+    OTHER_MCP --> EXT["External APIs (NPPES, NLM, ClinicalTrials.gov)"]
+```
+
 ---
 
 ## Architecture Decision Records
+
+### ADR-000: Azure Health Data Services as the Clinical Data Tier
+
+**Status:** Accepted
+
+**Context:**
+Healthcare workflows (prior authorization, clinical trials, patient lookup) need access to structured clinical data — patient demographics, conditions, observations, medications, imaging studies, and device telemetry. This data must be:
+- Stored in a standards-compliant format (HL7 FHIR R4)
+- Queryable via standard FHIR search parameters
+- Secured with Entra ID authentication and private endpoints
+- Capable of integrating imaging (DICOM) and device data (MedTech → FHIR Observations)
+
+**Decision:**
+Use Azure Health Data Services (AHDS) as the authoritative clinical data store. The `fhir-operations` MCP server (`src/mcp-servers/fhir-operations/`) acts as the bridge, translating MCP tool calls into FHIR R4 REST queries against the AHDS FHIR service.
+
+**Infrastructure:** `deploy/infra/modules/health-data-services.bicep` deploys:
+- AHDS Workspace with HIPAA-tagged configuration
+- FHIR R4 Service with system-assigned managed identity
+- Private network access (public access disabled by default)
+- Entra ID authentication (tenant-scoped audience)
+
+**MCP Tools exposed via `fhir-operations`:**
+
+| Tool | FHIR Operation | Description |
+|------|---------------|-------------|
+| `search_patients` | `GET /Patient?...` | Search by name, DOB, identifier |
+| `get_patient` | `GET /Patient/{id}` | Retrieve patient by FHIR ID |
+| `search_observations` | `GET /Observation?...` | Query vitals, labs, clinical observations |
+| `get_patient_conditions` | `GET /Condition?patient={id}` | Active conditions/diagnoses |
+| `get_patient_encounters` | `GET /Encounter?patient={id}` | Visit history |
+
+**Data flow:**
+1. Agent calls MCP tool (e.g., `search_patients`) via APIM
+2. `fhir-operations` Azure Function authenticates to AHDS using managed identity
+3. Function translates MCP parameters → FHIR search query
+4. AHDS returns FHIR Bundle → Function extracts and returns structured results
+
+**Consequences:**
+- ✅ Standards-compliant clinical data access (FHIR R4)
+- ✅ Unified workspace for FHIR + DICOM + MedTech
+- ✅ Managed identity auth — no credentials in code
+- ✅ Private Link ready for HIPAA compliance
+- ⚠️ AHDS has its own pricing tier; serverless not available
+- ⚠️ FHIR search is powerful but not suited for full-text/semantic retrieval (use AI Search for that)
+
+---
 
 ### ADR-001: Cosmos DB for Structured Healthcare Data
 
@@ -467,6 +532,51 @@ async def index_guidelines(documents: list[dict]):
     ) as sender:
         await sender.upload_documents(chunks)
 ```
+
+---
+
+## OCR + RAG Knowledge Layer Placement
+
+For adoption scenarios with large unstructured corpora (clinical notes, scanned prior-auth packets, policy PDFs, protocol libraries), add a dedicated OCR + RAG knowledge layer and expose it through MCP.
+
+```mermaid
+flowchart LR
+    SRC[Enterprise document sources] --> BLOB[Blob or ADLS landing zone]
+    BLOB --> OCR[Document OCR and layout extraction]
+    OCR --> PREP[Chunk and normalize]
+    PREP --> EMBED[Embedding generation]
+    EMBED --> SEARCH[Azure AI Search index]
+    SEARCH --> DOCMCP[Document Knowledge MCP server]
+    DOCMCP --> APIM[APIM endpoint mcp-pt or mcp]
+    APIM --> CLIENT[Copilot or agent workflows]
+```
+
+### Where This Layer Fits
+
+- Ingestion pipeline: ETL jobs in `scripts/` or a dedicated ingestion service.
+- Search and metadata persistence: Azure AI Search, with optional Cosmos DB metadata container.
+- MCP runtime: recommended extension at `src/mcp-servers/document-knowledge/`.
+- Client connectivity: `.vscode/mcp.json` for local/dev and APIM-hosted MCP URLs for shared environments.
+
+### MCP Tool Contract (Recommended)
+
+| Tool | Purpose | Inputs | Outputs |
+|------|---------|--------|---------|
+| `search_knowledge` | Hybrid semantic/keyword retrieval | `query`, `filters`, `top_k` | Ranked chunks + scores |
+| `get_document_chunk` | Fetch canonical chunk content | `document_id`, `chunk_id` | Full chunk + metadata |
+| `get_document_citations` | Build citation payload for responses | `result_ids` | Citation bundle |
+| `ingest_document` (optional admin) | Trigger index/update | `blob_uri`, `doc_type` | Ingestion status |
+
+### Integration with Skills and Prompts
+
+To use this layer in prior-auth or protocol skills:
+
+1. Update target `SKILL.md` prerequisites to include the document-knowledge MCP server.
+2. Add retrieval tools to `references/tools.md`.
+3. Update step files to retrieve evidence chunks before synthesis/decision.
+4. Require citations in outputs (`document_id`, `chunk_id`, `source_uri`, `retrieval_score`) for auditability.
+
+This allows the existing skill workflows to retrieve evidence from large document corpora without changing the core orchestration model.
 
 ---
 

@@ -8,18 +8,18 @@ This document outlines how Azure API Management (APIM) provides the secure gatew
 
 ### Anthropic Healthcare Marketplace (Reference)
 ```
-┌─────────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────────┐
 │                    Claude Code / Claude Desktop                  │
-├─────────────────────────────────────────────────────────────────┤
-│  Skills (Static Knowledge)      │    MCP Plugins (Dynamic)      │
-│  ├── fhir-developer-skill       │    ├── cms-coverage           │
-│  ├── prior-auth-review-skill    │    │   └── mcp.deepsense.ai   │
-│  └── clinical-trial-protocol    │    ├── npi-registry           │
-│                                 │    │   └── mcp.deepsense.ai   │
+├──────────────────────────────────────────────────────────────────┤
+│  Skills (Static Knowledge)      │    MCP Plugins (Dynamic)       │
+│  ├── fhir-developer-skill       │    ├── cms-coverage            │
+│  ├── prior-auth-review-skill    │    │   └── mcp.deepsense.ai    │
+│  └── clinical-trial-protocol    │    ├── npi-registry            │
+│                                 │    │   └── mcp.deepsense.ai    │
 │                                 │    ├── pubmed                  │
 │                                 │    │   └── pubmed.mcp.claude.com
-│                                 │    └── icd10-codes            │
-└─────────────────────────────────────────────────────────────────┘
+│                                 │    └── icd10-codes             │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ### Azure Healthcare Marketplace (Target)
@@ -52,6 +52,47 @@ This document outlines how Azure API Management (APIM) provides the secure gatew
 ```
 
 ## APIM Configuration Strategy
+
+### Azure Health Data Services and FHIR API Fit
+
+The `fhir-operations` MCP server is the bridge between APIM-exposed MCP tools and Azure Health Data Services (AHDS) FHIR data.
+
+```mermaid
+flowchart LR
+    CLIENT[Copilot or Agent Client] --> APIM[APIM MCP endpoint]
+    APIM --> FMCP[fhir-operations MCP server]
+    FMCP --> FHIR[AHDS FHIR service]
+    DICOM[AHDS DICOM service] --> FHIR
+    MEDTECH[AHDS MedTech service] --> FHIR
+```
+
+### Practical Integration Points in This Repo
+
+1. AHDS deployment:
+- `deploy/infra/modules/health-data-services.bicep` creates the AHDS workspace and FHIR R4 service.
+2. FHIR URL injection:
+- `deploy/infra/main.bicep` passes `healthDataServices.outputs.fhirServerUrl` into the Function Apps module.
+- `deploy/infra/modules/function-apps.bicep` sets `FHIR_SERVER_URL` for each MCP Function App.
+3. Runtime behavior:
+- `src/mcp-servers/fhir-operations/function_app.py` reads `FHIR_SERVER_URL`.
+- If configured, it uses `DefaultAzureCredential` and calls the FHIR endpoint.
+- If not configured, it falls back to demo behavior/public test server responses.
+4. Authorization:
+- `deploy/infra/main.bicep` assigns `FHIR Data Contributor` role to MCP Function App identities.
+
+### Junior Developer Mental Model
+
+- AHDS Workspace is the healthcare data platform boundary.
+- FHIR service is the normalized API layer your MCP tools query.
+- APIM is the secure front door that exposes MCP endpoints to clients.
+- `fhir-operations` MCP is where MCP requests become FHIR REST calls.
+
+When debugging FHIR behavior, check this order:
+
+1. `FHIR_SERVER_URL` app setting is set.
+2. Function App identity has `FHIR Data Contributor`.
+3. Network path (APIM or direct Function App) can reach the FHIR endpoint.
+4. MCP `tools/call` response includes real FHIR data instead of demo fallback.
 
 ### 1. API Products
 
@@ -341,13 +382,13 @@ ApiManagementGatewayLogs
 
 ---
 
-## Next Steps
+## Progress
 
-1. [ ] Create Bicep templates for APIM deployment
-2. [ ] Implement MCP server backends (Azure Functions)
-3. [ ] Configure OAuth 2.0 with Microsoft Entra ID
+1. [x] Create Bicep templates for APIM deployment
+2. [x] Implement MCP server backends (Azure Functions)
+3. [x] Configure OAuth 2.0 with Microsoft Entra ID
 4. [ ] Set up monitoring dashboards
-5. [ ] Document authentication flow for consumers
+5. [x] Document authentication flow for consumers
 
 ---
 
