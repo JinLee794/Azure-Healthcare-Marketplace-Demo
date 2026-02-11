@@ -63,9 +63,9 @@ export class HealthcareSkillLoader {
       const { frontmatter, body } = this.parseFrontmatter(content);
 
       const skill: Skill = {
-        name: frontmatter.name || name,
-        description: frontmatter.description || '',
-        triggers: frontmatter.triggers || [],
+        name: typeof frontmatter.name === 'string' ? frontmatter.name : name,
+        description: typeof frontmatter.description === 'string' ? frontmatter.description : '',
+        triggers: Array.isArray(frontmatter.triggers) ? frontmatter.triggers : [],
         content: body,
         references: new Map(),
       };

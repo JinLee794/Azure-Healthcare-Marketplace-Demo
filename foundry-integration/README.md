@@ -73,9 +73,11 @@ The agent is configured with healthcare-specific instructions that guide it to:
 |------|-------------|------------|
 | `search_patients` | Search patients by demographics | azure-fhir |
 | `get_patient` | Retrieve patient by ID | azure-fhir |
-| `search_observations` | Get clinical observations | azure-fhir |
-| `check_coverage_policy` | Check PA requirements | coverage-policy |
-| `get_patient_coverage` | Get insurance info | azure-fhir |
+| `get_patient_observations` | Get clinical observations | azure-fhir |
+| `validate_resource` | Validate FHIR resources | azure-fhir |
+| `search_coverage` | Search LCD/NCD coverage policies | coverage-policy |
+| `get_coverage_by_cpt` | Coverage lookup by CPT/HCPCS | coverage-policy |
+| `check_medical_necessity` | CPT + ICD-10 medical necessity check | coverage-policy |
 
 ## Security Considerations
 

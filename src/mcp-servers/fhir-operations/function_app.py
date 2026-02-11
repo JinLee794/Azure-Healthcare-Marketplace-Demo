@@ -35,7 +35,7 @@ TOOLS = [
                 "birthdate": {"type": "string", "description": "Birth date (YYYY-MM-DD)"},
                 "identifier": {"type": "string", "description": "Patient identifier (e.g., MRN)"},
                 "gender": {"type": "string", "enum": ["male", "female", "other", "unknown"]},
-                "_count": {"type": "integer", "description": "Max results (default 10)", "default": 10}
+                "count": {"type": "integer", "description": "Max results (default 10)", "default": 10}
             }
         }
     },
@@ -62,7 +62,7 @@ TOOLS = [
                     "enum": ["active", "recurrence", "relapse", "inactive", "remission", "resolved"],
                     "description": "Filter by clinical status"
                 },
-                "_count": {"type": "integer", "description": "Max results", "default": 50}
+                "count": {"type": "integer", "description": "Max results", "default": 50}
             },
             "required": ["patient_id"]
         }
@@ -97,7 +97,7 @@ TOOLS = [
                     "description": "Observation category filter"
                 },
                 "code": {"type": "string", "description": "LOINC code filter"},
-                "_count": {"type": "integer", "default": 20}
+                "count": {"type": "integer", "default": 20}
             },
             "required": ["patient_id"]
         }
@@ -111,7 +111,7 @@ TOOLS = [
                 "patient_id": {"type": "string", "description": "FHIR Patient resource ID"},
                 "status": {"type": "string", "enum": ["planned", "arrived", "in-progress", "finished", "cancelled"]},
                 "date": {"type": "string", "description": "Date filter (YYYY-MM-DD or range like ge2023-01-01)"},
-                "_count": {"type": "integer", "default": 20}
+                "count": {"type": "integer", "default": 20}
             },
             "required": ["patient_id"]
         }
@@ -419,10 +419,10 @@ async def mcp_message(req: func.HttpRequest) -> func.HttpResponse:
             tool_handlers = {
                 "search_patients": lambda: search_patients(args),
                 "get_patient": lambda: get_patient(args.get("patient_id", "")),
-                "get_patient_conditions": lambda: get_patient_conditions(args.get("patient_id", ""), args.get("clinical_status"), args.get("_count", 50)),
+                "get_patient_conditions": lambda: get_patient_conditions(args.get("patient_id", ""), args.get("clinical_status"), args.get("count", 50)),
                 "get_patient_medications": lambda: get_patient_medications(args.get("patient_id", ""), args.get("status", "active")),
-                "get_patient_observations": lambda: get_patient_observations(args.get("patient_id", ""), args.get("category"), args.get("code"), args.get("_count", 20)),
-                "get_patient_encounters": lambda: get_patient_encounters(args.get("patient_id", ""), args.get("status"), args.get("date"), args.get("_count", 20)),
+                "get_patient_observations": lambda: get_patient_observations(args.get("patient_id", ""), args.get("category"), args.get("code"), args.get("count", 20)),
+                "get_patient_encounters": lambda: get_patient_encounters(args.get("patient_id", ""), args.get("status"), args.get("date"), args.get("count", 20)),
                 "search_practitioners": lambda: search_practitioners(args),
                 "validate_resource": lambda: validate_resource(args.get("resource_type", ""), args.get("resource", {}))
             }

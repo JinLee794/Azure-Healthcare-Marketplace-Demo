@@ -53,9 +53,8 @@ tools:
     allowed_tools:
       - search_patients
       - get_patient
-      - search_observations
-      - get_patient_coverage
-      - validate_fhir_resource
+      - get_patient_observations
+      - validate_resource
     authentication:
       type: azure_ad
       audience: api://healthcare-mcp-server
@@ -64,10 +63,10 @@ tools:
     server_label: coverage_policy
     server_url: ${COVERAGE_MCP_URL}
     allowed_tools:
-      - check_coverage_policy
-      - get_ncd_details
-      - get_lcd_details
-      - validate_diagnosis_for_procedure
+      - search_coverage
+      - get_coverage_by_cpt
+      - get_coverage_by_icd10
+      - check_medical_necessity
     authentication:
       type: azure_ad
       audience: api://coverage-mcp-server

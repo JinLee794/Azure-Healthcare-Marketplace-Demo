@@ -42,9 +42,8 @@ def create_healthcare_agent(
             "allowed_tools": [
                 "search_patients",
                 "get_patient",
-                "search_observations",
-                "get_patient_coverage",
-                "validate_fhir_resource"
+                "get_patient_observations",
+                "validate_resource"
             ]
         })
     
@@ -54,9 +53,10 @@ def create_healthcare_agent(
             "server_label": "coverage_policy",
             "server_url": coverage_mcp_url,
             "allowed_tools": [
-                "check_coverage_policy",
-                "get_ncd_details",
-                "get_lcd_details"
+                "search_coverage",
+                "get_coverage_by_cpt",
+                "get_coverage_by_icd10",
+                "check_medical_necessity"
             ]
         })
     
@@ -84,8 +84,8 @@ def create_healthcare_agent(
 Use the available MCP tools to:
 - Search for patients by name, MRN, or demographics
 - Retrieve clinical observations and lab results
-- Check insurance coverage for patients
-- Verify prior authorization requirements
+- Search Medicare coverage policies for procedures/diagnoses
+- Check medical necessity for CPT + ICD-10 combinations
 - Validate FHIR resources""",
         "tools": tools
     }
