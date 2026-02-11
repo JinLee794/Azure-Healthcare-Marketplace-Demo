@@ -53,45 +53,34 @@ Process prior authorization requests using AI-assisted review with MCP connector
 
 ## Workflow Overview
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 PRIOR AUTHORIZATION WORKFLOW                     │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ SUBSKILL 1: INTAKE & ASSESSMENT (3-4 minutes)              │ │
-│  │                                                             │ │
-│  │  1. Collect request details (member, service, provider)    │ │
-│  │  2. Parallel MCP validation:                               │ │
-│  │     • NPI Registry → Provider credentials                  │ │
-│  │     • ICD-10 → Diagnosis codes                             │ │
-│  │     • CMS Coverage → Applicable policies                   │ │
-│  │  3. Extract clinical data from documentation               │ │
-│  │  4. Map evidence to policy criteria                        │ │
-│  │  5. Generate recommendation (APPROVE/PEND)                 │ │
-│  │                                                             │ │
-│  │  OUTPUT: waypoints/assessment.json                         │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                            │                                    │
-│                            ▼                                    │
-│                 ┌──────────────────────┐                        │
-│                 │ HUMAN DECISION POINT │                        │
-│                 │  Review AI findings  │                        │
-│                 └──────────────────────┘                        │
-│                            │                                    │
-│                            ▼                                    │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ SUBSKILL 2: DECISION & NOTIFICATION (1-2 minutes)          │ │
-│  │                                                             │ │
-│  │  1. Human confirms/overrides recommendation                │ │
-│  │  2. Generate authorization number (if approved)            │ │
-│  │  3. Create decision documentation                          │ │
-│  │  4. Generate notification letters                          │ │
-│  │                                                             │ │
-│  │  OUTPUT: waypoints/decision.json, outputs/letters/         │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph PA["Prior Authorization Workflow"]
+        subgraph SUB1["Subskill 1: Intake & Assessment (3-4 min)"]
+            S1A["1. Collect request details<br/>(member, service, provider)"]
+            S1B["2. Parallel MCP validation:<br/>• NPI Registry → Provider credentials<br/>• ICD-10 → Diagnosis codes<br/>• CMS Coverage → Applicable policies"]
+            S1C["3. Extract clinical data from documentation"]
+            S1D["4. Map evidence to policy criteria"]
+            S1E["5. Generate recommendation (APPROVE/PEND)"]
+            S1A --> S1B --> S1C --> S1D --> S1E
+        end
+
+        SUB1 -->|"OUTPUT: waypoints/assessment.json"| HUMAN
+
+        HUMAN{"HUMAN DECISION POINT<br/>Review AI findings"}
+
+        HUMAN --> SUB2
+
+        subgraph SUB2["Subskill 2: Decision & Notification (1-2 min)"]
+            S2A["1. Human confirms/overrides recommendation"]
+            S2B["2. Generate authorization number (if approved)"]
+            S2C["3. Create decision documentation"]
+            S2D["4. Generate notification letters"]
+            S2A --> S2B --> S2C --> S2D
+        end
+
+        SUB2 -->|"OUTPUT: waypoints/decision.json, outputs/letters/"| DONE(["Done"])
+    end
 ```
 
 ---
@@ -146,21 +135,82 @@ Sample files are in: assets/sample/
 
 ---
 
+## Beads (bd) Task Tracking
+
+Use **beads** to track progress through the prior authorization workflow. Each major phase is a bead with a unique ID, status, and checklist. Update bead status as work progresses to maintain an auditable trail and enable reliable resume.
+
+### Bead Definitions
+
+| Bead ID | Phase | Description |
+|---------|-------|-------------|
+| `bd-pa-001-intake` | Subskill 1, Steps 1-3 | Collect request info + parallel MCP validation |
+| `bd-pa-002-clinical` | Subskill 1, Steps 4-6 | Clinical extraction + rubric read + evidence mapping |
+| `bd-pa-003-recommend` | Subskill 1, Steps 7-10 | Generate recommendation + write waypoint + audit doc |
+| `bd-pa-004-decision` | Subskill 2, Steps 1-5 | Human review + decision capture + authorization |
+| `bd-pa-005-notify` | Subskill 2, Steps 6-7 | Generate notification letters + completion summary |
+
+### Bead Lifecycle
+
+```
+not-started → in-progress → completed
+```
+
+- **not-started**: Bead has not begun (default)
+- **in-progress**: Actively executing this phase (only ONE bead active at a time)
+- **completed**: All checklist items done, outputs verified
+
+### Tracking Rules
+
+1. **Mark bead in-progress** before starting its first task
+2. **Check off items** as each step completes
+3. **Mark bead completed** only after all outputs are verified
+4. **Never skip beads** — execute in order (`bd-pa-001` → `bd-pa-005`)
+5. **On resume**, scan bead statuses to find the first non-completed bead and continue from there
+6. **Persist bead state** in `waypoints/assessment.json` under a `"beads"` key so progress survives interruptions
+
+### Bead State in Waypoint Files
+
+Include bead tracking in waypoint JSON files:
+
+```json
+{
+  "beads": [
+    {"id": "bd-pa-001-intake",    "status": "completed", "completed_at": "ISO datetime"},
+    {"id": "bd-pa-002-clinical",   "status": "completed", "completed_at": "ISO datetime"},
+    {"id": "bd-pa-003-recommend",  "status": "in-progress", "started_at": "ISO datetime"},
+    {"id": "bd-pa-004-decision",   "status": "not-started"},
+    {"id": "bd-pa-005-notify",     "status": "not-started"}
+  ]
+}
+```
+
+### Resume via Beads
+
+On startup, if `waypoints/assessment.json` exists:
+1. Read the `"beads"` array
+2. Find the first bead that is NOT `"completed"`
+3. Display bead progress summary to user
+4. Offer to resume from that bead
+
+---
+
 ## Implementation Requirements
 
 1. **Always read subskill files:** Don't execute from memory. Read the actual subskill markdown file and follow instructions.
 
-2. **Auto-detect resume:** Check for existing `waypoints/assessment.json` on startup. If found and status is not "assessment_complete", offer to resume.
+2. **Auto-detect resume:** Check for existing `waypoints/assessment.json` on startup. If found, read bead state and offer to resume from the first incomplete bead.
 
 3. **Parallel MCP execution:** In Subskill 1, execute NPI, ICD-10, and Coverage MCP calls in parallel for optimal performance.
 
 4. **Preserve user data:** Never overwrite waypoint files without asking confirmation or backing up.
 
-5. **Clear progress indicators:** Show users what's happening during operations (MCP queries, data analysis).
+5. **Clear progress indicators:** Show users what's happening during operations (MCP queries, data analysis). Update bead status in real-time.
 
 6. **Graceful degradation:** If optional data missing, continue with available data and note limitations.
 
 7. **Validate outputs:** Check that waypoint files have expected structure before proceeding.
+
+8. **Track beads:** Update bead status at every phase transition. Persist bead state in waypoint files for resume capability.
 
 ### MCP Tool Call Transparency (REQUIRED)
 
@@ -210,10 +260,12 @@ If clinical data extraction confidence <60%, warn user with confidence score and
 
 Before completing workflow, verify:
 
+- [ ] All beads (`bd-pa-001` through `bd-pa-005`) marked completed
 - [ ] All required waypoint files created
 - [ ] Decision has clear rationale documented
 - [ ] All required fields populated
 - [ ] Output files generated successfully
+- [ ] Bead state in waypoints reflects final status
 
 ---
 

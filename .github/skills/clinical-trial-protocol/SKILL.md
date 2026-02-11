@@ -19,6 +19,69 @@ Generate comprehensive clinical trial protocols based on NIH/FDA guidelines and 
 
 ---
 
+## Beads (bd) Task Tracking
+
+Use **beads** to track progress through the clinical trial protocol workflow. Each step is a bead with a unique ID, status, and checklist. Update bead status as work progresses to enable reliable resume and provide an auditable trail.
+
+### Bead Definitions
+
+| Bead ID | Step | Description |
+|---------|------|-------------|
+| `bd-ct-000-init` | Step 0 | Initialize intervention (collect device/drug info) |
+| `bd-ct-001-research` | Step 1 | Research similar protocols via Clinical Trials MCP |
+| `bd-ct-002-foundation` | Step 2 | Protocol foundation (Sections 1-6) |
+| `bd-ct-003-intervention` | Step 3 | Intervention details (Sections 7-8) |
+| `bd-ct-004-operations` | Step 4 | Operations & statistics (Sections 9-12) |
+| `bd-ct-005-concatenate` | Step 5 | Concatenate final protocol |
+
+### Bead Lifecycle
+
+```
+not-started → in-progress → completed
+```
+
+- **not-started**: Bead has not begun (default)
+- **in-progress**: Actively executing this step (only ONE bead active at a time)
+- **completed**: All outputs verified for this step
+
+### Tracking Rules
+
+1. **Mark bead in-progress** before starting its step
+2. **Check off items** as each substep completes
+3. **Mark bead completed** only after outputs are verified
+4. **Never skip beads** — execute in order (`bd-ct-000` → `bd-ct-005`)
+5. **On resume**, scan bead statuses in `waypoints/intervention_metadata.json` to find the first non-completed bead
+6. **Persist bead state** in waypoint files under a `"beads"` key
+
+### Bead State in Waypoint Files
+
+Include bead tracking in `waypoints/intervention_metadata.json`:
+
+```json
+{
+  "beads": [
+    {"id": "bd-ct-000-init",         "status": "completed", "completed_at": "ISO datetime"},
+    {"id": "bd-ct-001-research",      "status": "completed", "completed_at": "ISO datetime"},
+    {"id": "bd-ct-002-foundation",    "status": "in-progress", "started_at": "ISO datetime"},
+    {"id": "bd-ct-003-intervention",  "status": "not-started"},
+    {"id": "bd-ct-004-operations",    "status": "not-started"},
+    {"id": "bd-ct-005-concatenate",   "status": "not-started"}
+  ]
+}
+```
+
+### Resume via Beads
+
+On startup, if `waypoints/intervention_metadata.json` exists:
+1. Read the `"beads"` array
+2. Find the first bead that is NOT `"completed"`
+3. Display bead progress summary to user
+4. Offer to resume from that bead's corresponding step
+
+This replaces the file-existence-based resume logic with explicit bead state tracking.
+
+---
+
 ## Prerequisites
 
 ### 1. Clinical Trials MCP Server (Required)
@@ -106,22 +169,23 @@ Step 5: Concatenate Final Protocol
 
 ### Resume Logic
 
-On startup, check for existing waypoint files:
+On startup, check for existing waypoint files and bead state:
 
 1. If `waypoints/intervention_metadata.json` exists:
-   - Display intervention details
-   - Check for completed steps
-   - Offer to resume from next incomplete step
+   - Read the `"beads"` array for explicit status tracking
+   - Display intervention details and bead progress
+   - Offer to resume from the first non-completed bead
 
-2. Resume detection order:
+2. Resume detection (bead-first, fallback to file detection):
    ```
+   Check beads array first. If no beads key, fall back to file detection:
    protocol_complete.md exists? → Complete
-   04_protocol_operations.md exists? → Resume at Step 5
-   03_protocol_intervention.md exists? → Resume at Step 4
-   02_protocol_foundation.md exists? → Resume at Step 3
-   01_clinical_research_summary.json exists? → Resume at Step 2
-   intervention_metadata.json exists? → Resume at Step 1
-   Nothing exists? → Start at Step 0
+   04_protocol_operations.md exists? → Resume at Step 5 (bd-ct-005)
+   03_protocol_intervention.md exists? → Resume at Step 4 (bd-ct-004)
+   02_protocol_foundation.md exists? → Resume at Step 3 (bd-ct-003)
+   01_clinical_research_summary.json exists? → Resume at Step 2 (bd-ct-002)
+   intervention_metadata.json exists? → Resume at Step 1 (bd-ct-001)
+   Nothing exists? → Start at Step 0 (bd-ct-000)
    ```
 
 ---
@@ -139,30 +203,36 @@ On startup, check for existing waypoint files:
 5. Read each step's subskill file only when that specific step is about to execute
 
 ### Step 0: Initialize Intervention
+- **Bead:** `bd-ct-000-init` — mark **in-progress** before starting, **completed** after output verified
 - **Read:** `references/00-initialize-intervention.md`
 - **Output:** `waypoints/intervention_metadata.json`
 
 ### Step 1: Research Protocols
+- **Bead:** `bd-ct-001-research` — mark **in-progress** before starting, **completed** after output verified
 - **Read:** `references/01-research-protocols.md`
 - **MCP Required:** `trials_search`, `trials_details`
 - **Output:** `waypoints/01_clinical_research_summary.json`
 
 ### Step 2: Protocol Foundation
+- **Bead:** `bd-ct-002-foundation` — mark **in-progress** before starting, **completed** after output verified
 - **Read:** `references/02-protocol-foundation.md`
 - **Input:** Intervention metadata, research summary
 - **Output:** `waypoints/02_protocol_foundation.md`, `waypoints/02_protocol_metadata.json`
 
 ### Step 3: Intervention Details
+- **Bead:** `bd-ct-003-intervention` — mark **in-progress** before starting, **completed** after output verified
 - **Read:** `references/03-protocol-intervention.md`
 - **Input:** Protocol foundation, research summary
 - **Output:** `waypoints/03_protocol_intervention.md`
 
 ### Step 4: Operations & Statistics
+- **Bead:** `bd-ct-004-operations` — mark **in-progress** before starting, **completed** after output verified
 - **Read:** `references/04-protocol-operations.md`
 - **Script:** `scripts/sample_size_calculator.py`
 - **Output:** `waypoints/04_protocol_operations.md`, `waypoints/02_sample_size_calculation.json`
 
 ### Step 5: Concatenate Protocol
+- **Bead:** `bd-ct-005-concatenate` — mark **in-progress** before starting, **completed** after output verified
 - **Read:** `references/05-concatenate-protocol.md`
 - **Input:** All protocol section files
 - **Output:** `waypoints/protocol_complete.md`
@@ -236,7 +306,9 @@ python scripts/sample_size_calculator.py \
 
 5. **Handle errors gracefully:** If a step fails, give user option to retry or exit.
 
-6. **Track progress:** Update intervention metadata with completed steps after each phase.
+6. **Track progress with beads:** Update bead status at every step transition. Persist bead state in `waypoints/intervention_metadata.json`. Mark bead in-progress before starting, completed after outputs verified.
+
+7. **Resume from beads:** On startup, read bead state from waypoints before falling back to file-existence detection.
 
 ### MCP Tool Call Transparency (REQUIRED)
 
@@ -293,11 +365,16 @@ tool:
 
 Before completing each step, verify:
 
+- [ ] Bead for current step marked completed
+- [ ] Bead state persisted in waypoint file
 - [ ] All required waypoint files created
 - [ ] JSON files have valid structure
 - [ ] Markdown files follow protocol template format
 - [ ] Research data properly cited
 - [ ] No placeholder text remaining
+
+Before completing entire workflow, verify:
+- [ ] All beads (`bd-ct-000` through `bd-ct-005`) marked completed
 
 ---
 

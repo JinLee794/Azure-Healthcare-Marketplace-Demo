@@ -1,0 +1,93 @@
+{
+  "servers": {
+    "healthcare-npi-lookup-pt": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp-pt/npi/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimKey}"
+      }
+    },
+    "healthcare-icd10-validation-pt": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp-pt/icd10/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimKey}"
+      }
+    },
+    "healthcare-cms-coverage-pt": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp-pt/cms/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimKey}"
+      }
+    },
+    "healthcare-fhir-operations-pt": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp-pt/fhir/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimKey}"
+      }
+    },
+    "healthcare-pubmed-pt": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp-pt/pubmed/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimKey}"
+      }
+    },
+    "healthcare-clinical-trials-pt": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp-pt/clinical-trials/mcp",
+      "headers": {
+        "Ocp-Apim-Subscription-Key": "${input:apimKey}"
+      }
+    },
+
+    "healthcare-npi-lookup": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp/npi/mcp"
+    },
+    "healthcare-icd10-validation": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp/icd10/mcp"
+    },
+    "healthcare-cms-coverage": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp/cms/mcp"
+    },
+    "healthcare-fhir-operations": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp/fhir/mcp"
+    },
+    "healthcare-pubmed": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp/pubmed/mcp"
+    },
+    "healthcare-clinical-trials": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp/clinical-trials/mcp"
+    },
+
+    "healthcare-npi-lookup-direct": {
+      "type": "http",
+      "url": "https://${NPI_FUNCTION_APP_NAME}.azurewebsites.net/mcp",
+      "headers": {
+        "x-functions-key": "${input:npiFunctionKey}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "id": "npiFunctionKey",
+      "type": "promptString",
+      "description": "Azure Function key for NPI lookup (run: azd env get-value SERVICE_NPI_LOOKUP_RESOURCE_NAME, then use az functionapp keys list)",
+      "password": true
+    },
+    {
+      "id": "apimKey",
+      "type": "promptString",
+      "description": "APIM subscription key for MCP passthrough endpoints (get from Azure portal, or ask admin)",
+      "password": true
+    }
+  ]
+}

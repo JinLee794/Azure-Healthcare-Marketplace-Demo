@@ -25,6 +25,18 @@ Accept human review of assessment findings, confirm or override the AI recommend
 
 ## Execution Flow
 
+### Bead Tracking (Subskill 2)
+
+Subskill 2 spans two beads. Update bead status as you progress:
+
+| Bead | Steps | Checklist |
+|------|-------|-----------|
+| `bd-pa-004-decision` | 1-5 | [ ] Assessment loaded [ ] Summary presented [ ] Human decision captured [ ] Decision waypoint written [ ] Auth number generated (if approved) |
+| `bd-pa-005-notify` | 6-7 | [ ] Notification letter generated [ ] Completion summary displayed |
+
+**Before starting each bead group:** Mark the bead `in-progress` and update `waypoints/assessment.json` (and later `waypoints/decision.json`) under the `"beads"` key.  
+**After completing each bead group:** Mark the bead `completed` with a timestamp and persist.
+
 ### Step 1: Load Assessment
 
 Read `waypoints/assessment.json` and verify:
@@ -41,6 +53,8 @@ Exit.
 ---
 
 ### Step 2: Present Assessment Summary
+
+> **Bead `bd-pa-004-decision`** — mark **in-progress** now.
 
 Display formatted summary for human review:
 
@@ -135,10 +149,20 @@ Justification:
 
 **File:** `waypoints/decision.json`
 
+Include bead state in the decision waypoint:
+
 ```json
 {
   "request_id": "...",
   "decision_date": "ISO datetime",
+
+  "beads": [
+    {"id": "bd-pa-001-intake",    "status": "completed", "completed_at": "..."},
+    {"id": "bd-pa-002-clinical",   "status": "completed", "completed_at": "..."},
+    {"id": "bd-pa-003-recommend",  "status": "completed", "completed_at": "..."},
+    {"id": "bd-pa-004-decision",   "status": "completed", "completed_at": "..."},
+    {"id": "bd-pa-005-notify",     "status": "not-started"}
+  ],
 
   "decision": {
     "outcome": "APPROVED/DENIED/PENDING",
@@ -187,6 +211,9 @@ Valid Through: [Service Date + 30 days default]
 ---
 
 ### Step 6: Generate Notification Letters
+
+> **Bead `bd-pa-004-decision`** — mark **completed** after Step 5 finishes.  
+> **Bead `bd-pa-005-notify`** — mark **in-progress** now.
 
 Based on decision outcome, generate appropriate letter:
 
@@ -312,6 +339,8 @@ If you have questions about this decision, please contact [Contact Info].
 
 ### Step 7: Display Completion Summary
 
+> **Bead `bd-pa-005-notify`** — mark **completed** after generating letters.
+
 ```
 ═══════════════════════════════════════════════════════════════
            PRIOR AUTHORIZATION REVIEW COMPLETE
@@ -376,6 +405,10 @@ Please check permissions and try again.
 ## Quality Checks
 
 Before completing Subskill 2:
+- [ ] Bead `bd-pa-004-decision` marked completed
+- [ ] Bead `bd-pa-005-notify` marked completed
+- [ ] All beads (`bd-pa-001` through `bd-pa-005`) in completed state
+- [ ] Bead state persisted in `waypoints/decision.json`
 - [ ] Assessment loaded and verified
 - [ ] Human decision captured
 - [ ] Override justification documented (if applicable)

@@ -69,3 +69,4 @@ build/
 *.bicepparams.json
 .local-logs
 voicetree*
+mcp.json

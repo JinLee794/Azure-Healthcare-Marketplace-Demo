@@ -1,286 +1,119 @@
 # Agent.md - Healthcare Marketplace for Azure
 
-## Project Overview
-Building an Azure-native healthcare marketplace with Skills, MCP Servers, and AI Agent integrations inspired by the Anthropic healthcare marketplace architecture.
+## Purpose
+Operational guide for coding agents working in this repository. Keep this file concise, action-oriented, and specific to this project.
 
-## Beads (bd) Change Tracking
+## Scope
+Build and maintain an Azure-native healthcare marketplace across:
+- Skills (`.github/skills/`)
+- MCP servers (`src/mcp-servers/`)
+- Agent workflows (`src/agents/`)
+- Infra and integration surfaces (`deploy/`, `vscode-extension/`, `foundry-integration/`)
 
-### Active Bead: `bd-001-init`
-**Status**: ✅ Complete  
-**Description**: Initial project scaffold creation
+## Do
+- Keep changes small and focused on the requested task.
+- Follow existing patterns before introducing new abstractions.
+- Validate locally first (single server/workflow), then expand scope.
+- Use de-identified/sample data only; never commit PHI or secrets.
+- Update docs when behavior or commands change.
+- Prefer references to canonical docs instead of duplicating long explanations.
 
-#### Changes Tracked
-- [x] Project structure initialization
-- [x] Skills layer scaffolds (azure-fhir-developer, azure-health-data-services, prior-auth-azure)
-- [x] MCP server scaffold (azure-fhir-mcp-server)
-- [x] Azure Foundry integration scaffold
-- [x] VS Code extension scaffold
-- [x] Configuration files (package.json, tsconfig.json, etc.)
+## Do Not
+- Do not run cloud-destructive or expensive commands (`azd up`, resource deletes) without explicit user approval.
+- Do not rewrite unrelated files during a targeted fix.
+- Do not add new dependencies unless required for the task.
+- Do not hardcode credentials, API keys, tenant IDs, or endpoint secrets.
 
-#### Files Created
-```
-.github/skills/azure-fhir-developer/
-├── SKILL.md
-└── references/
-    ├── fhir-r4-resources.md
-    └── azure-fhir-api.md
+## Project Map
+- `.github/skills/`: domain guidance and templates for healthcare workflows.
+- `src/mcp-servers/`: Python Azure Function MCP servers:
+  - `npi-lookup`, `icd10-validation`, `cms-coverage`, `fhir-operations`, `pubmed`, `clinical-trials`
+- `src/agents/`: orchestration CLI and workflows (`prior-auth`, `clinical-trial`, `patient-data`, `literature-search`).
+- `scripts/`: local launchers, APIM tests, post-deploy config scripts.
+- `deploy/`: Azure Bicep infrastructure and deployment assets.
+- `vscode-extension/`: `@healthcare` chat participant implementation.
+- `docs/`: operational, architecture, and testing guides.
 
-.github/skills/azure-health-data-services/
-├── SKILL.md
-└── references/
-    └── dicom-api.md
+## Default Workflow
+1. Understand the target surface (skill, MCP server, workflow, infra, extension).
+2. Edit only the relevant files.
+3. Run the smallest useful validation loop.
+4. Summarize what changed, why, and how it was validated.
 
-.github/skills/prior-auth-azure/
-├── SKILL.md
-└── templates/
-    └── prior-auth-request.json
-
-azure-fhir-mcp-server/
-├── package.json
-├── tsconfig.json
-├── README.md
-└── src/
-    ├── index.ts
-    ├── fhir-client.ts
-    └── coverage-policy.ts
-
-foundry-integration/
-├── README.md
-├── agent_setup.py
-├── agent_config.yaml
-└── tools_catalog.json
-
-vscode-extension/
-├── package.json
-├── tsconfig.json
-├── README.md
-└── src/
-    ├── extension.ts
-    ├── chat/
-    │   └── chat-handler.ts
-    └── skills/
-        └── skill-loader.ts
-```
-
----
-
-## Bead History
-
-| Bead ID | Description | Status | Date |
-|---------|-------------|--------|------|
-| bd-001-init | Initial project scaffold | ✅ Complete | 2026-01-21 |
-| bd-002-apim | Anthropic parity + APIM architecture | ✅ Complete | 2026-01-21 |
-| bd-003-iac | Production IaC with private networking | ✅ Complete | 2026-01-21 |
-| bd-004-retrieval | Retrieval architecture + Anthropic parity completion | ✅ Complete | 2026-01-21 |
-
----
-
-### Bead: `bd-004-retrieval`
-**Status**: ✅ Complete  
-**Description**: Retrieval architecture decision (Azure AI Search + Cosmos DB hybrid) and Anthropic healthcare parity completion
-
-#### Changes Tracked
-- [x] Retrieval architecture decision document (AI Search vs Cosmos DB)
-- [x] MCP tools reference document for prior-auth skill
-- [x] FHIR project scaffold script (Anthropic parity)
-- [x] Gap analysis: Azure project exceeds Anthropic (4 skills vs 3, 6 MCP servers vs 4)
-
-#### Files Created
-```
-docs/architecture/
-└── RETRIEVAL-ARCHITECTURE.md      # Hybrid retrieval architecture decision
-
-.github/skills/prior-auth-azure/references/
-└── tools.md                       # MCP tools reference for prior auth
-
-.github/skills/azure-fhir-developer/scripts/
-└── setup_fhir_project.py          # FastAPI project scaffold script
-```
-
-#### Architecture Decision Summary
-
-| Data Type | Service | Rationale |
-|-----------|---------|-----------|
-| CMS Policies | Cosmos DB | Structured docs, point reads, ACID |
-| Provider Cache | Cosmos DB | TTL-based caching, fast lookups |
-| Audit Logs | Cosmos DB | Transactional writes, compliance |
-| Clinical Guidelines | AI Search | Semantic/vector search, RAG |
-| PubMed Literature | AI Search | Full-text + hybrid retrieval |
-| Protocol Templates | AI Search + Blob | Large docs with semantic index |
-
-#### Anthropic Parity Status
-
-| Component | Anthropic | Azure | Status |
-|-----------|-----------|-------|--------|
-| Skills | 3 | 4 | ✅ Exceeds |
-| MCP Servers | 4 | 6 | ✅ Exceeds |
-| Plugin Manifest | ✅ | ✅ | ✅ Match |
-| Sample Data | ✅ | ✅ | ✅ Match |
-| Decision Rubric | ✅ | ✅ | ✅ Match |
-| Tools Reference | ✅ | ✅ | ✅ Match |
-| Setup Scripts | ✅ | ✅ | ✅ Match |
-
----
-
-### Bead: `bd-003-iac`
-**Status**: ✅ Complete  
-**Description**: Production-grade Infrastructure as Code with APIM Standard v2, private VNet, Function Apps, and AI Foundry
-
-#### Changes Tracked
-- [x] VNet Bicep module with 4 subnets (agent, pe, apim, function)
-- [x] APIM Standard v2 module with Healthcare MCP APIs
-- [x] Private endpoints and DNS zones module
-- [x] Function Apps module for MCP servers (6x)
-- [x] AI Foundry module with model deployments
-- [x] Dependent resources (Storage, AI Search, Cosmos DB, App Insights)
-- [x] Main orchestration template
-- [x] Updated Jupyter notebook for deployment walkthrough
-
-#### Files Created
-```
-deploy/infra/
-├── main.bicep                     # Main orchestration template
-├── main.bicepparam                # Parameter file
-└── modules/
-    ├── vnet.bicep                 # VNet with 4 subnets
-    ├── apim.bicep                 # APIM Standard v2 + MCP APIs
-    ├── private-endpoints.bicep    # Private endpoints + DNS zones
-    ├── function-apps.bicep        # 6 Function Apps for MCP servers
-    ├── ai-foundry.bicep           # AI Services + Project
-    └── dependent-resources.bicep  # Storage, Search, Cosmos, Insights
-
-deploy/
-└── deploy-healthcare-mcp.ipynb    # Deployment notebook (updated)
-```
-
-#### Network Architecture
-```
-VNet: 192.168.0.0/16
-├── agent-subnet (192.168.0.0/24)    - AI Foundry agents (Container Apps)
-├── pe-subnet (192.168.1.0/24)       - Private endpoints for all services
-├── apim-subnet (192.168.2.0/24)     - APIM Standard v2
-└── function-subnet (192.168.3.0/24) - Function Apps (MCP servers)
-```
-
-#### Private Endpoints Configured
-| Service | Group ID | DNS Zone |
-|---------|----------|----------|
-| AI Services | account | privatelink.services.ai.azure.com |
-| AI Search | searchService | privatelink.search.windows.net |
-| Storage | blob | privatelink.blob.core.windows.net |
-| Cosmos DB | Sql | privatelink.documents.azure.com |
-| APIM | Gateway | privatelink.azure-api.net |
-| Function Apps | sites | privatelink.azurewebsites.net |
-
----
-
-### Bead: `bd-002-apim`
-**Status**: ✅ Complete  
-**Description**: Update skills to match Anthropic healthcare marketplace structure with Azure APIM-based MCP architecture
-
-#### Changes Tracked
-- [x] APIM architecture design for secure MCP exposure
-- [x] Clinical trial protocol skill with full waypoint architecture
-- [x] Prior auth skill update with subskill structure and demo assets
-- [x] Azure FHIR developer skill update (Anthropic format)
-- [x] Azure Health Data Services skill update + DICOM/MedTech references
-- [x] Plugin marketplace configuration (.claude-plugin/marketplace.json)
-
-#### Files Created/Updated
-```
-docs/architecture/
-└── APIM-ARCHITECTURE.md          # Azure APIM design for MCP security
-
-.github/skills/clinical-trial-protocol/
-├── SKILL.md                       # 6-waypoint workflow for FDA protocols
-├── references/
-│   ├── 00-initialize-intervention.md
-│   ├── 01-research-protocols.md
-│   ├── 02-protocol-foundation.md
-│   ├── 03-protocol-intervention.md
-│   ├── 04-protocol-operations.md
-│   └── 05-concatenate-protocol.md
-├── scripts/
-│   └── sample_size_calculator.py  # Statistical power analysis
-└── assets/
-    └── FDA-Clinical-Protocol-Template.md
-
-.github/skills/prior-auth-azure/
-├── SKILL.md                       # Updated workflow with MCP calls
-├── references/
-│   ├── 01-intake-assessment.md    # Validation subskill
-│   ├── 02-decision-notification.md # Decision subskill
-│   └── rubric.md                  # Decision rules
-└── assets/sample/
-    ├── pa_request.json
-    ├── ct_chest_report.txt
-    ├── pet_scan_report.txt
-    └── pulmonology_consultation.txt
-
-.github/skills/azure-fhir-developer/
-└── SKILL.md                       # Comprehensive FHIR R4 reference
-
-.github/skills/azure-health-data-services/
-├── SKILL.md                       # Workspace + service overview
-└── references/
-    ├── 01-dicom-service.md        # DICOMweb operations
-    └── 02-medtech-service.md      # IoT device ingestion
-
-.claude-plugin/
-└── marketplace.json               # Plugin registry with skills & MCP servers
-```
-
-#### MCP Server URLs (via Azure APIM)
-| Service | APIM Endpoint |
-|---------|---------------|
-| CMS Coverage | `https://healthcare-mcp.azure-api.net/cms-coverage/mcp` |
-| NPI Registry | `https://healthcare-mcp.azure-api.net/npi-registry/mcp` |
-| ICD-10 Codes | `https://healthcare-mcp.azure-api.net/icd10/mcp` |
-| Clinical Trials | `https://healthcare-mcp.azure-api.net/clinical-trials/mcp` |
-| FHIR Operations | `https://healthcare-mcp.azure-api.net/fhir/mcp` |
-| PubMed | `https://healthcare-mcp.azure-api.net/pubmed/mcp` |
-
----
-
-## Git Integration
-
-### Commit Convention
-```
-bd-XXX: <type>(<scope>): <description>
-
-Types: feat, fix, docs, style, refactor, test, chore
-```
-
-### Example Commits
+## Commands
+### Run MCP servers locally
 ```bash
-git commit -m "bd-001-init: feat(scaffold): initialize project structure"
-git commit -m "bd-001-init: feat(skills): add azure-fhir-developer skill"
-git commit -m "bd-001-init: feat(mcp): scaffold azure-fhir-mcp-server"
+make local-start
+make local-logs
+make local-stop
 ```
 
----
-
-## Architecture Layers
-
-1. **Skills Layer** - Static knowledge in SKILL.md files
-2. **MCP Server Layer** - Dynamic tools via Azure Functions
-3. **Azure Foundry Layer** - Agent registration and orchestration
-4. **Distribution Layer** - VS Code extension + Foundry catalog
-
----
-
-## Quick Commands
-
+### Run one MCP server
 ```bash
-# Start new bead
-bd new <description>
-
-# Complete current bead
-bd complete
-
-# List bead history
-bd list
-
-# View current bead changes
-bd status
+./scripts/local-test.sh npi-lookup 7071
 ```
+
+### MCP smoke test
+```bash
+curl http://localhost:7071/.well-known/mcp | jq
+curl -X POST http://localhost:7071/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | jq
+```
+
+### Run agent workflows (local MCP mode)
+```bash
+cd src
+source agents/.venv/bin/activate
+python -m agents --workflow prior-auth --demo --local
+python -m agents --workflow clinical-trial --demo --local
+python -m agents --workflow literature-search --demo --local
+```
+
+### Run prior-auth sample input
+```bash
+cd src
+source agents/.venv/bin/activate
+python -m agents \
+  --workflow prior-auth \
+  --input ../.github/skills/prior-auth-azure/assets/sample/pa_request.json \
+  --local
+```
+
+## Safety and Approval Boundaries
+Ask before running:
+- `azd up`, `az deployment *`, or any command that creates/modifies cloud resources.
+- Bulk dependency installs or upgrades across multiple subprojects.
+- Potentially destructive operations (mass deletes, force resets, schema drops).
+
+Safe by default:
+- Local file edits in scope.
+- Local MCP/workflow runs and targeted smoke tests.
+- Read-only discovery commands (`rg`, `ls`, `cat`, `git status`, `git diff`).
+
+## Patterns to Reuse
+- MCP server shape: `src/mcp-servers/npi-lookup/function_app.py`
+- MCP tool wiring: `src/agents/tools.py`
+- Hybrid workflow orchestration: `src/agents/workflows/prior_auth.py`
+- Sequential workflow orchestration: `src/agents/workflows/clinical_trials.py`
+- Skill structure and assets: `.github/skills/prior-auth-azure/SKILL.md`
+
+## Definition of Done
+- Code changes are limited to task-relevant files.
+- Related local checks/workflow runs complete successfully, or failures are explained.
+- No secrets or PHI introduced.
+- Documentation updated when commands/behavior changed.
+
+## If Blocked
+- State the blocker precisely (missing env var, unavailable service, auth issue, ambiguous requirement).
+- Propose the minimum next step and continue once clarified.
+
+## Canonical Docs
+- `README.md`
+- `docs/DEVELOPER-GUIDE.md`
+- `docs/LOCAL-TESTING.md`
+- `docs/MCP-SERVERS-BEGINNER-GUIDE.md`
+- `docs/MCP-OAUTH-PRM.md`
+- `docs/SKILLS-FLOW-MAP.md`
+- `docs/architecture/APIM-ARCHITECTURE.md`
+- `docs/architecture/RETRIEVAL-ARCHITECTURE.md`

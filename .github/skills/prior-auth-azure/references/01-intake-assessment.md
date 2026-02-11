@@ -39,6 +39,19 @@ This subskill uses 3 MCP connectors for healthcare data validation:
 
 ## Execution Flow
 
+### Bead Tracking (Subskill 1)
+
+Subskill 1 spans three beads. Update bead status as you progress:
+
+| Bead | Steps | Checklist |
+|------|-------|-----------|
+| `bd-pa-001-intake` | 1-3 | [ ] Collect request info [ ] NPI validated [ ] ICD-10 validated [ ] CMS policy found [ ] CPT validated |
+| `bd-pa-002-clinical` | 4-6 | [ ] Clinical data extracted [ ] Rubric read [ ] Evidence mapped to criteria |
+| `bd-pa-003-recommend` | 7-10 | [ ] Recommendation generated [ ] assessment.json written [ ] audit_justification.md written [ ] Summary displayed |
+
+**Before starting each bead group:** Mark the bead `in-progress` and persist to `waypoints/assessment.json` under the `"beads"` key.  
+**After completing each bead group:** Mark the bead `completed` with a timestamp and persist.
+
 ### Step 1: Collect Request Information
 
 Request PA details from user:
@@ -73,6 +86,8 @@ Read from `assets/sample/` directory.
 ---
 
 ### Step 2: Parallel MCP Validation
+
+> **Bead `bd-pa-001-intake`** — mark **in-progress** before starting this step.
 
 Execute MCP calls in parallel for optimal performance:
 
@@ -142,6 +157,9 @@ Display: "✅ CPT validation completed - [Code]: [Description]"
 
 ### Step 4: Extract Clinical Data
 
+> **Bead `bd-pa-001-intake`** — mark **completed** after Step 3 finishes.  
+> **Bead `bd-pa-002-clinical`** — mark **in-progress** now.
+
 Parse clinical documentation to extract:
 - Chief complaint
 - Relevant diagnoses
@@ -179,6 +197,9 @@ For each criterion in the applicable policy:
 
 ### Step 7: Generate Recommendation
 
+> **Bead `bd-pa-002-clinical`** — mark **completed** after Step 6 finishes.  
+> **Bead `bd-pa-003-recommend`** — mark **in-progress** now.
+
 Apply rubric.md decision rules:
 
 **APPROVE** (must meet ALL):
@@ -203,12 +224,20 @@ Apply rubric.md decision rules:
 
 **File:** `waypoints/assessment.json`
 
-**Consolidated structure:**
+**Consolidated structure** (includes bead tracking):
 ```json
 {
   "request_id": "...",
   "created": "ISO datetime",
   "status": "assessment_complete",
+
+  "beads": [
+    {"id": "bd-pa-001-intake",    "status": "completed", "completed_at": "..."},
+    {"id": "bd-pa-002-clinical",   "status": "completed", "completed_at": "..."},
+    {"id": "bd-pa-003-recommend",  "status": "completed", "completed_at": "..."},
+    {"id": "bd-pa-004-decision",   "status": "not-started"},
+    {"id": "bd-pa-005-notify",     "status": "not-started"}
+  ],
 
   "request": {
     "member": {"name": "...", "id": "...", "dob": "...", "state": "..."},
@@ -297,6 +326,8 @@ All decisions require human clinical review before finalization.
 
 ### Step 10: Display Summary
 
+> **Bead `bd-pa-003-recommend`** — mark **completed** after writing all files.
+
 ```
 ✅ INTAKE & ASSESSMENT COMPLETE
 
@@ -366,6 +397,10 @@ List low confidence areas and offer options:
 ## Quality Checks
 
 Before completing Subskill 1:
+- [ ] Bead `bd-pa-001-intake` marked completed
+- [ ] Bead `bd-pa-002-clinical` marked completed
+- [ ] Bead `bd-pa-003-recommend` marked completed
+- [ ] Bead state persisted in `waypoints/assessment.json`
 - [ ] All MCP validations completed
 - [ ] Coverage policy identified
 - [ ] Clinical data extracted
