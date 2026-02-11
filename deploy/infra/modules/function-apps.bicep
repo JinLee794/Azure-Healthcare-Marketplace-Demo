@@ -35,6 +35,9 @@ param logAnalyticsId string = ''
 @description('Tags to apply to resources')
 param tags object = {}
 
+@description('FHIR Server URL from Azure Health Data Services')
+param fhirServerUrl string = ''
+
 // Get storage account reference
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: storageAccountName
@@ -192,6 +195,10 @@ resource functionApps 'Microsoft.Web/sites@2023-12-01' = [for server in mcpServe
         {
           name: 'WEBSITE_DNS_SERVER'
           value: '168.63.129.16'
+        }
+        {
+          name: 'FHIR_SERVER_URL'
+          value: fhirServerUrl
         }
       ]
       cors: {

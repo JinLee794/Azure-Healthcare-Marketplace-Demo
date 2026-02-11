@@ -164,7 +164,22 @@ module aiFoundry 'modules/ai-foundry.bicep' = {
   }
 }
 
-// 4. Function Apps for MCP Servers
+// 4. Azure Health Data Services (FHIR R4)
+// Workspace name: max 24 chars, alphanumeric only, no reserved words ("healthcare","fhir","azure","microsoft")
+// Use uniqueSuffix to build a compliant name (baseName may contain "healthcare" which is reserved)
+var ahdsWorkspaceName = 'mcphds${uniqueSuffix}'
+module healthDataServices 'modules/health-data-services.bicep' = {
+  name: 'health-data-services-deployment'
+  params: {
+    location: location
+    workspaceName: ahdsWorkspaceName
+    fhirServiceName: 'mcp'
+    publicNetworkAccess: publicNetworkAccess
+    tags: tags
+  }
+}
+
+// 5. Function Apps for MCP Servers
 module functionApps 'modules/function-apps.bicep' = {
   name: 'function-apps-deployment'
   params: {
@@ -177,11 +192,12 @@ module functionApps 'modules/function-apps.bicep' = {
     appInsightsInstrumentationKey: dependentResources.outputs.appInsightsInstrumentationKey
     appInsightsConnectionString: dependentResources.outputs.appInsightsConnectionString
     logAnalyticsId: dependentResources.outputs.logAnalyticsId
+    fhirServerUrl: healthDataServices.outputs.fhirServerUrl
     tags: tags
   }
 }
 
-// 5. API Management Standard v2
+// 6. API Management Standard v2
 module apim 'modules/apim.bicep' = {
   name: 'apim-deployment'
   params: {
@@ -202,7 +218,7 @@ module apim 'modules/apim.bicep' = {
   dependsOn: [functionApps]  // Ensure Function Apps exist before configuring backends
 }
 
-// 6. User-Assigned Managed Identity for MCP OAuth
+// 7. User-Assigned Managed Identity for MCP OAuth
 module mcpUserIdentity 'modules/mcp-user-identity.bicep' = {
   name: 'mcp-user-identity-deployment'
   params: {
@@ -212,7 +228,7 @@ module mcpUserIdentity 'modules/mcp-user-identity.bicep' = {
   }
 }
 
-// 7. MCP Entra App Registration with Federated Identity Credential
+// 8. MCP Entra App Registration with Federated Identity Credential
 module mcpEntraApp 'modules/mcp-entra-app.bicep' = {
   name: 'mcp-entra-app-deployment'
   params: {
@@ -223,7 +239,7 @@ module mcpEntraApp 'modules/mcp-entra-app.bicep' = {
   }
 }
 
-// 8. APIM MCP OAuth Configuration (PRM endpoint + token validation)
+// 9. APIM MCP OAuth Configuration (PRM endpoint + token validation)
 module apimMcpOAuth 'modules/apim-mcp-oauth.bicep' = {
   name: 'apim-mcp-oauth-deployment'
   params: {
@@ -235,7 +251,7 @@ module apimMcpOAuth 'modules/apim-mcp-oauth.bicep' = {
   dependsOn: [functionApps]  // Ensure Function Apps exist for host key retrieval
 }
 
-// 8b. APIM MCP Passthrough (Lightweight debug - no OAuth, subscription key only)
+// 9b. APIM MCP Passthrough (Lightweight debug - no OAuth, subscription key only)
 module apimMcpPassthrough 'modules/apim-mcp-passthrough.bicep' = {
   name: 'apim-mcp-passthrough-deployment'
   params: {
@@ -245,7 +261,7 @@ module apimMcpPassthrough 'modules/apim-mcp-passthrough.bicep' = {
   dependsOn: [functionApps]
 }
 
-// 9. Private Endpoints for all services
+// 10. Private Endpoints for all services
 module privateEndpoints 'modules/private-endpoints.bicep' = {
   name: 'private-endpoints-deployment'
   params: {
@@ -257,6 +273,7 @@ module privateEndpoints 'modules/private-endpoints.bicep' = {
     storageAccountId: dependentResources.outputs.storageAccountId
     cosmosDbId: dependentResources.outputs.cosmosDbId
     apimId: apim.outputs.apimId
+    healthDataServicesWorkspaceId: healthDataServices.outputs.workspaceId
     uniqueSuffix: uniqueSuffix
     tags: tags
   }
@@ -299,6 +316,19 @@ resource apimOpenAIRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
+// FHIR Data Contributor for Function Apps (allows MCP servers to access FHIR data)
+// Index 3 = fhir-operations server; assigning to all for flexibility
+var mcpServerCount = 6 // Must match mcpServers array length in function-apps.bicep
+resource fhirDataContributorRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for i in range(0, mcpServerCount): {
+  name: guid(resourceGroup().id, 'func-${i}', 'fhir-data-contributor')
+  scope: resourceGroup()
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5a1fc7df-4bf1-4951-a576-89034ee01acd') // FHIR Data Contributor
+    principalId: functionApps.outputs.functionAppPrincipalIds[i]
+    principalType: 'ServicePrincipal'
+  }
+}]
+
 // ============================================================================
 // OUTPUTS
 // ============================================================================
@@ -337,6 +367,11 @@ output aiProjectName string = aiFoundry.outputs.aiProjectName
 // Function Apps
 output functionAppNames array = functionApps.outputs.functionAppNames
 output mcpServerEndpoints array = functionApps.outputs.mcpServerEndpoints
+
+// Azure Health Data Services
+output fhirServiceId string = healthDataServices.outputs.fhirServiceId
+output fhirServerUrl string = healthDataServices.outputs.fhirServerUrl
+output ahdsWorkspaceName string = healthDataServices.outputs.workspaceName
 
 // Dependent Resources
 output storageAccountId string = dependentResources.outputs.storageAccountId

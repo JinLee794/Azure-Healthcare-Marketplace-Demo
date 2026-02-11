@@ -25,6 +25,9 @@ param cosmosDbId string = ''
 @description('Resource ID of the API Management service')
 param apimId string = ''
 
+@description('Resource ID of the AHDS workspace (Microsoft.HealthcareApis/workspaces)')
+param healthDataServicesWorkspaceId string = ''
+
 @description('Resource ID of the Function App')
 param functionAppId string = ''
 
@@ -45,6 +48,7 @@ var privateDnsZones = [
   'privatelink.documents.azure.com'
   'privatelink.azure-api.net'
   'privatelink.azurewebsites.net'
+  'privatelink.fhir.azurehealthcareapis.com'
 ]
 
 // Create Private DNS Zones
@@ -307,6 +311,46 @@ resource functionAppDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneG
   }
 }
 
+// Private Endpoint for FHIR Service (Azure Health Data Services)
+// NOTE: Private endpoints target the AHDS workspace, not the child fhirservice.
+// The 'fhir' group ID selects the FHIR sub-resource within the workspace.
+resource fhirPe 'Microsoft.Network/privateEndpoints@2024-01-01' = if (!empty(healthDataServicesWorkspaceId)) {
+  name: 'pe-fhir-${uniqueSuffix}'
+  location: location
+  tags: tags
+  properties: {
+    subnet: {
+      id: peSubnetId
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'fhir-connection'
+        properties: {
+          privateLinkServiceId: healthDataServicesWorkspaceId
+          groupIds: [
+            'fhir'
+          ]
+        }
+      }
+    ]
+  }
+}
+
+resource fhirDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-01-01' = if (!empty(healthDataServicesWorkspaceId)) {
+  parent: fhirPe
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'fhir-config'
+        properties: {
+          privateDnsZoneId: dnsZones[8].id // privatelink.fhir.azurehealthcareapis.com
+        }
+      }
+    ]
+  }
+}
+
 output dnsZoneIds array = [for (zone, i) in privateDnsZones: dnsZones[i].id]
 output aiServicesPeId string = !empty(aiServicesId) ? aiServicesPe.id : ''
 output aiSearchPeId string = !empty(aiSearchId) ? aiSearchPe.id : ''
@@ -314,3 +358,4 @@ output storagePeId string = !empty(storageAccountId) ? storagePe.id : ''
 output cosmosDbPeId string = !empty(cosmosDbId) ? cosmosDbPe.id : ''
 output apimPeId string = !empty(apimId) ? apimPe.id : ''
 output functionAppPeId string = !empty(functionAppId) ? functionAppPe.id : ''
+output fhirPeId string = !empty(healthDataServicesWorkspaceId) ? fhirPe.id : ''
