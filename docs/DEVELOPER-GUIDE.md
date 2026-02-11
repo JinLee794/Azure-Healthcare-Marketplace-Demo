@@ -18,12 +18,13 @@ Use this mental model first:
 
 ```mermaid
 flowchart LR
-    VSC[VS Code Chat] --> EXT[healthcare extension path]
-    EXT --> SK[.github/skills/* context]
-    EXT --> LLM[Model response]
+    VSC[VS Code Chat] --> COP[Native GitHub Copilot agent]
+    VSC --> EXT[Optional @healthcare extension wrapper]
+    EXT --> WRAP[Prompt injection + orchestration]
+    WRAP --> COP
 
-    VSC --> MCPPATH[Native MCP path]
-    MCPPATH --> MCP[.vscode/mcp.json]
+    COP --> SK[.github/skills/* context]
+    COP --> MCP[.vscode/mcp.json]
     MCP --> LOCAL[Local MCP]
     MCP --> FUNC[Function App MCP]
     MCP --> APIM[APIM MCP]
@@ -31,7 +32,10 @@ flowchart LR
     FUNC --> SRV
     APIM --> SRV
     SRV --> DATA[Clinical Data APIs]
+    COP --> RESP[Model response]
 ```
+
+Native GitHub Copilot is the primary agent path and can directly use `.github/skills/*`. The `@healthcare` VS Code extension is optional and acts as a wrapper that injects/orchestrates prompts around that same Copilot+skills path. MCP tool connectivity is configured via `.vscode/mcp.json`.
 
 For deeper workflow maps (prior-auth + clinical-trial), see `docs/SKILLS-FLOW-MAP.md`.
 
@@ -157,9 +161,9 @@ Key output artifacts:
 
 ### D. GitHub Copilot Easy Path: Update `.vscode/mcp.json`
 
-For Copilot usage, keep setup simple: add MCP servers in `.vscode/mcp.json`.
+For native Copilot usage, keep setup simple: add MCP servers in `.vscode/mcp.json`.
 
-Because this repo already has `.github/skills/*`, skills are visible to Copilot and can be invoked without extra registration.
+`.github/skills/*` is already directly available to GitHub Copilot in this repo. The `vscode-extension/` `@healthcare` path is optional and mainly acts as a wrapper that standardizes prompt injection/orchestration around those same skills.
 
 Option 1: local MCP servers (fastest for dev)
 
