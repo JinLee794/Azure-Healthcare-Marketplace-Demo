@@ -299,6 +299,50 @@ async def mcp_discovery(req: func.HttpRequest) -> func.HttpResponse:
     )
 
 
+@app.route(route="mcp", methods=["GET"])
+async def mcp_get(req: func.HttpRequest) -> func.HttpResponse:
+    """MCP GET endpoint - used for SSE transport negotiation and capability discovery.
+    
+    Returns 405 Method Not Allowed directing clients to use POST for Streamable HTTP.
+    """
+    session_id = req.headers.get("Mcp-Session-Id", str(uuid.uuid4()))
+    
+    # For SSE requests, return 405 indicating POST is required
+    accept = req.headers.get("Accept", "")
+    if "text/event-stream" in accept:
+        return func.HttpResponse(
+            json.dumps({
+                "jsonrpc": "2.0",
+                "error": {"code": -32600, "message": "SSE transport not supported. Use POST for Streamable HTTP transport."},
+                "id": None
+            }),
+            status_code=405,
+            mimetype="application/json",
+            headers={
+                "Allow": "POST",
+                "X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
+                "Mcp-Session-Id": session_id
+            }
+        )
+    
+    # For other GET requests, return server info
+    return func.HttpResponse(
+        json.dumps({
+            "name": server.name,
+            "version": server.version,
+            "protocol_version": MCP_PROTOCOL_VERSION,
+            "transport": "streamable-http",
+            "endpoint": "/mcp",
+            "methods_supported": ["POST"]
+        }),
+        mimetype="application/json",
+        headers={
+            "X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
+            "Cache-Control": "no-cache"
+        }
+    )
+
+
 @app.route(route="mcp", methods=["POST"])
 async def mcp_message(req: func.HttpRequest) -> func.HttpResponse:
     """MCP Message endpoint - handles JSON-RPC messages via Streamable HTTP transport.

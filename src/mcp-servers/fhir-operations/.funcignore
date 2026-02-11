@@ -1,0 +1,11 @@
+.venv/
+.python_packages/
+.git/
+.github/
+__pycache__/
+local.settings.json
+.env
+*.pyc
+.vscode/
+test/
+tests/
