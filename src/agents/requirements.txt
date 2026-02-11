@@ -1,0 +1,21 @@
+# Microsoft Agent Framework - Healthcare Agent Orchestration Layer
+# Install: pip install -r requirements.txt
+
+# Core agent framework (includes openai, azure providers)
+agent-framework[azure]>=1.0.0b260210
+agent-framework-orchestrations>=1.0.0b260210
+
+# Framework Developer UI (React app with debug panel, traces, entity discovery)
+agent-framework-devui
+
+# Azure identity for APIM / Azure OpenAI auth
+azure-identity>=1.19.0
+
+# Environment configuration
+python-dotenv>=1.0.1
+
+# Structured output / data handling
+pydantic>=2.5.0
+
+# Developer UI
+gradio>=5.0.0
