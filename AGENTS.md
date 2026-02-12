@@ -27,11 +27,13 @@ Build and maintain an Azure-native healthcare marketplace across:
 ## Project Map
 - `.github/skills/`: domain guidance and templates for healthcare workflows.
 - `src/mcp-servers/`: Python Azure Function MCP servers:
-  - `npi-lookup`, `icd10-validation`, `cms-coverage`, `fhir-operations`, `pubmed`, `clinical-trials`
+  - `npi-lookup`, `icd10-validation`, `cms-coverage`, `fhir-operations`, `pubmed`, `clinical-trials`, `cosmos-rag`
 - `src/agents/`: orchestration CLI and workflows (`prior-auth`, `clinical-trial`, `patient-data`, `literature-search`).
 - `scripts/`: local launchers, APIM tests, post-deploy config scripts.
+  - `scripts/setup-cli/`: interactive setup wizard (`make setup` / `make setup-guided`).
 - `deploy/`: Azure Bicep infrastructure and deployment assets.
 - `vscode-extension/`: `@healthcare` chat participant implementation.
+- `samples/`: standalone reference implementations (e.g., TypeScript FHIR MCP server).
 - `docs/`: operational, architecture, and testing guides.
 
 ## Default Workflow
@@ -110,9 +112,7 @@ Safe by default:
 
 ## Canonical Docs
 - `README.md`
-- `docs/DEVELOPER-GUIDE.md`
-- `docs/LOCAL-TESTING.md`
-- `docs/MCP-SERVERS-BEGINNER-GUIDE.md`
+- `docs/GETTING-STARTED.md` (consolidated from DEVELOPER-GUIDE, LOCAL-TESTING, MCP-SERVERS-BEGINNER-GUIDE)
 - `docs/MCP-OAUTH-PRM.md`
 - `docs/SKILLS-FLOW-MAP.md`
 - `docs/architecture/APIM-ARCHITECTURE.md`
