@@ -90,7 +90,7 @@ flowchart TB
     end
 
     subgraph gateway["Secure Gateway"]
-        APIM["Azure API Management<br/>OAuth 2.0 \u00b7 Rate Limiting \u00b7 Audit"]
+        APIM["Azure API Management<br/>OAuth 2.0 | Rate Limiting | Audit"]
     end
 
     subgraph mcp["MCP Server Layer \u2014 Azure Functions"]
