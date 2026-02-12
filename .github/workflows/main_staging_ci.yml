@@ -1,0 +1,113 @@
+name: Code Quality and Tests 🚀
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+on:
+  pull_request:
+    branches:
+      - main
+      - staging
+
+
+jobs:
+  quality-checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code 🛎️
+        uses: actions/checkout@v2
+
+      - name: Setup Conda 🔧
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          environment-file: environment.yaml # Create an environment.yml file
+          activate-environment: 'pa-ai-env'
+          python-version: '3.10'
+          auto-activate-base: false
+
+      - name: Activate Conda Node 🔧
+        shell: bash -el {0}
+        run: |
+          conda info
+          conda list
+          conda install -c anaconda click
+
+          # pip install -r requirements.txt
+          # pip install -r requirements-codequality.txt
+
+      - name: Setup Node 🔧
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+
+      - name: Run isort Check 🧹
+        shell: bash -el {0}
+        run: isort --check-only --profile black .
+
+      - name: Run Black Check 🌚
+        shell: bash -el {0}
+        run: black --check --config pyproject.toml .
+
+      - name: Run flake8 ✅
+        shell: bash -el {0}
+        run: flake8 . --extend-ignore E501 --config pyproject.toml --max-line-length=124
+
+      # Commenting out due to conflicting formatting/linting with black
+      # - name: Run ruff Check 🧼
+      #   shell: bash -el {0}
+      #   run: ruff --fix --exit-non-zero-on-fix .
+
+      - name: Run interrogate Check 🔍
+        shell: bash -el {0}
+        run: interrogate src -v -i --fail-under=60 -e '**/__init__.py'
+
+      - name: Bandit Security Linter Check 🔒
+        shell: bash -el {0}
+        run: bandit -c pyproject.toml -r .
+
+      ## Pytest will be handled via the azd_deploy.yml as it depends on parameters from the azd pipeline
+      # - name: Run Pytest 🧪
+      #   shell: bash -el {0}
+      #   run: pytest tests/ --log-cli-level=DEBUG
+
+  preview-deployment:
+    runs-on: ubuntu-latest
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Install azd
+      uses: Azure/setup-azd@ae0f8b5482eeac61e940f447327d84c73beb8b1e # Pin to specific commit hash
+
+    - name: Log in with Azure (Federated Credentials)
+      run: |
+        azd auth login `
+            --client-id "$Env:AZURE_CLIENT_ID" `
+            --federated-credential-provider "github" `
+            --tenant-id "$Env:AZURE_TENANT_ID"
+      shell: pwsh
+
+    - name: Azure CLI Login
+      uses: azure/login@a65d910e8af852a8061c627c456678983e180302
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        enable-AzPSSession: true
+
+    - name: Preview Infra Changes
+      id: provision-preview
+      run: |
+        azd env refresh
+        azd provision --no-prompt --preview
+      shell: pwsh
+      env:
+        AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
