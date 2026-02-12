@@ -8,6 +8,7 @@ This guide covers how to run and test the MCP servers locally, both directly (wi
 - [Azure Functions Core Tools v4](https://learn.microsoft.com/azure/azure-functions/functions-run-local)
 - [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) (for APIM testing)
 - [Azurite](https://learn.microsoft.com/azure/storage/common/storage-use-azurite) (local storage emulator)
+- [Docker & Docker Compose](https://docs.docker.com/get-docker/) (for containerised testing)
 
 ```bash
 # Install Azure Functions Core Tools
@@ -144,6 +145,87 @@ cd src/mcp-servers/pubmed && func start --port 7075
 
 # Terminal 6: Clinical Trials (port 7076)
 cd src/mcp-servers/clinical-trials && func start --port 7076
+```
+
+---
+
+## Option 1b: Docker Compose (Recommended for Full-Stack Testing)
+
+Run all 6 MCP servers in containers with a single command. No Python venvs, no Azurite — everything is self-contained.
+
+### Quick Start
+
+```bash
+# Build and start all servers (detached)
+make docker-up
+
+# Or without Make:
+docker compose up --build -d
+```
+
+### Verify
+
+```bash
+# Check container status
+make docker-ps
+
+# Run health checks against all servers
+make docker-test
+
+# Manually test a single server (include function key)
+curl "http://localhost:7071/health?code=docker-default-key" | jq
+curl "http://localhost:7071/.well-known/mcp?code=docker-default-key" | jq
+```
+
+> **Note:** The containers use a pre-provisioned function key `docker-default-key`
+> for local testing. In production, Azure manages function keys automatically.
+> You can pass the key as a `?code=` query param or an `x-functions-key` header.
+
+### Logs & Teardown
+
+```bash
+# Follow all logs
+make docker-logs
+
+# Stop & remove containers
+make docker-down
+```
+
+### Environment Variables
+
+Pass optional env vars via a `.env` file in the repo root:
+
+```env
+# .env (optional)
+FHIR_SERVER_URL=https://your-fhir-server.azurehealthcareapis.com
+NCBI_API_KEY=your-ncbi-api-key
+```
+
+### Port Mapping (same as local)
+
+| Server | Host Port | Container Port |
+|--------|-----------|----------------|
+| npi-lookup | 7071 | 80 |
+| icd10-validation | 7072 | 80 |
+| cms-coverage | 7073 | 80 |
+| fhir-operations | 7074 | 80 |
+| pubmed | 7075 | 80 |
+| clinical-trials | 7076 | 80 |
+
+### VS Code MCP Config for Docker
+
+```jsonc
+// .vscode/mcp.json — identical to local; ports are the same
+{
+  "servers": {
+    "npi-lookup":        { "type": "http", "url": "http://localhost:7071/mcp?code=docker-default-key" },
+    "icd10-validation":  { "type": "http", "url": "http://localhost:7072/mcp?code=docker-default-key" },
+    "cms-coverage":      { "type": "http", "url": "http://localhost:7073/mcp?code=docker-default-key" },
+    "fhir-operations":   { "type": "http", "url": "http://localhost:7074/mcp?code=docker-default-key" },
+    "pubmed":            { "type": "http", "url": "http://localhost:7075/mcp?code=docker-default-key" },
+    "clinical-trials":   { "type": "http", "url": "http://localhost:7076/mcp?code=docker-default-key" }
+  }
+}
 ```
 
 ---

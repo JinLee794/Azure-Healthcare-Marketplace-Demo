@@ -23,8 +23,8 @@ param appInsightsInstrumentationKey string = ''
 @description('Application Insights Connection String')
 param appInsightsConnectionString string = ''
 
-@description('Python version')
-param pythonVersion string = '3.11'
+@description('ACR login server for pulling container images')
+param acrLoginServer string
 
 @description('Resource ID of the APIM subnet to allow traffic from')
 param apimSubnetId string = ''
@@ -98,7 +98,7 @@ resource functionApps 'Microsoft.Web/sites@2023-12-01' = [for server in mcpServe
     mcpServer: server.name
     'azd-service-name': server.name
   })
-  kind: 'functionapp,linux'
+  kind: 'functionapp,linux,container'
   identity: {
     type: 'SystemAssigned'
   }
@@ -108,8 +108,10 @@ resource functionApps 'Microsoft.Web/sites@2023-12-01' = [for server in mcpServe
     virtualNetworkSubnetId: functionSubnetId
     publicNetworkAccess: 'Enabled'
     siteConfig: {
-      linuxFxVersion: 'PYTHON|${pythonVersion}'
-      pythonVersion: pythonVersion
+      // Placeholder image — azd replaces this during `azd deploy` with the
+      // actual ACR image tag built from the per-service Dockerfile.
+      linuxFxVersion: 'DOCKER|mcr.microsoft.com/azure-functions/python:4-python3.11'
+      acrUseManagedIdentityCreds: true
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       http20Enabled: true
@@ -157,14 +159,6 @@ resource functionApps 'Microsoft.Web/sites@2023-12-01' = [for server in mcpServe
           value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}'
         }
         {
-          name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING'
-          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}'
-        }
-        {
-          name: 'WEBSITE_CONTENTSHARE'
-          value: toLower('${baseName}-${server.name}')
-        }
-        {
           name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
           value: appInsightsInstrumentationKey
         }
@@ -181,12 +175,12 @@ resource functionApps 'Microsoft.Web/sites@2023-12-01' = [for server in mcpServe
           value: '2025-06-18'
         }
         {
-          name: 'ENABLE_ORYX_BUILD'
-          value: 'true'
+          name: 'DOCKER_REGISTRY_SERVER_URL'
+          value: 'https://${acrLoginServer}'
         }
         {
-          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
-          value: 'true'
+          name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
+          value: 'false'
         }
         {
           name: 'WEBSITE_VNET_ROUTE_ALL'

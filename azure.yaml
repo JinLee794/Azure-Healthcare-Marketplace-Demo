@@ -11,38 +11,21 @@ infra:
   path: deploy/infra
   module: main
 
-# Service definitions - each MCP server is a separate Function App
-# Resource names are output from Bicep deployment
-services:
-  npi-lookup:
-    project: ./src/mcp-servers/npi-lookup
-    host: function
-    language: python
-    
-  icd10-validation:
-    project: ./src/mcp-servers/icd10-validation
-    host: function
-    language: python
-    
-  cms-coverage:
-    project: ./src/mcp-servers/cms-coverage
-    host: function
-    language: python
-    
-  fhir-operations:
-    project: ./src/mcp-servers/fhir-operations
-    host: function
-    language: python
-    
-  pubmed:
-    project: ./src/mcp-servers/pubmed
-    host: function
-    language: python
-    
-  clinical-trials:
-    project: ./src/mcp-servers/clinical-trials
-    host: function
-    language: python
+# Service definitions
+# ---------------------------------------------------------------------------
+# MCP servers are deployed as Docker containers to Azure Function Apps.
+# azd's `host: function` does NOT support `language: docker` (only containerapp does),
+# so MCP servers are NOT listed here as azd services. Instead:
+#   - Bicep provisions the Function Apps (kind: functionapp,linux,container)
+#   - The deploy script builds/pushes Docker images and updates container config
+#   - Hooks below call the script during `azd up` / `azd deploy`
+#
+# To deploy containers manually:
+#   ./scripts/deploy-mcp-containers.sh              # all servers
+#   ./scripts/deploy-mcp-containers.sh npi-lookup    # single server
+#   make azure-deploy                                # via Makefile
+# ---------------------------------------------------------------------------
+services: {}
 
 # Pipeline configuration for CI/CD
 pipeline:
@@ -78,11 +61,15 @@ hooks:
       echo "  - PubMed:           ${SERVICE_APIM_GATEWAY_URL}/mcp/pubmed"
       echo "  - Clinical Trials:  ${SERVICE_APIM_GATEWAY_URL}/mcp/clinical-trials"
       echo ""
+      # Deploy MCP server containers to Function Apps
+      echo "Deploying MCP server containers..."
+      ./scripts/deploy-mcp-containers.sh
       
   predeploy:
     shell: sh
     run: |
-      echo "Deploying MCP servers to Azure Function Apps..."
+      echo "Deploying MCP server containers to Azure Function Apps..."
+      ./scripts/deploy-mcp-containers.sh
       
   postdeploy:
     shell: sh

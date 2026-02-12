@@ -47,6 +47,17 @@ param vnetAddressPrefix string = '192.168.0.0/16'
 @description('Enable public network access for dependent resources')
 param enablePublicAccess bool = false
 
+@description('Azure Container Registry SKU for dockerized MCP server images')
+@allowed([
+  'Basic'
+  'Standard'
+  'Premium'
+])
+param containerRegistrySku string = 'Basic'
+
+@description('Enable admin user on Azure Container Registry')
+param containerRegistryAdminUserEnabled bool = false
+
 @description('Model deployments for AI Foundry')
 param modelDeployments array = [
   {
@@ -119,6 +130,8 @@ param cosmosDbLocation string = ''
 var uniqueSuffix = uniqueString(resourceGroup().id)
 var publicNetworkAccess = enablePublicAccess ? 'Enabled' : 'Disabled'
 var mcpAppUniqueName = empty(mcpEntraAppUniqueName) ? 'healthcare-mcp-${uniqueSuffix}' : mcpEntraAppUniqueName
+var acrBaseName = toLower(replace(baseName, '-', ''))
+var containerRegistryName = take('${acrBaseName}acr${uniqueSuffix}', 50)
 
 // ============================================================================
 // MODULES
@@ -148,7 +161,20 @@ module dependentResources 'modules/dependent-resources.bicep' = {
   }
 }
 
-// 3. AI Foundry (AI Services + Project with network injection)
+// 3. Azure Container Registry for dockerized MCP server images
+module containerRegistry 'modules/container-registry.bicep' = {
+  name: 'container-registry-deployment'
+  params: {
+    location: location
+    registryName: containerRegistryName
+    skuName: containerRegistrySku
+    adminUserEnabled: containerRegistryAdminUserEnabled
+    publicNetworkAccess: 'Enabled'
+    tags: tags
+  }
+}
+
+// 4. AI Foundry (AI Services + Project with network injection)
 module aiFoundry 'modules/ai-foundry.bicep' = {
   name: 'ai-foundry-deployment'
   params: {
@@ -164,7 +190,7 @@ module aiFoundry 'modules/ai-foundry.bicep' = {
   }
 }
 
-// 4. Azure Health Data Services (FHIR R4)
+// 5. Azure Health Data Services (FHIR R4)
 // Workspace name: max 24 chars, alphanumeric only, no reserved words ("healthcare","fhir","azure","microsoft")
 // Use uniqueSuffix to build a compliant name (baseName may contain "healthcare" which is reserved)
 var ahdsWorkspaceName = 'mcphds${uniqueSuffix}'
@@ -179,7 +205,7 @@ module healthDataServices 'modules/health-data-services.bicep' = {
   }
 }
 
-// 5. Function Apps for MCP Servers
+// 6. Function Apps for MCP Servers (container-based deployment)
 module functionApps 'modules/function-apps.bicep' = {
   name: 'function-apps-deployment'
   params: {
@@ -193,11 +219,12 @@ module functionApps 'modules/function-apps.bicep' = {
     appInsightsConnectionString: dependentResources.outputs.appInsightsConnectionString
     logAnalyticsId: dependentResources.outputs.logAnalyticsId
     fhirServerUrl: healthDataServices.outputs.fhirServerUrl
+    acrLoginServer: containerRegistry.outputs.registryLoginServer
     tags: tags
   }
 }
 
-// 6. API Management Standard v2
+// 7. API Management Standard v2
 module apim 'modules/apim.bicep' = {
   name: 'apim-deployment'
   params: {
@@ -218,7 +245,7 @@ module apim 'modules/apim.bicep' = {
   dependsOn: [functionApps]  // Ensure Function Apps exist before configuring backends
 }
 
-// 7. User-Assigned Managed Identity for MCP OAuth
+// 8. User-Assigned Managed Identity for MCP OAuth
 module mcpUserIdentity 'modules/mcp-user-identity.bicep' = {
   name: 'mcp-user-identity-deployment'
   params: {
@@ -228,7 +255,7 @@ module mcpUserIdentity 'modules/mcp-user-identity.bicep' = {
   }
 }
 
-// 8. MCP Entra App Registration with Federated Identity Credential
+// 9. MCP Entra App Registration with Federated Identity Credential
 module mcpEntraApp 'modules/mcp-entra-app.bicep' = {
   name: 'mcp-entra-app-deployment'
   params: {
@@ -239,7 +266,7 @@ module mcpEntraApp 'modules/mcp-entra-app.bicep' = {
   }
 }
 
-// 9. APIM MCP OAuth Configuration (PRM endpoint + token validation)
+// 10. APIM MCP OAuth Configuration (PRM endpoint + token validation)
 module apimMcpOAuth 'modules/apim-mcp-oauth.bicep' = {
   name: 'apim-mcp-oauth-deployment'
   params: {
@@ -251,7 +278,7 @@ module apimMcpOAuth 'modules/apim-mcp-oauth.bicep' = {
   dependsOn: [functionApps]  // Ensure Function Apps exist for host key retrieval
 }
 
-// 9b. APIM MCP Passthrough (Lightweight debug - no OAuth, subscription key only)
+// 10b. APIM MCP Passthrough (Lightweight debug - no OAuth, subscription key only)
 module apimMcpPassthrough 'modules/apim-mcp-passthrough.bicep' = {
   name: 'apim-mcp-passthrough-deployment'
   params: {
@@ -261,7 +288,7 @@ module apimMcpPassthrough 'modules/apim-mcp-passthrough.bicep' = {
   dependsOn: [functionApps]
 }
 
-// 10. Private Endpoints for all services
+// 11. Private Endpoints for all services
 module privateEndpoints 'modules/private-endpoints.bicep' = {
   name: 'private-endpoints-deployment'
   params: {
@@ -319,11 +346,27 @@ resource apimOpenAIRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 // FHIR Data Contributor for Function Apps (allows MCP servers to access FHIR data)
 // Index 3 = fhir-operations server; assigning to all for flexibility
 var mcpServerCount = 6 // Must match mcpServers array length in function-apps.bicep
+
+resource containerRegistryResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
+  name: containerRegistryName
+}
+
 resource fhirDataContributorRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for i in range(0, mcpServerCount): {
   name: guid(resourceGroup().id, 'func-${i}', 'fhir-data-contributor')
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5a1fc7df-4bf1-4951-a576-89034ee01acd') // FHIR Data Contributor
+    principalId: functionApps.outputs.functionAppPrincipalIds[i]
+    principalType: 'ServicePrincipal'
+  }
+}]
+
+// AcrPull for Function Apps (required when MCP servers are deployed as container images)
+resource acrPullRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for i in range(0, mcpServerCount): {
+  name: guid(resourceGroup().id, containerRegistryName, 'func-${i}', 'acr-pull')
+  scope: containerRegistryResource
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d') // AcrPull
     principalId: functionApps.outputs.functionAppPrincipalIds[i]
     principalType: 'ServicePrincipal'
   }
@@ -346,6 +389,11 @@ output apimId string = apim.outputs.apimId
 output apimName string = apim.outputs.apimName
 output apimGatewayUrl string = apim.outputs.apimGatewayUrl
 output apimManagementUrl string = apim.outputs.apimManagementUrl
+
+// Azure Container Registry
+output containerRegistryId string = containerRegistry.outputs.registryId
+output containerRegistryName string = containerRegistry.outputs.registryName
+output containerRegistryLoginServer string = containerRegistry.outputs.registryLoginServer
 
 // MCP OAuth Configuration
 output mcpClientId string = mcpEntraApp.outputs.mcpAppId
@@ -397,6 +445,10 @@ output SERVICE_AI_SERVICES_ENDPOINT string = aiFoundry.outputs.aiServicesEndpoin
 
 // Resource Group name (for azd)
 output AZURE_RESOURCE_GROUP string = resourceGroup().name
+
+// Azure Container Registry outputs for azd dockerized service deployment
+output AZURE_CONTAINER_REGISTRY_NAME string = containerRegistry.outputs.registryName
+output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.outputs.registryLoginServer
 
 // Function App resource names for azd service mapping
 // Note: azd uses these to find the target resources for deployment

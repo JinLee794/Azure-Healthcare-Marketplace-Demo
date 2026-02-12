@@ -1,0 +1,16 @@
+**/.venv/
+**/.python_packages/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.git/
+**/.github/
+**/.vscode/
+**/local.settings.json
+**/.env
+**/test/
+**/tests/
+**/.funcignore
+**/*.md
+**/node_modules/
+**/.DS_Store

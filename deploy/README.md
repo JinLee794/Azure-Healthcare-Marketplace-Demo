@@ -24,6 +24,7 @@ This guide walks through deploying the production-grade Azure infrastructure for
 | **VNet** | Private network with 4 subnets for network isolation |
 | **APIM Standard v2** | API gateway for secure MCP server exposure |
 | **Function Apps (6x)** | Hosts MCP servers (NPI, ICD-10, CMS, FHIR, PubMed, Clinical Trials) |
+| **Azure Container Registry** | Stores docker images for azd-deployed containerized MCP servers |
 | **AI Foundry** | AI Services account with GPT-4o model deployments |
 | **Private Endpoints** | Secure connectivity for all Azure services |
 | **Supporting Services** | Storage, AI Search, Cosmos DB, Application Insights |
@@ -54,6 +55,7 @@ This guide walks through deploying the production-grade Azure infrastructure for
    az provider register --namespace Microsoft.Search
    az provider register --namespace Microsoft.DocumentDB
    az provider register --namespace Microsoft.Network
+   az provider register --namespace Microsoft.ContainerRegistry
    az provider register --namespace Microsoft.App
    az provider register --namespace Microsoft.Insights
    az provider register --namespace Microsoft.OperationalInsights
@@ -124,6 +126,8 @@ Key outputs:
 - `apimName` - APIM instance name
 - `functionAppNames` - List of deployed Function Apps
 - `aiServicesEndpoint` - AI Services endpoint
+- `containerRegistryName` - Azure Container Registry name
+- `containerRegistryLoginServer` - ACR login server for image pushes/pulls
 
 ### 6. Create APIM Subscription Key
 

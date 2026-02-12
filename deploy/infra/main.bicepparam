@@ -23,6 +23,12 @@ param vnetAddressPrefix = '192.168.0.0/16'
 // Enable public network access for development (set to false for production)
 param enablePublicAccess = false
 
+// Container Registry SKU for dockerized MCP server images (Basic|Standard|Premium)
+param containerRegistrySku = 'Basic'
+
+// Keep disabled unless you explicitly need username/password auth for image pulls
+param containerRegistryAdminUserEnabled = false
+
 // Optional: Override Cosmos DB region if primary region has capacity issues
 // Recommended regions with good Cosmos DB availability:
 //   - 'westus2'        - West US 2 (typically best availability)

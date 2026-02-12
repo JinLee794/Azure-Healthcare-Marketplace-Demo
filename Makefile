@@ -2,7 +2,9 @@ SHELL := /bin/bash
 
 LOG_DIR := .local-logs
 
-.PHONY: local-start local-stop local-logs local-start-npi local-start-icd10 local-start-cms local-start-fhir local-start-pubmed local-start-clinical setup-mcp-config eval-contracts eval-latency-local eval-native-local eval-all
+.PHONY: local-start local-stop local-logs local-start-npi local-start-icd10 local-start-cms local-start-fhir local-start-pubmed local-start-clinical setup-mcp-config eval-contracts eval-latency-local eval-native-local eval-all \
+	docker-build docker-up docker-down docker-logs docker-ps docker-test \
+	azure-deploy azure-deploy-single
 
 define START_SERVER
 	@bash -c 'mkdir -p "$(LOG_DIR)"; \
@@ -106,3 +108,59 @@ eval-native-local:
 	@src/agents/.venv/bin/python ./scripts/eval_native_agent_framework.py --config ./scripts/evals/native-agent-framework.local.json --wait-for-servers-seconds 30
 
 eval-all: eval-contracts eval-latency-local eval-native-local
+
+# ============================================================================
+# Docker targets
+# ============================================================================
+
+docker-build:
+	@echo "Building all MCP server containers..."
+	docker compose build
+
+docker-up:
+	@echo "Starting all MCP servers in Docker..."
+	docker compose up --build -d
+	@echo "MCP servers running. Use 'make docker-logs' to follow output."
+
+docker-down:
+	@echo "Stopping all MCP server containers..."
+	docker compose down
+
+docker-logs:
+	docker compose logs -f
+
+docker-ps:
+	docker compose ps
+
+docker-test:
+	@echo "Running health checks on all Docker MCP servers..."
+	@failed=0; \
+	for pair in "npi-lookup:7071" "icd10-validation:7072" "cms-coverage:7073" "fhir-operations:7074" "pubmed:7075" "clinical-trials:7076"; do \
+	  name=$${pair%%:*}; port=$${pair##*:}; \
+	  printf "  %-22s " "$$name"; \
+	  if curl -sf "http://localhost:$$port/health?code=docker-default-key" > /dev/null 2>&1; then \
+	    echo "✓ healthy"; \
+	  else \
+	    echo "✗ unreachable"; failed=1; \
+	  fi; \
+	done; \
+	if [ $$failed -eq 1 ]; then echo "Some servers are not healthy."; exit 1; fi; \
+	echo "All MCP servers healthy."
+
+# ============================================================================
+# Azure deployment targets (container-based Function Apps)
+# ============================================================================
+
+# Deploy all MCP server containers to Azure (requires azd env + az login)
+azure-deploy:
+	@echo "Deploying all MCP server containers to Azure..."
+	./scripts/deploy-mcp-containers.sh
+
+# Deploy a single MCP server container: make azure-deploy-single SERVER=npi-lookup
+azure-deploy-single:
+	@if [ -z "$(SERVER)" ]; then \
+	  echo "Usage: make azure-deploy-single SERVER=<server-name>"; \
+	  echo "Valid servers: npi-lookup icd10-validation cms-coverage fhir-operations pubmed clinical-trials"; \
+	  exit 1; \
+	fi
+	./scripts/deploy-mcp-containers.sh $(SERVER)

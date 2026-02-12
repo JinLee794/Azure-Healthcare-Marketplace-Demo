@@ -1,0 +1,125 @@
+# ============================================================================
+# Healthcare MCP Servers — Docker Compose
+# ============================================================================
+# Spins up all 6 MCP servers as containers using the shared Dockerfile.
+#
+# Quick start:
+#   docker compose up --build          # foreground
+#   docker compose up --build -d       # detached
+#   docker compose down                # stop & remove
+#
+# Each server exposes the same port inside the container (80) and is
+# mapped to the same port the Makefile uses locally:
+#   npi-lookup        → 7071
+#   icd10-validation  → 7072
+#   cms-coverage      → 7073
+#   fhir-operations   → 7074
+#   pubmed            → 7075
+#   clinical-trials   → 7076
+# ============================================================================
+
+x-mcp-server: &mcp-server-defaults
+  build:
+    context: ./src/mcp-servers
+    dockerfile: Dockerfile
+  platform: linux/amd64
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "curl", "-sf", "http://localhost/health?code=docker-default-key"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 40s
+  networks:
+    - mcp-network
+
+services:
+  # --------------------------------------------------------------------------
+  npi-lookup:
+    <<: *mcp-server-defaults
+    container_name: mcp-npi-lookup
+    build:
+      context: ./src/mcp-servers
+      dockerfile: Dockerfile
+      args:
+        SERVER_NAME: npi-lookup
+    ports:
+      - "7071:80"
+    environment:
+      - MCP_SERVER_NAME=npi-lookup
+
+  # --------------------------------------------------------------------------
+  icd10-validation:
+    <<: *mcp-server-defaults
+    container_name: mcp-icd10-validation
+    build:
+      context: ./src/mcp-servers
+      dockerfile: Dockerfile
+      args:
+        SERVER_NAME: icd10-validation
+    ports:
+      - "7072:80"
+    environment:
+      - MCP_SERVER_NAME=icd10-validation
+
+  # --------------------------------------------------------------------------
+  cms-coverage:
+    <<: *mcp-server-defaults
+    container_name: mcp-cms-coverage
+    build:
+      context: ./src/mcp-servers
+      dockerfile: Dockerfile
+      args:
+        SERVER_NAME: cms-coverage
+    ports:
+      - "7073:80"
+    environment:
+      - MCP_SERVER_NAME=cms-coverage
+
+  # --------------------------------------------------------------------------
+  fhir-operations:
+    <<: *mcp-server-defaults
+    container_name: mcp-fhir-operations
+    build:
+      context: ./src/mcp-servers
+      dockerfile: Dockerfile
+      args:
+        SERVER_NAME: fhir-operations
+    ports:
+      - "7074:80"
+    environment:
+      - MCP_SERVER_NAME=fhir-operations
+      - FHIR_SERVER_URL=${FHIR_SERVER_URL:-}
+
+  # --------------------------------------------------------------------------
+  pubmed:
+    <<: *mcp-server-defaults
+    container_name: mcp-pubmed
+    build:
+      context: ./src/mcp-servers
+      dockerfile: Dockerfile
+      args:
+        SERVER_NAME: pubmed
+    ports:
+      - "7075:80"
+    environment:
+      - MCP_SERVER_NAME=pubmed
+      - NCBI_API_KEY=${NCBI_API_KEY:-}
+
+  # --------------------------------------------------------------------------
+  clinical-trials:
+    <<: *mcp-server-defaults
+    container_name: mcp-clinical-trials
+    build:
+      context: ./src/mcp-servers
+      dockerfile: Dockerfile
+      args:
+        SERVER_NAME: clinical-trials
+    ports:
+      - "7076:80"
+    environment:
+      - MCP_SERVER_NAME=clinical-trials
+
+networks:
+  mcp-network:
+    driver: bridge
