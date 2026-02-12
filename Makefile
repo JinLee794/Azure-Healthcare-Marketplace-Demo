@@ -7,7 +7,7 @@ LOG_DIR := .local-logs
 	azure-deploy azure-deploy-single \
 	devui devui-local devui-framework devui-framework-local \
 	setup setup-check setup-doctor setup-guided setup-status setup-test setup-tips \
-	seed-data seed-policies seed-policies-dry-run
+	seed-data seed-policies seed-policies-dry-run sync-local-env
 
 define START_SERVER
 	@bash -c 'mkdir -p "$(LOG_DIR)"; \
@@ -69,15 +69,18 @@ local-start-pubmed:
 local-start-clinical:
 	$(call START_SERVER,clinical-trials,clinical-trials,7076)
 
-local-start-cosmos-rag:
+local-start-cosmos-rag: sync-local-env
 	$(call START_SERVER,cosmos-rag,cosmos-rag,7077)
 
 # -- Seed Cosmos DB with policy PDFs -----------------------------------------
 seed-data: seed-policies
 
-seed-policies:
+seed-policies: local-start-cosmos-rag
 	@echo "Seeding Cosmos DB via cosmos-rag MCP server (port 7077)..."
 	python scripts/seed_cosmos_policies.py --mcp --port 7077
+
+sync-local-env:
+	@bash ./scripts/sync-local-env-from-azd.sh --quiet || true
 
 seed-policies-direct:
 	@echo "Seeding Cosmos DB directly via SDK..."

@@ -21,6 +21,13 @@ echo "  Post-Deploy: Generating .vscode/mcp.json"
 echo "=============================================="
 echo ""
 
+# Sync local env hints from azd outputs for first-run local workflows.
+if [ -x "$REPO_ROOT/scripts/sync-local-env-from-azd.sh" ]; then
+  echo "Syncing local .env.local from azd outputs..."
+  "$REPO_ROOT/scripts/sync-local-env-from-azd.sh" || true
+  echo ""
+fi
+
 # ---------------------------------------------------------------------------
 # Resolve values from azd environment (Bicep outputs are injected as env vars
 # during azd hooks). Fall back to `azd env get-value` if not set.

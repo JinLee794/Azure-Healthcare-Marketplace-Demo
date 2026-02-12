@@ -33,6 +33,24 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 SERVER_DIR="$PROJECT_ROOT/src/mcp-servers/$SERVER"
 SHARED_DIR="$PROJECT_ROOT/src/mcp-servers/shared"
 
+load_env_file() {
+    local env_file="$1"
+    if [ -f "$env_file" ]; then
+        echo "Loading env: $(basename "$env_file")"
+        set -a
+        # shellcheck disable=SC1090
+        source "$env_file"
+        set +a
+    fi
+}
+
+if [ "$SERVER" = "cosmos-rag" ] && [ -x "$PROJECT_ROOT/scripts/sync-local-env-from-azd.sh" ]; then
+    "$PROJECT_ROOT/scripts/sync-local-env-from-azd.sh" --quiet || true
+fi
+
+load_env_file "$PROJECT_ROOT/.env"
+load_env_file "$PROJECT_ROOT/.env.local"
+
 if [ ! -d "$SERVER_DIR" ]; then
     echo "Error: Server '$SERVER' not found at $SERVER_DIR"
     echo ""
