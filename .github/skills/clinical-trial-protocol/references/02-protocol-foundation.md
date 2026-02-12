@@ -219,7 +219,7 @@ Protocol: [Intervention Name] Clinical Trial Protocol v1.0 Draft
 📄 Sections Generated:
   ✓ Section 1: Statement of Compliance
   ✓ Section 2: Protocol Summary
-  ✓ Section 3: Introduction  
+  ✓ Section 3: Introduction
   ✓ Section 4: Objectives and Endpoints
   ✓ Section 5: Study Design
   ✓ Section 6: Study Population
@@ -228,7 +228,7 @@ Protocol: [Intervention Name] Clinical Trial Protocol v1.0 Draft
   • waypoints/02_protocol_foundation.md
   • waypoints/02_protocol_metadata.json
 
-⚠️ DRAFT: This protocol is for planning purposes only. 
+⚠️ DRAFT: This protocol is for planning purposes only.
    Requires review by regulatory affairs, biostatistics, and clinical teams.
 
 Next: Proceed to Step 3 (Intervention Details) to generate Sections 7-8.

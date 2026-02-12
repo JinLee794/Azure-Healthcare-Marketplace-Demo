@@ -1,4 +1,5 @@
 """Integration tests for ICD-10 Validation MCP server."""
+
 import pytest
 
 pytestmark = pytest.mark.integration

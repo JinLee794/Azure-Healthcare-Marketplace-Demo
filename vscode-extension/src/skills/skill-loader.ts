@@ -100,13 +100,13 @@ export class HealthcareSkillLoader {
       // Simple YAML-like parsing (in production, use a proper YAML parser)
       const frontmatter: Record<string, unknown> = {};
       const lines = match[1].split('\n');
-      
+
       for (const line of lines) {
         const colonIndex = line.indexOf(':');
         if (colonIndex > 0) {
           const key = line.substring(0, colonIndex).trim();
           let value: unknown = line.substring(colonIndex + 1).trim();
-          
+
           // Handle arrays
           if (value === '') {
             // Check for array on next lines

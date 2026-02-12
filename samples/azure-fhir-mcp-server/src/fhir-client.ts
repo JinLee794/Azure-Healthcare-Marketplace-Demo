@@ -30,7 +30,7 @@ export class AzureFhirClient {
   constructor() {
     this.credential = new DefaultAzureCredential();
     this.baseUrl = process.env.FHIR_SERVER_URL || '';
-    
+
     if (!this.baseUrl) {
       console.error('Warning: FHIR_SERVER_URL environment variable not set');
     }
@@ -44,7 +44,7 @@ export class AzureFhirClient {
 
     const scope = `${this.baseUrl}/.default`;
     const tokenResponse = await this.credential.getToken(scope);
-    
+
     if (!tokenResponse) {
       throw new Error('Failed to acquire access token');
     }
@@ -63,7 +63,7 @@ export class AzureFhirClient {
     body?: unknown
   ): Promise<T> {
     const token = await this.getAccessToken();
-    
+
     const response = await fetch(`${this.baseUrl}${path}`, {
       method,
       headers: {
@@ -84,7 +84,7 @@ export class AzureFhirClient {
 
   async searchPatients(params: FhirSearchParams): Promise<FhirBundle> {
     const searchParams = new URLSearchParams();
-    
+
     if (params.name) searchParams.append('name', params.name);
     if (params.identifier) searchParams.append('identifier', params.identifier);
     if (params.birthdate) searchParams.append('birthdate', params.birthdate);
@@ -101,7 +101,7 @@ export class AzureFhirClient {
   async searchObservations(params: ObservationSearchParams): Promise<FhirBundle> {
     const searchParams = new URLSearchParams();
     searchParams.append('patient', params.patientId);
-    
+
     if (params.category) searchParams.append('category', params.category);
     if (params.code) searchParams.append('code', params.code);
     if (params.dateFrom) searchParams.append('date', `ge${params.dateFrom}`);
@@ -121,7 +121,7 @@ export class AzureFhirClient {
   ): Promise<unknown> {
     const params = new URLSearchParams();
     if (profile) params.append('profile', profile);
-    
+
     const query = params.toString();
     return this.fhirRequest(
       'POST',

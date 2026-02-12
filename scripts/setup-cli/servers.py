@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import os
 import subprocess
-import sys
-import time
 from pathlib import Path
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from .checks import EnvironmentReport, _run
+from .checks import _run
 from .styles import COPILOT_TIPS, MCP_SERVERS, THEME
 
 console = Console(theme=THEME)
@@ -21,6 +19,7 @@ console = Console(theme=THEME)
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _server_dir(project_root: Path, name: str) -> Path:
     return project_root / "src" / "mcp-servers" / name
@@ -43,6 +42,7 @@ def _port_in_use(port: int) -> bool:
 # ---------------------------------------------------------------------------
 # Setup individual server
 # ---------------------------------------------------------------------------
+
 
 def setup_server_venv(
     project_root: Path,
@@ -72,15 +72,16 @@ def setup_server_venv(
                 subprocess.run(["rm", "-rf", str(venv_dir)], check=False)
             result = subprocess.run(
                 [python_cmd, "-m", "venv", str(venv_dir)],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
         if result.returncode != 0:
             console.print(f"[error]Failed to create venv:[/error] {result.stderr}")
             console.print(COPILOT_TIPS["venv_fail"])
             return False
-        console.print(f"  [success]✓[/success] venv created")
+        console.print("  [success]✓[/success] venv created")
     else:
-        console.print(f"  [muted]venv already exists — skipping (use --force to recreate)[/muted]")
+        console.print("  [muted]venv already exists — skipping (use --force to recreate)[/muted]")
 
     # Install deps
     pip = str(venv_dir / "bin" / "pip")
@@ -88,7 +89,8 @@ def setup_server_venv(
         prog.add_task(f"Installing dependencies for {server_name}…", total=None)
         result = subprocess.run(
             [pip, "install", "-q", "-r", str(req_file)],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
     if result.returncode != 0:
         console.print(f"[error]pip install failed for {server_name}:[/error]")
@@ -101,21 +103,22 @@ def setup_server_venv(
     with Progress(SpinnerColumn(), TextColumn("[step]{task.description}"), console=console) as prog:
         prog.add_task(f"Installing Azure Functions packages for {server_name}…", total=None)
         result = subprocess.run(
-            [pip, "install", "-q", "-r", str(req_file),
-             "--target", str(pkg_target), "--upgrade"],
-            capture_output=True, text=True,
+            [pip, "install", "-q", "-r", str(req_file), "--target", str(pkg_target), "--upgrade"],
+            capture_output=True,
+            text=True,
         )
     if result.returncode != 0:
-        console.print(f"[warning]⚠  .python_packages install had issues (non-fatal):[/warning]")
+        console.print("[warning]⚠  .python_packages install had issues (non-fatal):[/warning]")
         console.print(result.stderr[-300:] if result.stderr else "")
 
-    console.print(f"  [success]✓[/success] dependencies installed")
+    console.print("  [success]✓[/success] dependencies installed")
     return True
 
 
 # ---------------------------------------------------------------------------
 # Setup all servers
 # ---------------------------------------------------------------------------
+
 
 def setup_all_servers(
     project_root: Path,
@@ -140,6 +143,7 @@ def setup_all_servers(
 # Agents venv
 # ---------------------------------------------------------------------------
 
+
 def setup_agents_venv(project_root: Path, python_cmd: str = "python3") -> bool:
     """Create and install the agents layer venv."""
     agents_dir = project_root / "src" / "agents"
@@ -155,7 +159,8 @@ def setup_agents_venv(project_root: Path, python_cmd: str = "python3") -> bool:
             prog.add_task("Creating agents venv…", total=None)
             result = subprocess.run(
                 [python_cmd, "-m", "venv", str(venv_dir)],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
         if result.returncode != 0:
             console.print(f"[error]Failed to create agents venv:[/error] {result.stderr}")
@@ -169,7 +174,8 @@ def setup_agents_venv(project_root: Path, python_cmd: str = "python3") -> bool:
             prog.add_task("Installing agent dependencies…", total=None)
             result = subprocess.run(
                 [pip, "install", "-q", "-r", str(req_file)],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
         if result.returncode != 0:
             console.print(f"[error]pip install failed:[/error] {result.stderr[-500:]}")
@@ -182,6 +188,7 @@ def setup_agents_venv(project_root: Path, python_cmd: str = "python3") -> bool:
 # ---------------------------------------------------------------------------
 # Server status
 # ---------------------------------------------------------------------------
+
 
 def check_server_status(project_root: Path | None = None) -> None:
     """Print a table showing which MCP servers are running."""

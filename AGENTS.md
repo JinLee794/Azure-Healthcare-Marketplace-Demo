@@ -78,7 +78,7 @@ cd src
 source agents/.venv/bin/activate
 python -m agents \
   --workflow prior-auth \
-  --input ../.github/skills/prior-auth-azure/assets/sample/pa_request.json \
+  --input ../data/sample_cases/prior_auth_baseline/pa_request.json \
   --local
 ```
 
@@ -157,4 +157,3 @@ bd sync               # Sync with git
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
-

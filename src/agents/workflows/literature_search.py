@@ -17,7 +17,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from agent_framework import Agent
 from agent_framework.azure import AzureOpenAIResponsesClient
 from agent_framework_orchestrations import ConcurrentBuilder
 from azure.identity import AzureCliCredential, DefaultAzureCredential

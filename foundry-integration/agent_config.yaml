@@ -75,7 +75,7 @@ tools:
 conversation:
   max_turns: 50
   timeout_seconds: 300
-  
+
 # Safety settings
 safety:
   content_filter: true

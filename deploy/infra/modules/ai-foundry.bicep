@@ -1,26 +1,22 @@
-// Azure AI Foundry Module with Private Network Configuration
-// Based on foundry-samples/16-private-network-standard-agent-apim-setup-preview
+// Azure AI Foundry Module — Account + Project + Capability Host
+// Based on foundry-samples/15-private-network-standard-agent-setup
+// Uses Microsoft.CognitiveServices/accounts with allowProjectManagement
+// Projects are child resources; capability host enables Agent execution
 
 @description('Azure region for resources')
 param location string
 
-@description('Name of the AI Services account (hub)')
+@description('Name of the AI Services account')
 param aiServicesName string
 
-@description('Name of the AI Project')
+@description('Name of the AI Project (child of account)')
 param aiProjectName string
 
-@description('Resource ID of the agent subnet for network injection (reserved for future use)')
-#disable-next-line no-unused-params
+@description('Resource ID of the agent subnet for network injection')
 param agentSubnetId string
 
-@description('Resource ID of the Storage Account (reserved for future use)')
-#disable-next-line no-unused-params
-param storageAccountId string
-
-@description('Resource ID of the AI Search service (reserved for future use)')
-#disable-next-line no-unused-params
-param aiSearchId string = ''
+@description('Enable agent network injection into the agent subnet')
+param enableNetworkInjection bool = true
 
 @description('Enable public network access')
 param publicNetworkAccess string = 'Disabled'
@@ -53,8 +49,50 @@ param modelDeployments array = [
 @description('Tags to apply to resources')
 param tags object = {}
 
-// AI Services Account (Hub)
-resource aiServices 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
+// --- Connection dependencies ---
+
+@description('Cosmos DB account name (for project connection)')
+param cosmosDbName string
+
+@description('Cosmos DB document endpoint')
+param cosmosDbEndpoint string
+
+@description('Cosmos DB resource ID')
+param cosmosDbResourceId string
+
+@description('Cosmos DB location')
+param cosmosDbResourceLocation string
+
+@description('Storage account name (for project connection)')
+param storageAccountName string
+
+@description('Storage account blob endpoint')
+param storageBlobEndpoint string
+
+@description('Storage account resource ID')
+param storageAccountResourceId string
+
+@description('Storage account location')
+param storageAccountLocation string
+
+@description('AI Search service name (for project connection, optional)')
+param aiSearchName string = ''
+
+@description('AI Search service resource ID (optional)')
+param aiSearchResourceId string = ''
+
+@description('AI Search service location (optional)')
+param aiSearchLocation string = ''
+
+@description('Name for the project capability host')
+param capabilityHostName string = 'caphost-agents'
+
+// ============================================================================
+// AI Services Account — with project management enabled
+// ============================================================================
+
+#disable-next-line BCP036
+resource aiServices 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' = {
   name: aiServicesName
   location: location
   tags: tags
@@ -66,20 +104,30 @@ resource aiServices 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
     type: 'SystemAssigned'
   }
   properties: {
+    allowProjectManagement: true
     customSubDomainName: aiServicesName
-    publicNetworkAccess: publicNetworkAccess
     networkAcls: {
       defaultAction: 'Deny'
       virtualNetworkRules: []
       ipRules: []
+      bypass: 'AzureServices'
     }
+    publicNetworkAccess: publicNetworkAccess
+    networkInjections: enableNetworkInjection ? [
+      {
+        scenario: 'agent'
+        subnetArmId: agentSubnetId
+        useMicrosoftManagedNetwork: false
+      }
+    ] : null
     disableLocalAuth: false
   }
 }
 
-// Model Deployments - deployed sequentially to avoid conflicts
+// Model Deployments — deployed sequentially to avoid conflicts
 @batchSize(1)
-resource deployments 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = [for deployment in modelDeployments: {
+#disable-next-line BCP081
+resource deployments 'Microsoft.CognitiveServices/accounts/deployments@2025-04-01-preview' = [for deployment in modelDeployments: {
   parent: aiServices
   name: deployment.name
   sku: {
@@ -97,38 +145,93 @@ resource deployments 'Microsoft.CognitiveServices/accounts/deployments@2024-10-0
   }
 }]
 
-// AI Project - Using standard properties for now
-// Note: Network injection requires preview API - use ARM template or portal for full configuration
-resource aiProject 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
+// ============================================================================
+// AI Foundry Project — child of the AI Services account
+// ============================================================================
+
+#disable-next-line BCP081
+resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-04-01-preview' = {
+  parent: aiServices
   name: aiProjectName
   location: location
-  tags: tags
-  kind: 'OpenAI'  // Use OpenAI kind for compatibility
-  sku: {
-    name: 'S0'
-  }
   identity: {
     type: 'SystemAssigned'
   }
   properties: {
-    customSubDomainName: aiProjectName
-    publicNetworkAccess: publicNetworkAccess
-    networkAcls: {
-      defaultAction: 'Deny'
+    description: 'Healthcare MCP AI Project for agents and workflows'
+    displayName: 'Healthcare MCP AI Project'
+  }
+
+  // Cosmos DB connection — thread storage for agents
+  #disable-next-line BCP081
+  resource cosmosConnection 'connections@2025-04-01-preview' = {
+    name: cosmosDbName
+    properties: {
+      category: 'CosmosDB'
+      target: cosmosDbEndpoint
+      authType: 'AAD'
+      metadata: {
+        ApiType: 'Azure'
+        ResourceId: cosmosDbResourceId
+        location: cosmosDbResourceLocation
+      }
     }
   }
-  dependsOn: [
-    aiServices
-  ]
+
+  // Azure Storage connection — file storage for agents
+  #disable-next-line BCP081
+  resource storageConnection 'connections@2025-04-01-preview' = {
+    name: storageAccountName
+    properties: {
+      category: 'AzureStorageAccount'
+      target: storageBlobEndpoint
+      authType: 'AAD'
+      metadata: {
+        ApiType: 'Azure'
+        ResourceId: storageAccountResourceId
+        location: storageAccountLocation
+      }
+    }
+  }
+
+  // AI Search connection — vector store for agents (optional)
+  #disable-next-line BCP081
+  resource searchConnection 'connections@2025-04-01-preview' = if (!empty(aiSearchName)) {
+    name: aiSearchName
+    properties: {
+      category: 'CognitiveSearch'
+      target: 'https://${aiSearchName}.search.windows.net'
+      authType: 'AAD'
+      metadata: {
+        ApiType: 'Azure'
+        ResourceId: aiSearchResourceId
+        location: aiSearchLocation
+      }
+    }
+  }
 }
 
-// Connections are created using Azure ML/AI Foundry portal or CLI
-// The connections API requires preview features
+// NOTE: Capability Host is deployed in main.bicep AFTER role assignments
+// complete, because the host initialization requires the project principal
+// to have RBAC access to Storage, Cosmos DB, and AI Search.
+
+// ============================================================================
+// Outputs
+// ============================================================================
 
 output aiServicesId string = aiServices.id
 output aiServicesName string = aiServices.name
+#disable-next-line BCP053
 output aiServicesEndpoint string = aiServices.properties.endpoint
 output aiServicesPrincipalId string = aiServices.identity.principalId
 output aiProjectId string = aiProject.id
 output aiProjectName string = aiProject.name
 output aiProjectPrincipalId string = aiProject.identity.principalId
+#disable-next-line BCP053
+output aiProjectWorkspaceId string = aiProject.properties.internalId
+output capabilityHostName string = capabilityHostName
+
+// Connection names for downstream role assignment modules
+output cosmosDbConnectionName string = cosmosDbName
+output storageConnectionName string = storageAccountName
+output aiSearchConnectionName string = !empty(aiSearchName) ? aiSearchName : ''

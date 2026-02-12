@@ -28,6 +28,9 @@ param apimId string = ''
 @description('Resource ID of the AHDS workspace (Microsoft.HealthcareApis/workspaces)')
 param healthDataServicesWorkspaceId string = ''
 
+@description('Resource ID of the Key Vault')
+param keyVaultId string = ''
+
 @description('Resource ID of the Function App')
 param functionAppId string = ''
 
@@ -40,15 +43,16 @@ param tags object = {}
 // Private DNS Zones - these are standard Azure private link zones
 #disable-next-line no-hardcoded-env-urls
 var privateDnsZones = [
-  'privatelink.services.ai.azure.com'
-  'privatelink.openai.azure.com'
-  'privatelink.cognitiveservices.azure.com'
-  'privatelink.search.windows.net'
-  'privatelink.blob.${environment().suffixes.storage}'
-  'privatelink.documents.azure.com'
-  'privatelink.azure-api.net'
-  'privatelink.azurewebsites.net'
-  'privatelink.fhir.azurehealthcareapis.com'
+  'privatelink.services.ai.azure.com'       // 0
+  'privatelink.openai.azure.com'            // 1
+  'privatelink.cognitiveservices.azure.com'  // 2
+  'privatelink.search.windows.net'           // 3
+  'privatelink.blob.${environment().suffixes.storage}' // 4
+  'privatelink.documents.azure.com'          // 5
+  'privatelink.azure-api.net'                // 6
+  'privatelink.azurewebsites.net'            // 7
+  'privatelink.fhir.azurehealthcareapis.com' // 8
+  'privatelink.vaultcore.azure.net'          // 9
 ]
 
 // Create Private DNS Zones
@@ -359,3 +363,43 @@ output cosmosDbPeId string = !empty(cosmosDbId) ? cosmosDbPe.id : ''
 output apimPeId string = !empty(apimId) ? apimPe.id : ''
 output functionAppPeId string = !empty(functionAppId) ? functionAppPe.id : ''
 output fhirPeId string = !empty(healthDataServicesWorkspaceId) ? fhirPe.id : ''
+
+// Private Endpoint for Key Vault
+resource keyVaultPe 'Microsoft.Network/privateEndpoints@2024-01-01' = if (!empty(keyVaultId)) {
+  name: 'pe-keyvault-${uniqueSuffix}'
+  location: location
+  tags: tags
+  properties: {
+    subnet: {
+      id: peSubnetId
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'keyvault-connection'
+        properties: {
+          privateLinkServiceId: keyVaultId
+          groupIds: [
+            'vault'
+          ]
+        }
+      }
+    ]
+  }
+}
+
+resource keyVaultDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-01-01' = if (!empty(keyVaultId)) {
+  parent: keyVaultPe
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'keyvault-config'
+        properties: {
+          privateDnsZoneId: dnsZones[9].id // privatelink.vaultcore.azure.net
+        }
+      }
+    ]
+  }
+}
+
+output keyVaultPeId string = !empty(keyVaultId) ? keyVaultPe.id : ''

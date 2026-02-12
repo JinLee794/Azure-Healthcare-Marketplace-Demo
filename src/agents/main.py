@@ -18,10 +18,12 @@ import logging
 import sys
 from pathlib import Path
 
-from .workflows.prior_auth import run_prior_auth_workflow
 from .workflows.clinical_trials import run_clinical_trials_workflow
-from .workflows.patient_data import run_patient_data_workflow
 from .workflows.literature_search import run_literature_search_workflow
+from .workflows.patient_data import run_patient_data_workflow
+from .workflows.prior_auth import run_prior_auth_workflow
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 WORKFLOWS = {
     "prior-auth": run_prior_auth_workflow,
@@ -32,7 +34,7 @@ WORKFLOWS = {
 
 # Sample data paths (relative to project root)
 SAMPLE_DATA = {
-    "prior-auth": ".github/skills/prior-auth-azure/assets/sample/pa_request.json",
+    "prior-auth": "data/sample_cases/prior_auth_baseline/pa_request.json",
 }
 
 
@@ -42,13 +44,15 @@ def parse_args() -> argparse.Namespace:
         description="Healthcare Agent Orchestration — Multi-agent workflows powered by Microsoft Agent Framework",
     )
     parser.add_argument(
-        "--workflow", "-w",
+        "--workflow",
+        "-w",
         required=False,
         choices=list(WORKFLOWS.keys()),
         help="Workflow to execute (required unless --devui is used)",
     )
     parser.add_argument(
-        "--input", "-i",
+        "--input",
+        "-i",
         help="Path to input JSON file (or use --demo for sample data)",
     )
     parser.add_argument(
@@ -57,7 +61,8 @@ def parse_args() -> argparse.Namespace:
         help="Use built-in sample data for the selected workflow",
     )
     parser.add_argument(
-        "--output-dir", "-o",
+        "--output-dir",
+        "-o",
         default=None,
         help="Output directory for waypoints/results (default: waypoints/ or outputs/)",
     )
@@ -72,7 +77,8 @@ def parse_args() -> argparse.Namespace:
         help="For clinical-trial workflow: stop after research phase",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Enable verbose/debug logging",
     )
@@ -108,10 +114,17 @@ def parse_args() -> argparse.Namespace:
 def load_input(args: argparse.Namespace) -> dict:
     """Load input data from file or demo samples."""
     if args.demo:
-        sample_path = SAMPLE_DATA.get(args.workflow)
-        if sample_path and Path(sample_path).exists():
-            with open(sample_path) as f:
-                return json.load(f)
+        sample_paths = SAMPLE_DATA.get(args.workflow, [])
+        if isinstance(sample_paths, str):
+            sample_paths = [sample_paths]
+
+        for sample_path in sample_paths:
+            candidate = Path(sample_path)
+            if not candidate.exists():
+                candidate = REPO_ROOT / sample_path
+            if candidate.exists():
+                with open(candidate) as f:
+                    return json.load(f)
         # Provide minimal demo data for workflows without sample files
         return _get_demo_data(args.workflow)
 
@@ -130,8 +143,8 @@ def load_input(args: argparse.Namespace) -> dict:
 
 def _get_demo_data(workflow: str) -> dict:
     """Return minimal demo data for each workflow."""
-    if workflow == "prior-auth":
-        return {
+    demo_data = {
+        "prior-auth": {
             "member": {
                 "id": "MEM-12345",
                 "name": "Jane Smith",
@@ -152,28 +165,26 @@ def _get_demo_data(workflow: str) -> dict:
             "clinical_summary": "Patient presents with progressive dyspnea and "
             "interstitial lung disease. CT chest requested to evaluate disease "
             "progression and guide treatment planning.",
-        }
-    elif workflow == "clinical-trial":
-        return {
+        },
+        "clinical-trial": {
             "condition": "Non-small cell lung cancer",
             "intervention_type": "Drug",
             "intervention_name": "Pembrolizumab + chemotherapy",
             "phase": "Phase 3",
             "target_population": "Adults with advanced NSCLC, PD-L1 TPS ≥50%",
-        }
-    elif workflow == "patient-summary":
-        return {
+        },
+        "patient-summary": {
             "patient_id": "example",
             "name": "Smith",
-        }
-    elif workflow == "literature-search":
-        return {
+        },
+        "literature-search": {
             "condition": "Type 2 diabetes mellitus",
             "intervention": "GLP-1 receptor agonists",
             "focus": "therapy",
             "keywords": "cardiovascular outcomes",
-        }
-    return {}
+        },
+    }
+    return demo_data.get(workflow, {})
 
 
 async def main_async(args: argparse.Namespace) -> None:
@@ -181,10 +192,10 @@ async def main_async(args: argparse.Namespace) -> None:
     input_data = load_input(args)
     workflow_fn = WORKFLOWS[args.workflow]
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Healthcare Agent Workflow: {args.workflow}")
     print(f"  Mode: {'local' if args.local else 'APIM passthrough'}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     kwargs = {
         "config": None,
@@ -199,9 +210,9 @@ async def main_async(args: argparse.Namespace) -> None:
     result = await workflow_fn(input_data, **kwargs)
 
     # Print summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("  Workflow Complete")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if isinstance(result, dict):
         # Print key fields depending on workflow
@@ -218,7 +229,7 @@ async def main_async(args: argparse.Namespace) -> None:
         if args.output_dir:
             print(f"\nOutputs written to: {args.output_dir}/")
         else:
-            print(f"\nOutputs written to: waypoints/ or outputs/")
+            print("\nOutputs written to: waypoints/ or outputs/")
 
 
 def main() -> None:
@@ -234,12 +245,14 @@ def main() -> None:
 
     if args.devui:
         from .devui import launch
+
         port = args.port or 7860
         launch(local=args.local, share=args.share, port=port)
         return
 
     if args.framework_devui:
         from .framework_devui import launch as fw_launch
+
         port = args.port or 8080
         fw_launch(
             local=args.local,

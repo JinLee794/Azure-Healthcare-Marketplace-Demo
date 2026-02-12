@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-import time
 from pathlib import Path
 
 from rich.console import Console
@@ -13,7 +12,7 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from .checks import EnvironmentReport, _run, scan_environment
-from .styles import COPILOT_TIPS, MCP_SERVERS, THEME
+from .styles import THEME
 
 console = Console(theme=THEME)
 
@@ -21,6 +20,7 @@ console = Console(theme=THEME)
 # ---------------------------------------------------------------------------
 # Prerequisite checks for deployment
 # ---------------------------------------------------------------------------
+
 
 def _check_az_logged_in() -> tuple[bool, str]:
     """Check if az CLI is logged in and return subscription info."""
@@ -57,6 +57,7 @@ def _get_azd_value(key: str) -> str:
 # ---------------------------------------------------------------------------
 # Deploy readiness check
 # ---------------------------------------------------------------------------
+
 
 def check_deploy_readiness(report: EnvironmentReport | None = None) -> dict:
     """Check all prerequisites for Azure deployment."""
@@ -125,23 +126,26 @@ def print_deploy_readiness(results: dict) -> None:
 # Guided deployment walkthrough
 # ---------------------------------------------------------------------------
 
+
 def cmd_deploy_walkthrough(report: EnvironmentReport | None = None) -> None:
     """Interactive azd deployment with pre-checks, provision, deploy, and post-deploy."""
     console.print()
-    console.print(Panel(
-        "[header]☁️  Azure Deployment Walkthrough[/header]\n\n"
-        "This wizard will guide you through:\n"
-        "  1. Pre-flight checks (az, azd, Docker, Bicep)\n"
-        "  2. azd environment init (if needed)\n"
-        "  3. Configure deployment parameters\n"
-        "  4. Provision infrastructure (azd provision)\n"
-        "  5. Build & deploy MCP server containers\n"
-        "  6. Post-deploy validation & MCP config\n"
-        "  7. Test with GitHub Copilot (prior-auth demo)\n\n"
-        "[warning]⚠  This creates Azure resources that cost ~$660/month.[/warning]\n"
-        "[muted]See deploy/README.md for full cost breakdown.[/muted]",
-        expand=False,
-    ))
+    console.print(
+        Panel(
+            "[header]☁️  Azure Deployment Walkthrough[/header]\n\n"
+            "This wizard will guide you through:\n"
+            "  1. Pre-flight checks (az, azd, Docker, Bicep)\n"
+            "  2. azd environment init (if needed)\n"
+            "  3. Configure deployment parameters\n"
+            "  4. Provision infrastructure (azd provision)\n"
+            "  5. Build & deploy MCP server containers\n"
+            "  6. Post-deploy validation & MCP config\n"
+            "  7. Test with GitHub Copilot (prior-auth demo)\n\n"
+            "[warning]⚠  This creates Azure resources that cost ~$660/month.[/warning]\n"
+            "[muted]See deploy/README.md for full cost breakdown.[/muted]",
+            expand=False,
+        )
+    )
     console.print()
     if not Confirm.ask("Ready to start?", default=True):
         return
@@ -211,19 +215,23 @@ def cmd_deploy_walkthrough(report: EnvironmentReport | None = None) -> None:
         console.print(f"  [success]✓[/success] Set AZURE_LOCATION={location}")
 
     console.print()
-    console.print(Panel(
-        "[info]Key parameters (edit deploy/infra/main.bicepparam):[/info]\n\n"
-        "  • [bold]baseName[/bold]             — Resource name prefix (3–15 chars)\n"
-        "  • [bold]apimPublisherEmail[/bold]   — Required for APIM\n"
-        "  • [bold]apimSku[/bold]              — StandardV2 (default) or Premium\n"
-        "  • [bold]enablePublicAccess[/bold]   — true for dev, false for prod\n\n"
-        "[muted]The wizard will continue with your current parameter file values.[/muted]",
-        expand=False,
-    ))
+    console.print(
+        Panel(
+            "[info]Key parameters (edit deploy/infra/main.bicepparam):[/info]\n\n"
+            "  • [bold]baseName[/bold]             — Resource name prefix (3-15 chars)\n"
+            "  • [bold]apimPublisherEmail[/bold]   — Required for APIM\n"
+            "  • [bold]apimSku[/bold]              — StandardV2 (default) or Premium\n"
+            "  • [bold]enablePublicAccess[/bold]   — true for dev, false for prod\n\n"
+            "[muted]The wizard will continue with your current parameter file values.[/muted]",
+            expand=False,
+        )
+    )
     _edit = Confirm.ask("Open main.bicepparam in editor first?", default=False)
     if _edit:
         param_file = root / "deploy" / "infra" / "main.bicepparam"
-        import shutil, platform
+        import platform
+        import shutil
+
         editor = shutil.which("code") or shutil.which("code-insiders")
         if editor:
             subprocess.run([editor, str(param_file)])
@@ -238,20 +246,22 @@ def cmd_deploy_walkthrough(report: EnvironmentReport | None = None) -> None:
     console.print()
     console.print("[step]━━━ Step 4/7: Provision Infrastructure ━━━[/step]")
     console.print()
-    console.print(Panel(
-        "[warning]This step creates Azure resources:[/warning]\n\n"
-        "  • APIM Standard v2          (~$175/mo)\n"
-        "  • 6× Function Apps (EP1)    (~$150/mo)\n"
-        "  • AI Services (GPT-4o)      (pay-per-use)\n"
-        "  • Container Registry, VNet, Private Endpoints, etc.\n\n"
-        "[bold]Estimated total: ~$660/month[/bold] (excluding AI token usage)\n"
-        "[warning]⏱  APIM provisioning takes 30–45 minutes.[/warning]",
-        expand=False,
-    ))
+    console.print(
+        Panel(
+            "[warning]This step creates Azure resources:[/warning]\n\n"
+            "  • APIM Standard v2          (~$175/mo)\n"
+            "  • 6x Function Apps (EP1)    (~$150/mo)\n"
+            "  • AI Services (GPT-4o)      (pay-per-use)\n"
+            "  • Container Registry, VNet, Private Endpoints, etc.\n\n"
+            "[bold]Estimated total: ~$660/month[/bold] (excluding AI token usage)\n"
+            "[warning]⏱  APIM provisioning takes 30-45 minutes.[/warning]",
+            expand=False,
+        )
+    )
 
     if Confirm.ask("Run [bold]azd provision[/bold] now?", default=True):
         console.print()
-        console.print("[step]Running azd provision… (this will take 30–45 minutes)[/step]")
+        console.print("[step]Running azd provision… (this will take 30-45 minutes)[/step]")
         console.print("[muted]You can monitor progress in Azure Portal → Resource Groups → Deployments[/muted]")
         console.print()
         result = subprocess.run(["azd", "provision"], cwd=str(root))
@@ -327,16 +337,19 @@ def cmd_deploy_walkthrough(report: EnvironmentReport | None = None) -> None:
 # Post-deploy Copilot guide
 # ---------------------------------------------------------------------------
 
+
 def _show_post_deploy_copilot_guide(project_root: Path, apim_url: str = "") -> None:
     """Show the post-deployment Copilot testing guide."""
     console.print()
-    console.print(Panel(
-        "[header]🧪 Test Your Deployment with GitHub Copilot[/header]\n\n"
-        "Now that your MCP servers are deployed, you can test the full stack\n"
-        "directly from VS Code using GitHub Copilot Chat + MCP tools.\n\n"
-        "[bold]The easiest demo: Prior Authorization Review[/bold]",
-        expand=False,
-    ))
+    console.print(
+        Panel(
+            "[header]🧪 Test Your Deployment with GitHub Copilot[/header]\n\n"
+            "Now that your MCP servers are deployed, you can test the full stack\n"
+            "directly from VS Code using GitHub Copilot Chat + MCP tools.\n\n"
+            "[bold]The easiest demo: Prior Authorization Review[/bold]",
+            expand=False,
+        )
+    )
 
     # PA test walkthrough
     console.print()
@@ -345,20 +358,22 @@ def _show_post_deploy_copilot_guide(project_root: Path, apim_url: str = "") -> N
     console.print("  [bold]1.[/bold] Make sure [info].vscode/mcp.json[/info] is configured")
     console.print("     (The post-deploy script should have generated this)")
     console.print()
-    console.print("  [bold]2.[/bold] Open GitHub Copilot Chat in VS Code ([bold]⌘⇧I[/bold] or [bold]Ctrl+Shift+I[/bold])")
+    console.print(
+        "  [bold]2.[/bold] Open GitHub Copilot Chat in VS Code ([bold]⌘⇧I[/bold] or [bold]Ctrl+Shift+I[/bold])"
+    )
     console.print()
     console.print("  [bold]3.[/bold] Attach the sample prior-auth files to the chat:")
     console.print()
 
-    sample_dir = project_root / ".github" / "skills" / "prior-auth-azure" / "assets" / "sample"
+    sample_dir = project_root / "data" / "sample_cases" / "prior_auth_baseline"
     if sample_dir.is_dir():
         files = sorted(sample_dir.iterdir())
         for f in files:
             console.print(f"     📎 [info]{f.relative_to(project_root)}[/info]")
     else:
-        console.print("     📎 .github/skills/prior-auth-azure/assets/sample/pa_request.json")
-        console.print("     📎 .github/skills/prior-auth-azure/assets/sample/ct_chest_report.txt")
-        console.print("     📎 .github/skills/prior-auth-azure/assets/sample/pulmonology_consultation.txt")
+        console.print("     📎 data/sample_cases/prior_auth_baseline/pa_request.json")
+        console.print("     📎 data/sample_cases/prior_auth_baseline/ct_chest_report.txt")
+        console.print("     📎 data/sample_cases/prior_auth_baseline/pulmonology_consultation.txt")
 
     console.print()
     console.print("     [muted]Tip: In Copilot Chat, click the 📎 (Attach) button or drag files into the chat[/muted]")
@@ -369,32 +384,38 @@ def _show_post_deploy_copilot_guide(project_root: Path, apim_url: str = "") -> N
     console.print()
     console.print("  [bold]5.[/bold] Send one of these prompts:")
     console.print()
-    console.print(Panel(
-        '[italic]@healthcare /pa Review the attached PA request and clinical documents.\n'
-        'Use rubric.md as the decision policy. Validate the provider NPI, ICD-10 codes,\n'
-        'and CPT codes using MCP tools. Return a draft assessment with APPROVE or PEND.[/italic]',
-        title="[highlight]Example Prompt 1 — Full PA Review[/highlight]",
-        expand=False,
-        border_style="green",
-    ))
+    console.print(
+        Panel(
+            "[italic]@healthcare /pa Review the attached PA request and clinical documents.\n"
+            "Use rubric.md as the decision policy. Validate the provider NPI, ICD-10 codes,\n"
+            "and CPT codes using MCP tools. Return a draft assessment with APPROVE or PEND.[/italic]",
+            title="[highlight]Example Prompt 1 — Full PA Review[/highlight]",
+            expand=False,
+            border_style="green",
+        )
+    )
     console.print()
-    console.print(Panel(
-        '[italic]@healthcare /pa Map each policy criterion in rubric.md to evidence from\n'
-        'the attached clinical documents. List missing evidence and what additional\n'
-        'documentation would be needed to support an APPROVE recommendation.[/italic]',
-        title="[highlight]Example Prompt 2 — Evidence Mapping[/highlight]",
-        expand=False,
-        border_style="green",
-    ))
+    console.print(
+        Panel(
+            "[italic]@healthcare /pa Map each policy criterion in rubric.md to evidence from\n"
+            "the attached clinical documents. List missing evidence and what additional\n"
+            "documentation would be needed to support an APPROVE recommendation.[/italic]",
+            title="[highlight]Example Prompt 2 — Evidence Mapping[/highlight]",
+            expand=False,
+            border_style="green",
+        )
+    )
     console.print()
-    console.print(Panel(
-        '[italic]Look up NPI 1234567890 and validate ICD-10 codes R91.1 and Z87.891.\n'
-        'Then check Medicare coverage for CPT 32405. Summarize whether this procedure\n'
-        'is likely to be covered.[/italic]',
-        title="[highlight]Example Prompt 3 — Quick MCP Tool Validation[/highlight]",
-        expand=False,
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            "[italic]Look up NPI 1234567890 and validate ICD-10 codes R91.1 and Z87.891.\n"
+            "Then check Medicare coverage for CPT 32405. Summarize whether this procedure\n"
+            "is likely to be covered.[/italic]",
+            title="[highlight]Example Prompt 3 — Quick MCP Tool Validation[/highlight]",
+            expand=False,
+            border_style="cyan",
+        )
+    )
 
     # What happens behind the scenes
     console.print()
@@ -403,7 +424,9 @@ def _show_post_deploy_copilot_guide(project_root: Path, apim_url: str = "") -> N
     console.print("  Copilot reads the attached files + your prompt, then:")
     console.print("  [muted]1.[/muted] Calls [server]npi-lookup[/server] MCP → validates provider NPI")
     console.print("  [muted]2.[/muted] Calls [server]icd10-validation[/server] MCP → validates diagnosis codes")
-    console.print("  [muted]3.[/muted] Calls [server]cms-coverage[/server] MCP → checks Medicare coverage for CPT 32405")
+    console.print(
+        "  [muted]3.[/muted] Calls [server]cms-coverage[/server] MCP → checks Medicare coverage for CPT 32405"
+    )
     console.print("  [muted]4.[/muted] Cross-references clinical evidence against rubric criteria")
     console.print("  [muted]5.[/muted] Returns a structured draft assessment (APPROVE/PEND + justification)")
     console.print()
@@ -443,25 +466,28 @@ def _show_post_deploy_copilot_guide(project_root: Path, apim_url: str = "") -> N
     console.print(more_table)
 
     console.print()
-    console.print(Panel(
-        "[bold]💡 Key Insight:[/bold]\n\n"
-        "The sample files in [info].github/skills/prior-auth-azure/assets/sample/[/info]\n"
-        "are designed to work together as a complete prior-auth test case:\n\n"
-        "  • [bold]pa_request.json[/bold]              — The PA request (patient, CPT, ICD-10, provider)\n"
-        "  • [bold]ct_chest_report.txt[/bold]          — CT imaging report (clinical evidence)\n"
-        "  • [bold]pet_scan_report.txt[/bold]          — PET scan results (additional evidence)\n"
-        "  • [bold]pulmonology_consultation.txt[/bold] — Specialist consultation note\n\n"
-        "Upload all of them to Copilot Chat for the most complete PA review demo.\n"
-        "Copilot + MCP tools will validate codes, check coverage, and cross-reference\n"
-        "the clinical documents against policy criteria — all automatically.",
-        title="[header]Sample Files Explained[/header]",
-        expand=False,
-    ))
+    console.print(
+        Panel(
+            "[bold]💡 Key Insight:[/bold]\n\n"
+            "The sample files in [info]data/sample_cases/prior_auth_baseline/[/info]\n"
+            "are designed to work together as a complete prior-auth test case:\n\n"
+            "  • [bold]pa_request.json[/bold]              — The PA request (patient, CPT, ICD-10, provider)\n"
+            "  • [bold]ct_chest_report.txt[/bold]          — CT imaging report (clinical evidence)\n"
+            "  • [bold]pet_scan_report.txt[/bold]          — PET scan results (additional evidence)\n"
+            "  • [bold]pulmonology_consultation.txt[/bold] — Specialist consultation note\n\n"
+            "Upload all of them to Copilot Chat for the most complete PA review demo.\n"
+            "Copilot + MCP tools will validate codes, check coverage, and cross-reference\n"
+            "the clinical documents against policy criteria — all automatically.",
+            title="[header]Sample Files Explained[/header]",
+            expand=False,
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
 # Standalone post-deploy guide (accessible from menu without running deploy)
 # ---------------------------------------------------------------------------
+
 
 def cmd_post_deploy_guide(report: EnvironmentReport | None = None) -> None:
     """Show the Copilot testing guide without running deployment."""

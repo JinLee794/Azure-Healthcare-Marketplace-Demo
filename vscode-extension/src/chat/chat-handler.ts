@@ -52,14 +52,14 @@ export class HealthcareChatHandler {
   ): Promise<vscode.ChatResult> {
     // Load FHIR skill context
     const skill = this.skillLoader.getSkill('azure-fhir-developer');
-    
+
     if (skill) {
       response.markdown(`Using **${skill.name}** skill for FHIR guidance.\n\n`);
     }
 
     // Get available language models
     const models = await vscode.lm.selectChatModels({ family: 'gpt-4o' });
-    
+
     if (models.length === 0) {
       response.markdown('No language model available. Please ensure GitHub Copilot is activated.');
       return { metadata: { command: 'fhir', error: 'no_model' } };
@@ -93,13 +93,13 @@ export class HealthcareChatHandler {
     token: vscode.CancellationToken
   ): Promise<vscode.ChatResult> {
     const skill = this.skillLoader.getSkill('azure-health-data-services');
-    
+
     if (skill) {
       response.markdown(`Using **${skill.name}** skill for DICOM guidance.\n\n`);
     }
 
     const models = await vscode.lm.selectChatModels({ family: 'gpt-4o' });
-    
+
     if (models.length === 0) {
       response.markdown('No language model available.');
       return { metadata: { command: 'dicom', error: 'no_model' } };
@@ -132,13 +132,13 @@ export class HealthcareChatHandler {
     token: vscode.CancellationToken
   ): Promise<vscode.ChatResult> {
     const skill = this.skillLoader.getSkill('prior-auth-azure');
-    
+
     if (skill) {
       response.markdown(`Using **${skill.name}** skill for prior authorization guidance.\n\n`);
     }
 
     const models = await vscode.lm.selectChatModels({ family: 'gpt-4o' });
-    
+
     if (models.length === 0) {
       response.markdown('No language model available.');
       return { metadata: { command: 'pa', error: 'no_model' } };
@@ -171,7 +171,7 @@ export class HealthcareChatHandler {
     token: vscode.CancellationToken
   ): Promise<vscode.ChatResult> {
     const editor = vscode.window.activeTextEditor;
-    
+
     if (!editor) {
       response.markdown('Please open a file containing a FHIR resource to validate.');
       return { metadata: { command: 'validate', error: 'no_editor' } };
@@ -184,7 +184,7 @@ export class HealthcareChatHandler {
 
     try {
       const resource = JSON.parse(content);
-      
+
       if (!resource.resourceType) {
         response.markdown('The selected content does not appear to be a valid FHIR resource (missing resourceType).');
         return { metadata: { command: 'validate', error: 'invalid_resource' } };
@@ -194,7 +194,7 @@ export class HealthcareChatHandler {
 
       // Perform basic validation
       const issues: string[] = [];
-      
+
       // Resource-specific validations
       switch (resource.resourceType) {
         case 'Patient':
@@ -205,7 +205,7 @@ export class HealthcareChatHandler {
             issues.push('⚠️ Patient should have a name');
           }
           break;
-          
+
         case 'Observation':
           if (!resource.status) {
             issues.push('❌ Observation must have a status');
@@ -217,7 +217,7 @@ export class HealthcareChatHandler {
             issues.push('⚠️ Observation should reference a subject');
           }
           break;
-          
+
         case 'Condition':
           if (!resource.clinicalStatus) {
             issues.push('⚠️ Condition should have clinicalStatus');
@@ -260,7 +260,7 @@ export class HealthcareChatHandler {
     }
 
     const models = await vscode.lm.selectChatModels({ family: 'gpt-4o' });
-    
+
     if (models.length === 0) {
       response.markdown('No language model available. Please ensure GitHub Copilot is activated.');
       return { metadata: { command: 'general', error: 'no_model' } };

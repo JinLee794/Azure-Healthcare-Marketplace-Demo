@@ -31,7 +31,7 @@ var issuer = '${loginEndpoint}${tenantId}/v2.0'
 resource mcpEntraApp 'Microsoft.Graph/applications@v1.0' = {
   displayName: mcpAppDisplayName
   uniqueName: mcpAppUniqueName
-  
+
   api: {
     oauth2PermissionScopes: [
       {
@@ -46,7 +46,7 @@ resource mcpEntraApp 'Microsoft.Graph/applications@v1.0' = {
       }
     ]
     requestedAccessTokenVersion: 2
-    
+
     // Pre-authorize VS Code's client ID for seamless OAuth flow
     preAuthorizedApplications: [
       {
@@ -58,7 +58,7 @@ resource mcpEntraApp 'Microsoft.Graph/applications@v1.0' = {
       }
     ]
   }
-  
+
   // Required API permissions (Microsoft Graph - User.Read for basic profile)
   requiredResourceAccess: [
     {
@@ -71,7 +71,7 @@ resource mcpEntraApp 'Microsoft.Graph/applications@v1.0' = {
       ]
     }
   ]
-  
+
   // SPA redirect URIs for OAuth callback
   spa: {
     redirectUris: [
@@ -82,14 +82,14 @@ resource mcpEntraApp 'Microsoft.Graph/applications@v1.0' = {
       'http://localhost'
     ]
   }
-  
+
   // Web redirect for APIM callback (if needed)
   web: {
     redirectUris: [
       '${apimGatewayUrl}/auth/callback'
     ]
   }
-  
+
   // Federated Identity Credential - Use Managed Identity instead of client secret
   resource federatedCredential 'federatedIdentityCredentials@v1.0' = {
     name: '${mcpEntraApp.uniqueName}/msiAsFic'

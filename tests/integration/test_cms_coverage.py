@@ -1,4 +1,5 @@
 """Integration tests for CMS Coverage MCP server."""
+
 import pytest
 
 pytestmark = pytest.mark.integration
@@ -32,8 +33,11 @@ class TestCMSCoverageTools:
         assert resp.status_code == 200
 
     def test_check_medical_necessity(self, mcp_cms):
-        resp = mcp_cms.call_tool("check_medical_necessity", {
-            "cpt_code": "27447",
-            "icd10_codes": ["M17.11"],
-        })
+        resp = mcp_cms.call_tool(
+            "check_medical_necessity",
+            {
+                "cpt_code": "27447",
+                "icd10_codes": ["M17.11"],
+            },
+        )
         assert resp.status_code == 200

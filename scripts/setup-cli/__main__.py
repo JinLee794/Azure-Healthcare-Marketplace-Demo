@@ -2,6 +2,7 @@
 
 Run with: python -m scripts.setup-cli
 """
+
 from .cli import main
 
 if __name__ == "__main__":

@@ -6,7 +6,8 @@ LOG_DIR := .local-logs
 	docker-build docker-up docker-down docker-logs docker-ps docker-test \
 	azure-deploy azure-deploy-single \
 	devui devui-local devui-framework devui-framework-local \
-	setup setup-check setup-doctor setup-guided setup-status setup-test setup-tips
+	setup setup-check setup-doctor setup-guided setup-status setup-test setup-tips \
+	seed-data seed-policies seed-policies-dry-run
 
 define START_SERVER
 	@bash -c 'mkdir -p "$(LOG_DIR)"; \
@@ -32,7 +33,19 @@ define START_SERVER
 	    echo "ERROR: Port $(3) is still in use. Could not start $(1)."; \
 	    exit 1; \
 	  fi; \
-	  ./scripts/local-test.sh $(1) $(3) > "$(LOG_DIR)/$(2).log" 2>&1 & echo $$! > "$(LOG_DIR)/$(2).pid"'
+	  echo "Starting $(1) on port $(3)..."; \
+	  ./scripts/local-test.sh $(1) $(3) > "$(LOG_DIR)/$(2).log" 2>&1 & echo $$! > "$(LOG_DIR)/$(2).pid"; \
+	  for i in $$(seq 1 30); do \
+	    if lsof -ti tcp:$(3) -sTCP:LISTEN >/dev/null 2>&1; then \
+	      echo "  ✓ $(1) ready on http://localhost:$(3) (pid $$(cat $(LOG_DIR)/$(2).pid))"; \
+	      echo "    Logs: $(LOG_DIR)/$(2).log"; \
+	      exit 0; \
+	    fi; \
+	    sleep 1; \
+	  done; \
+	  echo "  ⚠ $(1) launched but port $(3) not listening yet after 30s."; \
+	  echo "    Check logs: $(LOG_DIR)/$(2).log"; \
+	  tail -5 "$(LOG_DIR)/$(2).log" 2>/dev/null || true'
 endef
 
 local-start: local-stop local-start-npi local-start-icd10 local-start-cms local-start-fhir local-start-pubmed local-start-clinical local-start-cosmos-rag
@@ -58,6 +71,21 @@ local-start-clinical:
 
 local-start-cosmos-rag:
 	$(call START_SERVER,cosmos-rag,cosmos-rag,7077)
+
+# -- Seed Cosmos DB with policy PDFs -----------------------------------------
+seed-data: seed-policies
+
+seed-policies:
+	@echo "Seeding Cosmos DB via cosmos-rag MCP server (port 7077)..."
+	python scripts/seed_cosmos_policies.py --mcp --port 7077
+
+seed-policies-direct:
+	@echo "Seeding Cosmos DB directly via SDK..."
+	python scripts/seed_cosmos_policies.py --direct
+
+seed-policies-dry-run:
+	@echo "Dry-run: extracting text from policy PDFs..."
+	python scripts/seed_cosmos_policies.py --dry-run
 
 local-stop:
 	@bash -c 'if [ -d "$(LOG_DIR)" ]; then \

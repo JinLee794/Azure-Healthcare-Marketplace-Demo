@@ -1,6 +1,6 @@
 // ============================================================================
 // APIM MCP Passthrough Configuration Module (Lightweight - No OAuth)
-// 
+//
 // PURPOSE: Establish and verify APIM → Function App backend connectivity
 // before layering on OAuth/PRM complexity.
 //

@@ -8,11 +8,10 @@
 ## 1) Repo Map
 
 ```
-.github/skills/        → Domain knowledge used by assistants and chat participants
+.github/skills/        → Domain knowledge used by Copilot and agent workflows
 src/mcp-servers/       → Python Azure Function MCP servers
 src/agents/            → Multi-agent orchestration layer (CLI + Gradio DevUI)
 scripts/               → Local launchers, APIM tests, post-deploy config
-vscode-extension/      → VS Code @healthcare chat participant
 deploy/                → Azure Bicep infrastructure definitions
 ```
 
@@ -20,21 +19,18 @@ deploy/                → Azure Bicep infrastructure definitions
 
 ```mermaid
 flowchart LR
-    VSC[VS Code Chat] --> COP[GitHub Copilot agent]
-    VSC --> EXT[@healthcare extension]
-    EXT --> WRAP[Prompt injection + orchestration]
-    WRAP --> COP
+    VSC["VS Code Chat"] --> COP["GitHub Copilot agent"]
 
-    COP --> SK[.github/skills/* context]
-    COP --> MCP[.vscode/mcp.json]
-    MCP --> LOCAL[Local MCP]
-    MCP --> FUNC[Function App MCP]
-    MCP --> APIM[APIM MCP]
-    LOCAL --> SRV[src/mcp-servers/*]
+    COP --> SK[".github/skills/* context"]
+    COP --> MCP[".vscode/mcp.json"]
+    MCP --> LOCAL["Local MCP"]
+    MCP --> FUNC["Function App MCP"]
+    MCP --> APIM["APIM MCP"]
+    LOCAL --> SRV["src/mcp-servers/*"]
     FUNC --> SRV
     APIM --> SRV
-    SRV --> DATA[Clinical Data APIs]
-    COP --> RESP[Model response]
+    SRV --> DATA["Clinical Data APIs"]
+    COP --> RESP["Model response"]
 ```
 
 ---
@@ -232,7 +228,7 @@ python -m agents --workflow literature-search --demo --local
 # Prior-auth with sample input
 python -m agents \
   --workflow prior-auth \
-  --input ../.github/skills/prior-auth-azure/assets/sample/pa_request.json \
+  --input ../data/sample_cases/prior_auth_baseline/pa_request.json \
   --local
 
 # Dev UIs
@@ -376,7 +372,7 @@ See `docs/architecture/RETRIEVAL-ARCHITECTURE.md` for full details.
 | MCP server | `scripts/local-test.sh <server> <port>` → verify `/.well-known/mcp`, `initialize`, `tools/list` |
 | Agent workflow | `python -m agents ... --demo` → check `waypoints/` output |
 | APIM / policy | `scripts/test-apim-passthrough.sh --all` |
-| VS Code extension | `cd vscode-extension && npm run compile && npm run lint` |
+| Copilot configuration | validate `.vscode/mcp.json` and run one prompt that triggers MCP tools |
 | Integration tests | `pytest tests/ -v` |
 
 ---
@@ -402,6 +398,7 @@ curl http://localhost:7071/health
 | 401 from APIM | Token audience mismatch | Verify `McpClientId` |
 | 502 from APIM | Cold start or VNet routing | Wait/retry or check VNet config |
 | FHIR returns demo data | `FHIR_SERVER_URL` not set | Set in `local.settings.json` |
+| `httpx.UnsupportedProtocol` in `cosmos-rag` | Missing/invalid `AZURE_AI_SERVICES_ENDPOINT` (or `AZURE_OPENAI_ENDPOINT`) | Set a full URL, e.g. `https://<resource>.services.ai.azure.com` |
 | Port mismatch | Wrong port in `func start` | Match port to server table above |
 
 ---
@@ -413,4 +410,3 @@ curl http://localhost:7071/health
 - [docs/architecture/APIM-ARCHITECTURE.md](architecture/APIM-ARCHITECTURE.md) — APIM architecture
 - [docs/architecture/RETRIEVAL-ARCHITECTURE.md](architecture/RETRIEVAL-ARCHITECTURE.md) — RAG architecture
 - [deploy/README.md](../deploy/README.md) — infrastructure deployment
-- [vscode-extension/README.md](../vscode-extension/README.md) — VS Code extension

@@ -1,13 +1,13 @@
 <!--
     Azure API Management Policy for MCP Endpoint Protected Resource Metadata (RFC 9728)
-    
+
     This policy returns Protected Resource Metadata for a specific MCP server endpoint.
     It's designed for paths like: /mcp/{server}/mcp/.well-known/oauth-protected-resource
-    
+
     The 'resource' property MUST match the protected resource URL per RFC 9728.
     For an MCP endpoint at /mcp/{server}/mcp, the resource is:
     https://{gateway}/mcp/{server}/mcp
-    
+
     Note: Authentication is disabled for this endpoint to allow anonymous access
     as per RFC 9728 requirements - clients need to discover auth info before authenticating.
 -->
@@ -25,34 +25,34 @@
             <set-body>@{
                 var gatewayUrl = "{{APIMGatewayURL}}".TrimEnd('/');
                 var requestPath = context.Request.Url.Path;
-                
+
                 // Extract server name from path: /{server}/mcp/.well-known/oauth-protected-resource
                 // After API path stripping (/mcp prefix removed), we get: /{server}/mcp/.well-known/...
                 var pathParts = requestPath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
                 var serverName = pathParts.Length > 0 ? pathParts[0] : "";
-                
+
                 // Construct the resource URL - MUST match what the client is accessing
                 var resourceUrl = $"{gatewayUrl}/mcp/{serverName}/mcp";
-                
+
                 return JsonConvert.SerializeObject(new {
                     // The resource identifier - matches the MCP endpoint URL
                     resource = resourceUrl,
-                    
+
                     // OAuth 2.0 authorization server endpoints
                     authorization_servers = new[] {
                         $"https://login.microsoftonline.com/{{McpTenantId}}/v2.0"
                     },
-                    
+
                     // How the bearer token should be presented
                     bearer_methods_supported = new[] {
                         "header"
                     },
-                    
+
                     // Scopes required to access this resource
                     scopes_supported = new[] {
                         "{{McpClientId}}/user_impersonate"
                     },
-                    
+
                     // Resource documentation (optional but helpful)
                     resource_documentation = "https://github.com/modelcontextprotocol/specification"
                 });

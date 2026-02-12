@@ -192,7 +192,7 @@ Authorization: Bearer {token}
 ## Common DICOM Tags
 
 | Tag | Keyword | VR | Description |
-|-----|---------|----|-----------| 
+|-----|---------|----|-----------|
 | 00080018 | SOPInstanceUID | UI | Instance identifier |
 | 00080020 | StudyDate | DA | Date of study |
 | 00080030 | StudyTime | TM | Time of study |

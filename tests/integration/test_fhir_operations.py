@@ -1,4 +1,5 @@
 """Integration tests for FHIR Operations MCP server."""
+
 import pytest
 
 pytestmark = pytest.mark.integration

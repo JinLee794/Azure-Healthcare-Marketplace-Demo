@@ -249,7 +249,7 @@ Authorization: Bearer {token}
       }
     },
     {
-      "templateType": "JsonPathContent", 
+      "templateType": "JsonPathContent",
       "template": {
         "typeName": "oxygenSaturation",
         "typeMatchExpression": "$.readings.oxygenSaturation",

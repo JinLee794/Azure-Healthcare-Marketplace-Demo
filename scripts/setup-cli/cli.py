@@ -25,13 +25,12 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 
 from .checks import EnvironmentReport, is_ready, print_report, scan_environment
+from .deploy import cmd_deploy_walkthrough, cmd_post_deploy_guide
 from .servers import (
     check_server_status,
     setup_agents_venv,
     setup_all_servers,
-    setup_server_venv,
 )
-from .deploy import cmd_deploy_walkthrough, cmd_post_deploy_guide
 from .styles import COPILOT_TIPS, LOGO, MCP_SERVERS, THEME
 from .testing import run_eval_contracts, run_eval_latency, run_smoke_tests
 from .troubleshoot import run_diagnostics
@@ -42,6 +41,7 @@ console = Console(theme=THEME)
 # ---------------------------------------------------------------------------
 # Menu helpers
 # ---------------------------------------------------------------------------
+
 
 def _clear() -> None:
     console.print("\n" * 2)
@@ -77,7 +77,7 @@ def _show_menu() -> str:
     console.print()
     for key, label, desc in MENU_ITEMS:
         if key == "q":
-            console.print(f"  [muted]q)[/muted] [muted]Quit[/muted]")
+            console.print("  [muted]q)[/muted] [muted]Quit[/muted]")
         else:
             console.print(f"  [highlight]{key})[/highlight] [step]{label}[/step]  [muted]{desc}[/muted]")
     console.print()
@@ -87,6 +87,7 @@ def _show_menu() -> str:
 # ---------------------------------------------------------------------------
 # Sub-commands
 # ---------------------------------------------------------------------------
+
 
 def cmd_check() -> EnvironmentReport:
     console.print()
@@ -117,7 +118,7 @@ def cmd_setup_servers(report: EnvironmentReport | None = None) -> None:
     console.print("Available servers:")
     for i, (name, info) in enumerate(MCP_SERVERS.items(), 1):
         console.print(f"  {i}. [server]{name}[/server] — {info['desc']}")
-    console.print(f"  a. [highlight]All servers[/highlight]")
+    console.print("  a. [highlight]All servers[/highlight]")
     console.print()
 
     choice = Prompt.ask("Setup which servers?", default="a")
@@ -211,53 +212,58 @@ def cmd_post_deploy(report: EnvironmentReport | None = None) -> None:
 
 def cmd_copilot_tips() -> None:
     console.print()
-    console.print(Panel(
-        "[header]VS Code / GitHub Copilot Integration[/header]\n\n"
-        "[bold]1. Native MCP in Copilot Chat[/bold]\n"
-        "   Copilot natively reads [info].vscode/mcp.json[/info] for MCP tool access.\n"
-        "   Start local servers, then Copilot can call tools directly.\n\n"
-        "[bold]2. Skills (auto-loaded)[/bold]\n"
-        "   Skills in [info].github/skills/[/info] are automatically injected into Copilot context.\n"
-        "   Use: [italic]@healthcare /pa Review this PA request[/italic]\n\n"
-        "[bold]3. Helpful Copilot Prompts[/bold]\n"
-        '   • "Help me set up local MCP servers for healthcare development"\n'
-        '   • "What MCP tools are available in this workspace?"\n'
-        '   • "Debug why my fhir-operations server returns 500"\n'
-        '   • "Write a smoke test for the NPI lookup MCP tool"\n'
-        '   • "Explain this prior authorization workflow step by step"\n\n'
-        "[bold]4. Configure MCP for Copilot[/bold]\n"
-        "   After running [bold]make local-start[/bold], create [info].vscode/mcp.json[/info]:\n"
-        "   [muted](The guided setup does this automatically)[/muted]\n\n"
-        '   {\n'
-        '     "servers": {\n'
-        '       "npi-lookup": { "type": "http", "url": "http://localhost:7071/mcp" }\n'
-        "     }\n"
-        "   }\n\n"
-        "[bold]5. Agent Framework DevUI[/bold]\n"
-        "   Run Gradio UI for interactive workflow testing:\n"
-        "   [info]cd src && source agents/.venv/bin/activate && python -m agents --devui --local[/info]",
-        expand=True,
-    ))
+    console.print(
+        Panel(
+            "[header]VS Code / GitHub Copilot Integration[/header]\n\n"
+            "[bold]1. Native MCP in Copilot Chat[/bold]\n"
+            "   Copilot natively reads [info].vscode/mcp.json[/info] for MCP tool access.\n"
+            "   Start local servers, then Copilot can call tools directly.\n\n"
+            "[bold]2. Skills (auto-loaded)[/bold]\n"
+            "   Skills in [info].github/skills/[/info] are automatically injected into Copilot context.\n"
+            "   Use: [italic]@healthcare /pa Review this PA request[/italic]\n\n"
+            "[bold]3. Helpful Copilot Prompts[/bold]\n"
+            '   • "Help me set up local MCP servers for healthcare development"\n'
+            '   • "What MCP tools are available in this workspace?"\n'
+            '   • "Debug why my fhir-operations server returns 500"\n'
+            '   • "Write a smoke test for the NPI lookup MCP tool"\n'
+            '   • "Explain this prior authorization workflow step by step"\n\n'
+            "[bold]4. Configure MCP for Copilot[/bold]\n"
+            "   After running [bold]make local-start[/bold], create [info].vscode/mcp.json[/info]:\n"
+            "   [muted](The guided setup does this automatically)[/muted]\n\n"
+            "   {\n"
+            '     "servers": {\n'
+            '       "npi-lookup": { "type": "http", "url": "http://localhost:7071/mcp" }\n'
+            "     }\n"
+            "   }\n\n"
+            "[bold]5. Agent Framework DevUI[/bold]\n"
+            "   Run Gradio UI for interactive workflow testing:\n"
+            "   [info]cd src && source agents/.venv/bin/activate && python -m agents --devui --local[/info]",
+            expand=True,
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
 # Guided setup
 # ---------------------------------------------------------------------------
 
+
 def cmd_guided_setup() -> None:
     """Step-by-step walkthrough for first-time users."""
     _clear()
-    console.print(Panel(
-        "[header]🚀 Guided First-Time Setup[/header]\n\n"
-        "This wizard will walk you through:\n"
-        "  1. Verify prerequisites\n"
-        "  2. Set up MCP server environments\n"
-        "  3. Start servers locally\n"
-        "  4. Run smoke tests to validate\n"
-        "  5. Configure VS Code MCP integration\n"
-        "  6. (Optional) Set up agent workflows",
-        expand=False,
-    ))
+    console.print(
+        Panel(
+            "[header]🚀 Guided First-Time Setup[/header]\n\n"
+            "This wizard will walk you through:\n"
+            "  1. Verify prerequisites\n"
+            "  2. Set up MCP server environments\n"
+            "  3. Start servers locally\n"
+            "  4. Run smoke tests to validate\n"
+            "  5. Configure VS Code MCP integration\n"
+            "  6. (Optional) Set up agent workflows",
+            expand=False,
+        )
+    )
     console.print()
     if not Confirm.ask("Ready to start?", default=True):
         return
@@ -291,7 +297,9 @@ def cmd_guided_setup() -> None:
         python_cmd = report.python.path if (report.python and report.python.found) else "python3"
         results = setup_all_servers(report.project_root, python_cmd)
         ok = sum(1 for v in results.values() if v)
-        console.print(f"\n  [{'success' if ok == len(results) else 'warning'}]{ok}/{len(results)} servers set up[/{'success' if ok == len(results) else 'warning'}]")
+        console.print(
+            f"\n  [{'success' if ok == len(results) else 'warning'}]{ok}/{len(results)} servers set up[/{'success' if ok == len(results) else 'warning'}]"
+        )
     else:
         console.print("  [muted]Skipped[/muted]")
 
@@ -305,6 +313,7 @@ def cmd_guided_setup() -> None:
     start_choice = Prompt.ask("Start servers now?", choices=["a", "b", "skip"], default="skip")
 
     import subprocess
+
     if start_choice == "a":
         console.print("[step]Starting servers via make local-start…[/step]")
         subprocess.run(["make", "local-start"], cwd=str(report.project_root))
@@ -315,6 +324,7 @@ def cmd_guided_setup() -> None:
     if start_choice != "skip":
         console.print("[muted]Waiting 8s for servers to initialise…[/muted]")
         import time
+
         time.sleep(8)
 
     # Step 4 — Smoke tests
@@ -331,11 +341,11 @@ def cmd_guided_setup() -> None:
     console.print("[step]━━━ Step 5/6: VS Code MCP Configuration ━━━[/step]")
     mcp_json = report.project_root / ".vscode" / "mcp.json"
     if mcp_json.is_file():
-        console.print(f"  [success]✓[/success] .vscode/mcp.json already exists")
+        console.print("  [success]✓[/success] .vscode/mcp.json already exists")
     else:
         if Confirm.ask("Generate .vscode/mcp.json for local MCP servers?", default=True):
             _generate_mcp_json(report.project_root, docker=(start_choice == "b"))
-            console.print(f"  [success]✓[/success] Created .vscode/mcp.json")
+            console.print("  [success]✓[/success] Created .vscode/mcp.json")
         else:
             console.print("  [muted]Skipped[/muted]")
 
@@ -351,26 +361,29 @@ def cmd_guided_setup() -> None:
         if not env_file.is_file() and example.is_file():
             console.print("  [info]Copying .env.example → .env (edit with your Azure OpenAI values)[/info]")
             import shutil
+
             shutil.copy2(str(example), str(env_file))
     else:
         console.print("  [muted]Skipped — come back when you're ready[/muted]")
 
     # Done!
     console.print()
-    console.print(Panel(
-        "[success]🎉 Local Setup Complete![/success]\n\n"
-        "[bold]What's next:[/bold]\n"
-        "  • [bold]make local-start[/bold]           Start all MCP servers\n"
-        "  • [bold]make eval-contracts[/bold]        Validate MCP contracts\n"
-        "  • Open Copilot Chat and try: [italic]@healthcare /pa[/italic]\n\n"
-        "[bold]Ready for Azure?[/bold]\n"
-        "  • [bold]make setup[/bold] → option [highlight]9[/highlight] (Deploy to Azure)\n"
-        "  • After deploy → option [highlight]10[/highlight] (Post-Deploy: Copilot Demo)\n"
-        "    Upload sample PA files and let Copilot + MCP validate them end-to-end!\n\n"
-        "For full docs: [info]docs/DEVELOPER-GUIDE.md[/info] · [info]docs/LOCAL-TESTING.md[/info]",
-        title="[header]All Done[/header]",
-        expand=False,
-    ))
+    console.print(
+        Panel(
+            "[success]🎉 Local Setup Complete![/success]\n\n"
+            "[bold]What's next:[/bold]\n"
+            "  • [bold]make local-start[/bold]           Start all MCP servers\n"
+            "  • [bold]make eval-contracts[/bold]        Validate MCP contracts\n"
+            "  • Open Copilot Chat and try: [italic]@healthcare /pa[/italic]\n\n"
+            "[bold]Ready for Azure?[/bold]\n"
+            "  • [bold]make setup[/bold] → option [highlight]9[/highlight] (Deploy to Azure)\n"
+            "  • After deploy → option [highlight]10[/highlight] (Post-Deploy: Copilot Demo)\n"
+            "    Upload sample PA files and let Copilot + MCP validate them end-to-end!\n\n"
+            "For full docs: [info]docs/DEVELOPER-GUIDE.md[/info] · [info]docs/LOCAL-TESTING.md[/info]",
+            title="[header]All Done[/header]",
+            expand=False,
+        )
+    )
 
 
 def _generate_mcp_json(project_root: Path, *, docker: bool = False) -> None:
@@ -398,6 +411,7 @@ def _generate_mcp_json(project_root: Path, *, docker: bool = False) -> None:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     """Main entry — interactive menu or direct sub-command."""
@@ -441,7 +455,9 @@ def main() -> None:
             cmd_copilot_tips()
         else:
             console.print(f"[error]Unknown command: {cmd}[/error]")
-            console.print("[info]Available: check, setup, agents, status, test, evals, doctor, guided, deploy, post-deploy, tips[/info]")
+            console.print(
+                "[info]Available: check, setup, agents, status, test, evals, doctor, guided, deploy, post-deploy, tips[/info]"
+            )
             sys.exit(1)
         return
 

@@ -1,7 +1,7 @@
 <!--
     Lightweight passthrough policy for debugging APIM → Function App connectivity.
     NO OAuth. NO PRM. Just backend routing with function key auth + tracing.
-    
+
     Uses APIM subscription key for front-door security.
     Injects x-functions-key for backend auth.
     Rewrites /mcp/{server}/mcp → /mcp on the backend.

@@ -207,7 +207,7 @@ Your job is to aggregate these into a final assessment with a recommendation.
 - Denial is a human-only decision.
 
 ### Confidence Formula
-Overall = (0.20 × Provider) + (0.15 × Codes) + (0.20 × Policy) + (0.35 × Clinical) + (0.10 × DocQuality)
+Overall = (0.20 x Provider) + (0.15 x Codes) + (0.20 x Policy) + (0.35 x Clinical) + (0.10 x DocQuality)
 
 ## Output Format
 Return a structured JSON object:

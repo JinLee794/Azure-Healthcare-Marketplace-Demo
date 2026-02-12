@@ -1,4 +1,5 @@
 """Integration tests for Clinical Trials MCP server."""
+
 import pytest
 
 pytestmark = pytest.mark.integration
@@ -22,17 +23,24 @@ class TestClinicalTrialsDiscovery:
 
 class TestClinicalTrialsTools:
     def test_search_trials(self, mcp_clinical_trials):
-        resp = mcp_clinical_trials.call_tool("search_trials", {
-            "condition": "non-small cell lung cancer",
-            "page_size": 3,
-        })
+        resp = mcp_clinical_trials.call_tool(
+            "search_trials",
+            {
+                "condition": "non-small cell lung cancer",
+                "page_size": 3,
+            },
+        )
         assert resp.status_code == 200
         result = resp.json().get("result", {})
         assert not result.get("isError", False)
 
     def test_search_by_condition(self, mcp_clinical_trials):
-        resp = mcp_clinical_trials.call_tool("search_by_condition", {
-            "condition": "breast cancer",
-            "location": "New York",
-        })
+        resp = mcp_clinical_trials.call_tool(
+            "search_by_condition",
+            {
+                "condition": "breast cancer",
+            },
+        )
         assert resp.status_code == 200
+        result = resp.json().get("result", {})
+        assert not result.get("isError", False)

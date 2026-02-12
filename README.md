@@ -14,8 +14,8 @@ An Azure-native healthcare marketplace providing Skills, MCP Servers, and AI Age
 flowchart TB
     subgraph surface["Surface Layer"]
         GH["GitHub Repo<br/>(Skills Store)"]
+        CP["GitHub Copilot<br/>Agent (VS Code Chat)"]
         AI["Azure AI<br/>Foundry Agents"]
-        VS["VS Code<br/>Extension"]
     end
 
     subgraph mcp["MCP Server Layer<br/>(Azure Functions / Azure Container Apps)"]
@@ -28,9 +28,9 @@ flowchart TB
         MedTech["MedTech Service"]
     end
 
-    GH --> MCP
+    GH --> CP
+    CP --> MCP
     AI --> MCP
-    VS --> MCP
     MCP --> FHIR
     MCP --> DICOM
     MCP --> MedTech
@@ -47,7 +47,6 @@ healthcare-for-microsoft/
 ├── scripts/                       # Local test, APIM test, and post-deploy helpers
 ├── docs/                          # Local testing, OAuth/PRM, architecture docs
 ├── deploy/                        # Azure Bicep infrastructure
-├── vscode-extension/              # VS Code @healthcare participant
 ├── azure-fhir-mcp-server/         # Standalone TypeScript MCP server sample
 └── foundry-integration/           # Azure AI Foundry registration assets
 ```
@@ -81,9 +80,9 @@ Dynamic tools callable by AI agents for real-time data access.
 
 Register MCP servers with Azure AI Foundry for agent orchestration.
 
-### 4. VS Code Extension
+### 4. Copilot Agent Surface
 
-GitHub Copilot chat participant with healthcare-specific commands.
+Developers interact directly in GitHub Copilot Chat using skills and MCP tools (no custom chat participant required).
 
 ## Quick Start
 
@@ -93,7 +92,7 @@ GitHub Copilot chat participant with healthcare-specific commands.
 - Azure Functions Core Tools v4
 - Azure subscription
 - Azure Health Data Services deployed
-- GitHub Copilot (for VS Code extension)
+- GitHub Copilot (for VS Code)
 
 ### Setup MCP Servers (Local)
 
@@ -113,12 +112,12 @@ primary server runtime used by this repo's orchestration layer.
 
 ### Use Skills with Copilot
 
-Skills are automatically loaded from `.github/skills/` directory. Use `@healthcare` in GitHub Copilot Chat:
+Skills are automatically loaded from `.github/skills/` directory. Ask directly in GitHub Copilot Chat:
 
 ```
-@healthcare How do I create a Patient resource?
-@healthcare /fhir What's the search syntax for observations?
-@healthcare /pa Does CPT 27447 require prior auth?
+How do I create a Patient resource in Azure API for FHIR?
+What's the search syntax for FHIR observations?
+Does CPT 27447 require prior auth, and which MCP tools should I call first?
 ```
 
 ## Documentation Guide
@@ -151,7 +150,6 @@ Key inspirations:
 - [Model Context Protocol (MCP)](https://modelcontextprotocol.io/docs) — the open protocol powering tool integrations
 - [Azure Health Data Services](https://learn.microsoft.com/en-us/azure/healthcare-apis/) — the Azure-native FHIR, DICOM, and MedTech stack
 - [Azure AI Foundry MCP Integration](https://learn.microsoft.com/en-us/azure/ai-foundry/agents/how-to/tools/model-context-protocol)
-- [VS Code Chat Extensions](https://code.visualstudio.com/api/extension-guides/chat)
 
 ## Disclaimer
 

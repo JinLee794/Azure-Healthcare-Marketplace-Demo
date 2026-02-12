@@ -23,7 +23,7 @@ An intervention is already initialized:
   Name: [intervention_name]
   Type: [device/drug]
   Indication: [indication]
-  
+
 Would you like to:
   1. Continue with this intervention
   2. Create a new intervention

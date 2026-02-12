@@ -35,9 +35,13 @@ def _tool_names_from_literal(node: ast.AST | None) -> set[str]:
         if not isinstance(elt, ast.Dict):
             continue
         for key, value in zip(elt.keys, elt.values):
-            if isinstance(key, ast.Constant) and key.value == "name":
-                if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                    names.add(value.value)
+            if (
+                isinstance(key, ast.Constant)
+                and key.value == "name"
+                and isinstance(value, ast.Constant)
+                and isinstance(value.value, str)
+            ):
+                names.add(value.value)
     return names
 
 
@@ -88,11 +92,14 @@ def _extract_agent_setup_tools(path: Path) -> set[str]:
         if not isinstance(node, ast.Dict):
             continue
         for key, value in zip(node.keys, node.values):
-            if isinstance(key, ast.Constant) and key.value == "allowed_tools":
-                if isinstance(value, (ast.List, ast.Tuple)):
-                    for elt in value.elts:
-                        if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
-                            names.add(elt.value)
+            if (
+                isinstance(key, ast.Constant)
+                and key.value == "allowed_tools"
+                and isinstance(value, (ast.List, ast.Tuple))
+            ):
+                for elt in value.elts:
+                    if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                        names.add(elt.value)
     return names
 
 
@@ -187,9 +194,18 @@ def main() -> int:
     checks = [
         ("README", _extract_readme_tools(ROOT / "README.md")),
         ("foundry-integration/agent_setup.py", _extract_agent_setup_tools(ROOT / "foundry-integration/agent_setup.py")),
-        ("foundry-integration/agent_config.yaml", _extract_yaml_allowed_tools(ROOT / "foundry-integration/agent_config.yaml")),
-        ("foundry-integration/tools_catalog.json", _extract_tools_catalog_names(ROOT / "foundry-integration/tools_catalog.json")),
-        ("docs/MCP-SERVERS-BEGINNER-GUIDE.md", _extract_beginner_guide_tools(ROOT / "docs/MCP-SERVERS-BEGINNER-GUIDE.md")),
+        (
+            "foundry-integration/agent_config.yaml",
+            _extract_yaml_allowed_tools(ROOT / "foundry-integration/agent_config.yaml"),
+        ),
+        (
+            "foundry-integration/tools_catalog.json",
+            _extract_tools_catalog_names(ROOT / "foundry-integration/tools_catalog.json"),
+        ),
+        (
+            "docs/MCP-SERVERS-BEGINNER-GUIDE.md",
+            _extract_beginner_guide_tools(ROOT / "docs/MCP-SERVERS-BEGINNER-GUIDE.md"),
+        ),
     ]
 
     ok = True

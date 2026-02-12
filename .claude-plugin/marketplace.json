@@ -4,7 +4,7 @@
   "description": "Healthcare Marketplace for GitHub Copilot and Azure AI Agents - Skills and MCP servers for clinical trials, prior authorization, and FHIR development.",
   "publisher": "microsoft-healthcare",
   "repository": "https://github.com/microsoft/healthcare-for-azure",
-  
+
   "skills": {
     "azure-fhir-developer": {
       "path": ".github/skills/azure-fhir-developer",
@@ -35,7 +35,7 @@
       "tags": ["clinical-trials", "fda", "protocol", "research"]
     }
   },
-  
+
   "mcpServers": {
     "cms-coverage": {
       "displayName": "CMS Coverage Database",
@@ -200,13 +200,13 @@
       ]
     }
   },
-  
+
   "authentication": {
     "type": "azure_ad",
     "scopes": ["api://healthcare-mcp-gateway/.default"],
     "instructions": "Authenticate using Azure AD. For VS Code, use the Azure Account extension. For CLI, run 'az login' and then 'az account get-access-token --resource api://healthcare-mcp-gateway'."
   },
-  
+
   "installation": {
     "skills": "Skills are automatically loaded when the marketplace is added.",
     "mcpServers": "MCP servers require Azure APIM subscription. Configure endpoints in your MCP client settings."

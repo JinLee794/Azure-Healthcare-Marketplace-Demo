@@ -55,36 +55,34 @@ def _create_entities(local: bool = False) -> list:
 
     The DevUI discovers entities and shows their composition structure.
     """
-    from azure.identity import AzureCliCredential, DefaultAzureCredential
-
-    from agent_framework import Agent, MCPStreamableHTTPTool
     from agent_framework.azure import AzureOpenAIResponsesClient
     from agent_framework_orchestrations import ConcurrentBuilder, SequentialBuilder
+    from azure.identity import AzureCliCredential, DefaultAzureCredential
 
     from .agents import (
-        create_compliance_agent,
         create_clinical_reviewer_agent,
+        create_compliance_agent,
         create_coverage_agent,
-        create_synthesis_agent,
         create_healthcare_triage_orchestrator,
-        create_patient_summary_agent,
         create_literature_search_agent,
-        create_trials_research_agent,
-        create_trials_correlation_agent,
+        create_patient_summary_agent,
         create_protocol_draft_agent,
+        create_synthesis_agent,
+        create_trials_correlation_agent,
+        create_trials_research_agent,
     )
     from .config import AgentConfig
     from .tools import (
-        create_npi_tool,
-        create_icd10_tool,
-        create_cms_tool,
-        create_fhir_tool,
-        create_pubmed_tool,
-        create_clinical_trials_tool,
-        NPI_TOOLS_COMPLIANCE,
-        NPI_TOOLS_SEARCH,
         ICD10_TOOLS_COMPLIANCE,
         ICD10_TOOLS_SEARCH,
+        NPI_TOOLS_COMPLIANCE,
+        NPI_TOOLS_SEARCH,
+        create_clinical_trials_tool,
+        create_cms_tool,
+        create_fhir_tool,
+        create_icd10_tool,
+        create_npi_tool,
+        create_pubmed_tool,
     )
 
     # ── Resolve endpoints ──────────────────────────────────────────
@@ -104,7 +102,7 @@ def _create_entities(local: bool = False) -> list:
     api_version = os.getenv("AZURE_OPENAI_API_VERSION", "preview")
 
     if not endpoint:
-        raise EnvironmentError(
+        raise OSError(
             "AZURE_OPENAI_ENDPOINT is not set. "
             "Create src/agents/.env with:\n"
             "  AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com\n"
@@ -132,6 +130,7 @@ def _create_entities(local: bool = False) -> list:
 
     # ── Shared HTTP client for APIM subscription key ───────────────
     import httpx
+
     from .config import APIM_SUBSCRIPTION_KEY_HEADER
 
     _shared_http: httpx.AsyncClient | None = None
@@ -163,10 +162,12 @@ def _create_entities(local: bool = False) -> list:
     entities: list = []
 
     # ── 1. Healthcare Triage Orchestrator (single agent, all tools) ─
-    entities.append(create_healthcare_triage_orchestrator(
-        client=client,
-        tools=[npi(), icd10(), cms(), fhir(), pubmed(), trials()],
-    ))
+    entities.append(
+        create_healthcare_triage_orchestrator(
+            client=client,
+            tools=[npi(), icd10(), cms(), fhir(), pubmed(), trials()],
+        )
+    )
 
     # ── 2. Prior Auth Workflow ─────────────────────────────────────
     # Matches src/agents/workflows/prior_auth.py:
@@ -229,13 +230,15 @@ def _create_entities(local: bool = False) -> list:
     # ── 4. Patient Data Agent (single agent) ───────────────────────
     # Matches src/agents/workflows/patient_data.py:
     #   Single agent with FHIR + NPI tools
-    entities.append(create_patient_summary_agent(
-        client=client,
-        tools=[
-            fhir("FHIR (Patient)"),
-            npi("NPI (Patient)", NPI_TOOLS_SEARCH),
-        ],
-    ))
+    entities.append(
+        create_patient_summary_agent(
+            client=client,
+            tools=[
+                fhir("FHIR (Patient)"),
+                npi("NPI (Patient)", NPI_TOOLS_SEARCH),
+            ],
+        )
+    )
 
     # ── 5. Literature & Evidence Workflow ──────────────────────────
     # Matches src/agents/workflows/literature_search.py:
@@ -280,24 +283,24 @@ def launch(
     # Entity metadata for display
     ENTITY_INFO = [
         ("HealthcareOrchestrator", "Triage", "single agent — all tools", 6),
-        ("Prior Auth Workflow",    "prior-auth-azure", "Sequential → Concurrent → Sequential", 6),
-        ("Clinical Trial Protocol","clinical-trial-protocol", "Sequential (Research → Draft)", 2),
-        ("PatientDataAgent",       "azure-fhir-developer", "single agent", 2),
-        ("Literature & Evidence",  "literature-search", "Concurrent (Literature ‖ Trials)", 2),
+        ("Prior Auth Workflow", "prior-auth-azure", "Sequential → Concurrent → Sequential", 6),
+        ("Clinical Trial Protocol", "clinical-trial-protocol", "Sequential (Research → Draft)", 2),
+        ("PatientDataAgent", "azure-fhir-developer", "single agent", 2),
+        ("Literature & Evidence", "literature-search", "Concurrent (Literature ‖ Trials)", 2),
     ]
 
     print(f"\n{'='*64}")
     print("  Healthcare Agent Orchestration — Framework DevUI")
     print(f"  Mode: {'local' if local else 'APIM passthrough'}")
     print(f"  Workflow entities: {len(entities)}")
-    print(f"  MCP servers: npi-lookup · icd10-validation · cms-coverage")
-    print(f"               fhir-operations · pubmed · clinical-trials")
+    print("  MCP servers: npi-lookup · icd10-validation · cms-coverage")
+    print("               fhir-operations · pubmed · clinical-trials")
     print(f"  URL: http://127.0.0.1:{port}")
     print(f"{'='*64}\n")
 
     for i, (name, skill, pattern, tools) in enumerate(ENTITY_INFO):
         entity = entities[i] if i < len(entities) else None
-        entity_name = getattr(entity, 'name', name) if entity else name
+        entity_name = getattr(entity, "name", name) if entity else name
         print(f"  • {entity_name}")
         print(f"    Skill: {skill}  |  Pattern: {pattern}  |  MCP tools: {tools}")
     print()

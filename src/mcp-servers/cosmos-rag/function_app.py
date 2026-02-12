@@ -12,14 +12,15 @@ Uses:
 
 Supports MCP Protocol 2025-06-18 with Streamable HTTP transport for APIM integration.
 """
-import os
+
 import json
 import logging
+import os
 import uuid
-import math
-from datetime import datetime, timezone
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlparse
 
 import azure.functions as func
 from azure.cosmos.aio import CosmosClient
@@ -61,6 +62,22 @@ _cosmos_client: CosmosClient | None = None
 _openai_client: AsyncAzureOpenAI | None = None
 
 
+def normalize_endpoint(raw_endpoint: str, env_var_name: str) -> str:
+    """Validate and normalize an HTTP(S) endpoint from environment settings."""
+    endpoint = (raw_endpoint or "").strip()
+    if not endpoint:
+        raise ValueError(f"{env_var_name} is not set. Configure it in local.settings.json or app settings.")
+
+    if "://" not in endpoint:
+        endpoint = f"https://{endpoint}"
+
+    parsed = urlparse(endpoint)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError(f"{env_var_name} must be a valid URL with http:// or https:// (received: {raw_endpoint!r})")
+
+    return endpoint.rstrip("/")
+
+
 async def get_credential() -> DefaultAzureCredential:
     """Get or create shared Azure credential."""
     global _credential
@@ -74,7 +91,8 @@ async def get_cosmos_client() -> CosmosClient:
     global _cosmos_client
     if _cosmos_client is None:
         credential = await get_credential()
-        _cosmos_client = CosmosClient(COSMOS_DB_ENDPOINT, credential=credential)
+        cosmos_endpoint = normalize_endpoint(COSMOS_DB_ENDPOINT, "COSMOS_DB_ENDPOINT")
+        _cosmos_client = CosmosClient(cosmos_endpoint, credential=credential)
     return _cosmos_client
 
 
@@ -82,10 +100,16 @@ async def get_openai_client() -> AsyncAzureOpenAI:
     """Get or create Azure OpenAI client for embeddings."""
     global _openai_client
     if _openai_client is None:
+        ai_endpoint_raw = AI_SERVICES_ENDPOINT or os.environ.get("AZURE_OPENAI_ENDPOINT", "")
+        ai_endpoint = normalize_endpoint(
+            ai_endpoint_raw,
+            "AZURE_AI_SERVICES_ENDPOINT (or AZURE_OPENAI_ENDPOINT fallback)",
+        )
+
         credential = await get_credential()
         token = await credential.get_token("https://cognitiveservices.azure.com/.default")
         _openai_client = AsyncAzureOpenAI(
-            azure_endpoint=AI_SERVICES_ENDPOINT,
+            azure_endpoint=ai_endpoint,
             api_version="2024-10-21",
             azure_ad_token=token.token,
         )
@@ -114,8 +138,8 @@ async def generate_embedding(text: str) -> list[float]:
 # Text Chunking
 # ============================================================================
 
-def chunk_text(text: str, chunk_size: int = DEFAULT_CHUNK_SIZE,
-               overlap: int = DEFAULT_CHUNK_OVERLAP) -> list[str]:
+
+def chunk_text(text: str, chunk_size: int = DEFAULT_CHUNK_SIZE, overlap: int = DEFAULT_CHUNK_OVERLAP) -> list[str]:
     """Split text into overlapping chunks at sentence boundaries."""
     if len(text) <= chunk_size:
         return [text]
@@ -158,14 +182,15 @@ def chunk_text(text: str, chunk_size: int = DEFAULT_CHUNK_SIZE,
 # MCP Server Definition
 # ============================================================================
 
+
 @dataclass
 class CosmosRAGServer:
     """MCP Server for Cosmos DB RAG, audit trail, and agent memory."""
+
     name: str = "cosmos-rag"
     version: str = "1.0.0"
     description: str = (
-        "Healthcare MCP server for document RAG (hybrid search), "
-        "audit trail, and agent memory via Azure Cosmos DB"
+        "Healthcare MCP server for document RAG (hybrid search), " "audit trail, and agent memory via Azure Cosmos DB"
     )
 
     def get_tools(self) -> list[dict]:
@@ -181,42 +206,35 @@ class CosmosRAGServer:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "title": {
-                            "type": "string",
-                            "description": "Document title"
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "Full document text content to index"
-                        },
+                        "title": {"type": "string", "description": "Document title"},
+                        "content": {"type": "string", "description": "Full document text content to index"},
                         "category": {
                             "type": "string",
                             "description": (
                                 "Document category (partition key). Examples: "
                                 "'clinical-guideline', 'payer-policy', 'formulary', "
                                 "'procedure-code', 'coverage-determination'"
-                            )
+                            ),
                         },
                         "metadata": {
                             "type": "object",
                             "description": (
-                                "Optional metadata (e.g., payer, effective_date, "
-                                "cpt_codes, icd10_codes, source_url)"
-                            )
+                                "Optional metadata (e.g., payer, effective_date, " "cpt_codes, icd10_codes, source_url)"
+                            ),
                         },
                         "chunk_size": {
                             "type": "integer",
                             "description": "Characters per chunk (default 1000)",
-                            "default": 1000
+                            "default": 1000,
                         },
                         "chunk_overlap": {
                             "type": "integer",
                             "description": "Overlap between chunks (default 200)",
-                            "default": 200
-                        }
+                            "default": 200,
+                        },
                     },
-                    "required": ["title", "content", "category"]
-                }
+                    "required": ["title", "content", "category"],
+                },
             },
             {
                 "name": "hybrid_search",
@@ -230,24 +248,21 @@ class CosmosRAGServer:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Natural language search query"
-                        },
+                        "query": {"type": "string", "description": "Natural language search query"},
                         "category": {
                             "type": "string",
-                            "description": "Optional category filter to narrow search scope"
+                            "description": "Optional category filter to narrow search scope",
                         },
                         "top_k": {
                             "type": "integer",
                             "description": "Number of results to return (default 5)",
                             "default": 5,
                             "minimum": 1,
-                            "maximum": 20
-                        }
+                            "maximum": 20,
+                        },
                     },
-                    "required": ["query"]
-                }
+                    "required": ["query"],
+                },
             },
             {
                 "name": "vector_search",
@@ -259,24 +274,18 @@ class CosmosRAGServer:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Natural language search query"
-                        },
-                        "category": {
-                            "type": "string",
-                            "description": "Optional category filter"
-                        },
+                        "query": {"type": "string", "description": "Natural language search query"},
+                        "category": {"type": "string", "description": "Optional category filter"},
                         "top_k": {
                             "type": "integer",
                             "description": "Number of results to return (default 5)",
                             "default": 5,
                             "minimum": 1,
-                            "maximum": 20
-                        }
+                            "maximum": 20,
+                        },
                     },
-                    "required": ["query"]
-                }
+                    "required": ["query"],
+                },
             },
             {
                 "name": "record_audit_event",
@@ -289,52 +298,46 @@ class CosmosRAGServer:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "workflow_id": {
-                            "type": "string",
-                            "description": "Unique workflow/session identifier"
-                        },
+                        "workflow_id": {"type": "string", "description": "Unique workflow/session identifier"},
                         "workflow_type": {
                             "type": "string",
                             "description": (
                                 "Type of workflow (e.g., 'prior-auth', 'clinical-trial', "
                                 "'coverage-determination', 'literature-search')"
-                            )
+                            ),
                         },
                         "phase": {
                             "type": "string",
                             "description": (
                                 "Workflow phase (e.g., 'compliance-gate', "
                                 "'clinical-review', 'coverage-analysis', 'synthesis')"
-                            )
+                            ),
                         },
-                        "agent_name": {
-                            "type": "string",
-                            "description": "Name of the agent performing the action"
-                        },
+                        "agent_name": {"type": "string", "description": "Name of the agent performing the action"},
                         "action": {
                             "type": "string",
-                            "description": "Action performed (e.g., 'npi_validated', 'policy_searched', 'decision_rendered')"
+                            "description": "Action performed (e.g., 'npi_validated', 'policy_searched', 'decision_rendered')",
                         },
                         "input_summary": {
                             "type": "string",
-                            "description": "Summary of input data (must not contain PHI)"
+                            "description": "Summary of input data (must not contain PHI)",
                         },
                         "output_summary": {
                             "type": "string",
-                            "description": "Summary of output/decision (must not contain PHI)"
+                            "description": "Summary of output/decision (must not contain PHI)",
                         },
                         "status": {
                             "type": "string",
                             "enum": ["success", "failure", "warning", "pending"],
-                            "description": "Outcome status of the action"
+                            "description": "Outcome status of the action",
                         },
                         "details": {
                             "type": "object",
-                            "description": "Additional structured details (codes, references, scores)"
-                        }
+                            "description": "Additional structured details (codes, references, scores)",
+                        },
                     },
-                    "required": ["workflow_id", "workflow_type", "phase", "agent_name", "action", "status"]
-                }
+                    "required": ["workflow_id", "workflow_type", "phase", "agent_name", "action", "status"],
+                },
             },
             {
                 "name": "get_audit_trail",
@@ -346,22 +349,16 @@ class CosmosRAGServer:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "workflow_id": {
-                            "type": "string",
-                            "description": "Workflow/session identifier to query"
-                        },
-                        "phase": {
-                            "type": "string",
-                            "description": "Optional: filter to specific workflow phase"
-                        },
+                        "workflow_id": {"type": "string", "description": "Workflow/session identifier to query"},
+                        "phase": {"type": "string", "description": "Optional: filter to specific workflow phase"},
                         "limit": {
                             "type": "integer",
                             "description": "Maximum events to return (default 50)",
-                            "default": 50
-                        }
+                            "default": 50,
+                        },
                     },
-                    "required": ["workflow_id"]
-                }
+                    "required": ["workflow_id"],
+                },
             },
             {
                 "name": "get_session_history",
@@ -375,30 +372,23 @@ class CosmosRAGServer:
                     "properties": {
                         "workflow_type": {
                             "type": "string",
-                            "description": "Filter by workflow type (e.g., 'prior-auth')"
+                            "description": "Filter by workflow type (e.g., 'prior-auth')",
                         },
                         "start_date": {
                             "type": "string",
-                            "description": "ISO 8601 date string for range start (e.g., '2025-01-01T00:00:00Z')"
+                            "description": "ISO 8601 date string for range start (e.g., '2025-01-01T00:00:00Z')",
                         },
-                        "end_date": {
-                            "type": "string",
-                            "description": "ISO 8601 date string for range end"
-                        },
+                        "end_date": {"type": "string", "description": "ISO 8601 date string for range end"},
                         "status": {
                             "type": "string",
                             "enum": ["success", "failure", "warning", "pending"],
-                            "description": "Optional: filter by status"
+                            "description": "Optional: filter by status",
                         },
-                        "limit": {
-                            "type": "integer",
-                            "description": "Maximum results (default 25)",
-                            "default": 25
-                        }
+                        "limit": {"type": "integer", "description": "Maximum results (default 25)", "default": 25},
                     },
-                    "required": ["workflow_type"]
-                }
-            }
+                    "required": ["workflow_type"],
+                },
+            },
         ]
 
     def get_discovery_response(self) -> dict:
@@ -407,12 +397,8 @@ class CosmosRAGServer:
             "version": self.version,
             "description": self.description,
             "protocol_version": MCP_PROTOCOL_VERSION,
-            "capabilities": {
-                "tools": True,
-                "resources": False,
-                "prompts": False
-            },
-            "tools": self.get_tools()
+            "capabilities": {"tools": True, "resources": False, "prompts": False},
+            "tools": self.get_tools(),
         }
 
 
@@ -422,6 +408,7 @@ server = CosmosRAGServer()
 # ============================================================================
 # Tool Handlers
 # ============================================================================
+
 
 async def index_document(args: dict) -> dict:
     """Index a document: chunk, embed, and upsert into Cosmos DB documents container."""
@@ -456,11 +443,13 @@ async def index_document(args: dict) -> dict:
         }
 
         await container.upsert_item(item)
-        indexed_chunks.append({
-            "chunkId": chunk_id,
-            "chunkIndex": i,
-            "contentLength": len(chunk),
-        })
+        indexed_chunks.append(
+            {
+                "chunkId": chunk_id,
+                "chunkIndex": i,
+                "contentLength": len(chunk),
+            }
+        )
 
     return {
         "documentId": doc_id,
@@ -514,16 +503,18 @@ async def hybrid_search(args: dict) -> dict:
         parameters=params,
         max_item_count=top_k,
     ):
-        results.append({
-            "id": item["id"],
-            "documentId": item.get("documentId"),
-            "title": item.get("title"),
-            "content": item.get("content"),
-            "category": item.get("category"),
-            "chunkIndex": item.get("chunkIndex"),
-            "totalChunks": item.get("totalChunks"),
-            "metadata": item.get("metadata", {}),
-        })
+        results.append(
+            {
+                "id": item["id"],
+                "documentId": item.get("documentId"),
+                "title": item.get("title"),
+                "content": item.get("content"),
+                "category": item.get("category"),
+                "chunkIndex": item.get("chunkIndex"),
+                "totalChunks": item.get("totalChunks"),
+                "metadata": item.get("metadata", {}),
+            }
+        )
 
     return {
         "query": query_text,
@@ -571,17 +562,19 @@ async def vector_search(args: dict) -> dict:
         parameters=params,
         max_item_count=top_k,
     ):
-        results.append({
-            "id": item["id"],
-            "documentId": item.get("documentId"),
-            "title": item.get("title"),
-            "content": item.get("content"),
-            "category": item.get("category"),
-            "chunkIndex": item.get("chunkIndex"),
-            "totalChunks": item.get("totalChunks"),
-            "metadata": item.get("metadata", {}),
-            "score": item.get("score"),
-        })
+        results.append(
+            {
+                "id": item["id"],
+                "documentId": item.get("documentId"),
+                "title": item.get("title"),
+                "content": item.get("content"),
+                "category": item.get("category"),
+                "chunkIndex": item.get("chunkIndex"),
+                "totalChunks": item.get("totalChunks"),
+                "metadata": item.get("metadata", {}),
+                "score": item.get("score"),
+            }
+        )
 
     return {
         "query": query_text,
@@ -652,19 +645,21 @@ async def get_audit_trail(args: dict) -> dict:
         partition_key=workflow_id,
         max_item_count=limit,
     ):
-        events.append({
-            "eventId": item["id"],
-            "workflowId": item["workflowId"],
-            "workflowType": item.get("workflowType"),
-            "phase": item.get("phase"),
-            "agentName": item.get("agentName"),
-            "action": item.get("action"),
-            "status": item.get("status"),
-            "timestamp": item.get("timestamp"),
-            "inputSummary": item.get("inputSummary"),
-            "outputSummary": item.get("outputSummary"),
-            "details": item.get("details", {}),
-        })
+        events.append(
+            {
+                "eventId": item["id"],
+                "workflowId": item["workflowId"],
+                "workflowType": item.get("workflowType"),
+                "phase": item.get("phase"),
+                "agentName": item.get("agentName"),
+                "action": item.get("action"),
+                "status": item.get("status"),
+                "timestamp": item.get("timestamp"),
+                "inputSummary": item.get("inputSummary"),
+                "outputSummary": item.get("outputSummary"),
+                "details": item.get("details", {}),
+            }
+        )
 
     return {
         "workflowId": workflow_id,
@@ -713,18 +708,20 @@ async def get_session_history(args: dict) -> dict:
         parameters=params,
         max_item_count=limit,
     ):
-        events.append({
-            "eventId": item["id"],
-            "workflowId": item["workflowId"],
-            "workflowType": item.get("workflowType"),
-            "phase": item.get("phase"),
-            "agentName": item.get("agentName"),
-            "action": item.get("action"),
-            "status": item.get("status"),
-            "timestamp": item.get("timestamp"),
-            "inputSummary": item.get("inputSummary"),
-            "outputSummary": item.get("outputSummary"),
-        })
+        events.append(
+            {
+                "eventId": item["id"],
+                "workflowId": item["workflowId"],
+                "workflowType": item.get("workflowType"),
+                "phase": item.get("phase"),
+                "agentName": item.get("agentName"),
+                "action": item.get("action"),
+                "status": item.get("status"),
+                "timestamp": item.get("timestamp"),
+                "inputSummary": item.get("inputSummary"),
+                "outputSummary": item.get("outputSummary"),
+            }
+        )
 
     return {
         "workflowType": workflow_type,
@@ -751,6 +748,7 @@ TOOL_HANDLERS = {
 # Azure Function Endpoints
 # ============================================================================
 
+
 @app.route(route=".well-known/mcp", methods=["GET"])
 async def mcp_discovery(req: func.HttpRequest) -> func.HttpResponse:
     """MCP Discovery endpoint - returns server capabilities and tools."""
@@ -772,14 +770,16 @@ async def mcp_get(req: func.HttpRequest) -> func.HttpResponse:
     accept = req.headers.get("Accept", "")
     if "text/event-stream" in accept:
         return func.HttpResponse(
-            json.dumps({
-                "jsonrpc": "2.0",
-                "error": {
-                    "code": -32600,
-                    "message": "SSE transport not supported. Use POST for Streamable HTTP transport.",
-                },
-                "id": None,
-            }),
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32600,
+                        "message": "SSE transport not supported. Use POST for Streamable HTTP transport.",
+                    },
+                    "id": None,
+                }
+            ),
             status_code=405,
             mimetype="application/json",
             headers={
@@ -790,14 +790,16 @@ async def mcp_get(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     return func.HttpResponse(
-        json.dumps({
-            "name": server.name,
-            "version": server.version,
-            "protocol_version": MCP_PROTOCOL_VERSION,
-            "transport": "streamable-http",
-            "endpoint": "/mcp",
-            "methods_supported": ["POST"],
-        }),
+        json.dumps(
+            {
+                "name": server.name,
+                "version": server.version,
+                "protocol_version": MCP_PROTOCOL_VERSION,
+                "transport": "streamable-http",
+                "endpoint": "/mcp",
+                "methods_supported": ["POST"],
+            }
+        ),
         mimetype="application/json",
         headers={
             "X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
@@ -815,11 +817,13 @@ async def mcp_message(req: func.HttpRequest) -> func.HttpResponse:
         body = req.get_json()
     except ValueError:
         return func.HttpResponse(
-            json.dumps({
-                "jsonrpc": "2.0",
-                "id": None,
-                "error": {"code": -32700, "message": "Parse error"},
-            }),
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": None,
+                    "error": {"code": -32700, "message": "Parse error"},
+                }
+            ),
             status_code=400,
             mimetype="application/json",
         )
@@ -846,11 +850,13 @@ async def mcp_message(req: func.HttpRequest) -> func.HttpResponse:
             handler = TOOL_HANDLERS.get(tool_name)
             if not handler:
                 return func.HttpResponse(
-                    json.dumps({
-                        "jsonrpc": "2.0",
-                        "id": msg_id,
-                        "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"},
-                    }),
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": msg_id,
+                            "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"},
+                        }
+                    ),
                     mimetype="application/json",
                 )
 
@@ -864,11 +870,13 @@ async def mcp_message(req: func.HttpRequest) -> func.HttpResponse:
 
         else:
             return func.HttpResponse(
-                json.dumps({
-                    "jsonrpc": "2.0",
-                    "id": msg_id,
-                    "error": {"code": -32601, "message": f"Method not found: {method}"},
-                }),
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "error": {"code": -32601, "message": f"Method not found: {method}"},
+                    }
+                ),
                 mimetype="application/json",
             )
 
@@ -885,11 +893,13 @@ async def mcp_message(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as e:
         logger.exception("Error handling MCP message")
         return func.HttpResponse(
-            json.dumps({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "error": {"code": -32603, "message": f"Internal error: {str(e)}"},
-            }),
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "error": {"code": -32603, "message": f"Internal error: {e!s}"},
+                }
+            ),
             status_code=500,
             mimetype="application/json",
             headers={"Mcp-Session-Id": session_id},
@@ -908,7 +918,7 @@ async def health_check(req: func.HttpRequest) -> func.HttpResponse:
         await database.read()
         health["cosmos_db"] = "connected"
     except Exception as e:
-        health["cosmos_db"] = f"error: {str(e)}"
+        health["cosmos_db"] = f"error: {e!s}"
         health["status"] = "degraded"
 
     status_code = 200 if health["status"] == "healthy" else 503

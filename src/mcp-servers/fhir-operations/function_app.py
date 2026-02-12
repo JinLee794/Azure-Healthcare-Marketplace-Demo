@@ -2,12 +2,14 @@
 FHIR Operations MCP Server - Azure Function App
 Provides FHIR R4 query and data operations.
 """
-import os
+
 import json
 import logging
+import os
+from typing import Optional
+
 import azure.functions as func
 import httpx
-from typing import Optional
 from azure.identity import DefaultAzureCredential
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
@@ -20,7 +22,7 @@ FHIR_SERVER_URL = os.environ.get("FHIR_SERVER_URL", "")
 SERVER_INFO = {
     "name": "fhir-operations",
     "version": "1.0.0",
-    "description": "Healthcare MCP server for FHIR R4 operations and data queries"
+    "description": "Healthcare MCP server for FHIR R4 operations and data queries",
 }
 
 TOOLS = [
@@ -35,20 +37,18 @@ TOOLS = [
                 "birthdate": {"type": "string", "description": "Birth date (YYYY-MM-DD)"},
                 "identifier": {"type": "string", "description": "Patient identifier (e.g., MRN)"},
                 "gender": {"type": "string", "enum": ["male", "female", "other", "unknown"]},
-                "count": {"type": "integer", "description": "Max results (default 10)", "default": 10}
-            }
-        }
+                "count": {"type": "integer", "description": "Max results (default 10)", "default": 10},
+            },
+        },
     },
     {
         "name": "get_patient",
         "description": "Retrieve a specific patient by FHIR resource ID",
         "inputSchema": {
             "type": "object",
-            "properties": {
-                "patient_id": {"type": "string", "description": "FHIR Patient resource ID"}
-            },
-            "required": ["patient_id"]
-        }
+            "properties": {"patient_id": {"type": "string", "description": "FHIR Patient resource ID"}},
+            "required": ["patient_id"],
+        },
     },
     {
         "name": "get_patient_conditions",
@@ -60,12 +60,12 @@ TOOLS = [
                 "clinical_status": {
                     "type": "string",
                     "enum": ["active", "recurrence", "relapse", "inactive", "remission", "resolved"],
-                    "description": "Filter by clinical status"
+                    "description": "Filter by clinical status",
                 },
-                "count": {"type": "integer", "description": "Max results", "default": 50}
+                "count": {"type": "integer", "description": "Max results", "default": 50},
             },
-            "required": ["patient_id"]
-        }
+            "required": ["patient_id"],
+        },
     },
     {
         "name": "get_patient_medications",
@@ -78,11 +78,11 @@ TOOLS = [
                     "type": "string",
                     "enum": ["active", "completed", "stopped", "on-hold"],
                     "description": "Filter by medication status",
-                    "default": "active"
-                }
+                    "default": "active",
+                },
             },
-            "required": ["patient_id"]
-        }
+            "required": ["patient_id"],
+        },
     },
     {
         "name": "get_patient_observations",
@@ -94,13 +94,13 @@ TOOLS = [
                 "category": {
                     "type": "string",
                     "enum": ["vital-signs", "laboratory", "social-history", "imaging"],
-                    "description": "Observation category filter"
+                    "description": "Observation category filter",
                 },
                 "code": {"type": "string", "description": "LOINC code filter"},
-                "count": {"type": "integer", "default": 20}
+                "count": {"type": "integer", "default": 20},
             },
-            "required": ["patient_id"]
-        }
+            "required": ["patient_id"],
+        },
     },
     {
         "name": "get_patient_encounters",
@@ -111,10 +111,10 @@ TOOLS = [
                 "patient_id": {"type": "string", "description": "FHIR Patient resource ID"},
                 "status": {"type": "string", "enum": ["planned", "arrived", "in-progress", "finished", "cancelled"]},
                 "date": {"type": "string", "description": "Date filter (YYYY-MM-DD or range like ge2023-01-01)"},
-                "count": {"type": "integer", "default": 20}
+                "count": {"type": "integer", "default": 20},
             },
-            "required": ["patient_id"]
-        }
+            "required": ["patient_id"],
+        },
     },
     {
         "name": "search_practitioners",
@@ -124,9 +124,9 @@ TOOLS = [
             "properties": {
                 "name": {"type": "string", "description": "Practitioner name"},
                 "identifier": {"type": "string", "description": "NPI or other identifier"},
-                "specialty": {"type": "string", "description": "Specialty/qualification"}
-            }
-        }
+                "specialty": {"type": "string", "description": "Specialty/qualification"},
+            },
+        },
     },
     {
         "name": "validate_resource",
@@ -135,18 +135,18 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "resource_type": {"type": "string", "description": "FHIR resource type (e.g., Patient, Observation)"},
-                "resource": {"type": "object", "description": "The FHIR resource JSON to validate"}
+                "resource": {"type": "object", "description": "The FHIR resource JSON to validate"},
             },
-            "required": ["resource_type", "resource"]
-        }
-    }
+            "required": ["resource_type", "resource"],
+        },
+    },
 ]
 
 
 async def get_fhir_client() -> httpx.AsyncClient:
     """Get authenticated FHIR client."""
     headers = {"Accept": "application/fhir+json"}
-    
+
     if FHIR_SERVER_URL:
         try:
             credential = DefaultAzureCredential()
@@ -154,25 +154,21 @@ async def get_fhir_client() -> httpx.AsyncClient:
             headers["Authorization"] = f"Bearer {token.token}"
         except Exception as e:
             logger.warning(f"Could not get Azure credential: {e}")
-    
-    return httpx.AsyncClient(
-        base_url=FHIR_SERVER_URL or "https://hapi.fhir.org/baseR4",
-        headers=headers,
-        timeout=30.0
-    )
+
+    return httpx.AsyncClient(base_url=FHIR_SERVER_URL or "https://hapi.fhir.org/baseR4", headers=headers, timeout=30.0)
 
 
 async def search_patients(params: dict) -> dict:
     """Search for patients."""
     if not FHIR_SERVER_URL:
         return _demo_patients(params)
-    
+
     async with await get_fhir_client() as client:
         search_params = {k: v for k, v in params.items() if v}
         response = await client.get("/Patient", params=search_params)
         response.raise_for_status()
         bundle = response.json()
-        
+
         return _format_bundle(bundle, "Patient")
 
 
@@ -180,7 +176,7 @@ async def get_patient(patient_id: str) -> dict:
     """Get a specific patient."""
     if not FHIR_SERVER_URL:
         return _demo_patient(patient_id)
-    
+
     async with await get_fhir_client() as client:
         response = await client.get(f"/Patient/{patient_id}")
         if response.status_code == 404:
@@ -189,15 +185,15 @@ async def get_patient(patient_id: str) -> dict:
         return {"found": True, "resource": response.json()}
 
 
-async def get_patient_conditions(patient_id: str, clinical_status: str = None, count: int = 50) -> dict:
+async def get_patient_conditions(patient_id: str, clinical_status: Optional[str] = None, count: int = 50) -> dict:
     """Get patient conditions."""
     if not FHIR_SERVER_URL:
         return _demo_conditions(patient_id)
-    
+
     params = {"patient": patient_id, "_count": count}
     if clinical_status:
         params["clinical-status"] = clinical_status
-    
+
     async with await get_fhir_client() as client:
         response = await client.get("/Condition", params=params)
         response.raise_for_status()
@@ -208,43 +204,47 @@ async def get_patient_medications(patient_id: str, status: str = "active") -> di
     """Get patient medications."""
     if not FHIR_SERVER_URL:
         return _demo_medications(patient_id)
-    
+
     params = {"patient": patient_id, "status": status}
-    
+
     async with await get_fhir_client() as client:
         response = await client.get("/MedicationRequest", params=params)
         response.raise_for_status()
         return _format_bundle(response.json(), "MedicationRequest")
 
 
-async def get_patient_observations(patient_id: str, category: str = None, code: str = None, count: int = 20) -> dict:
+async def get_patient_observations(
+    patient_id: str, category: Optional[str] = None, code: Optional[str] = None, count: int = 20
+) -> dict:
     """Get patient observations."""
     if not FHIR_SERVER_URL:
         return _demo_observations(patient_id)
-    
+
     params = {"patient": patient_id, "_count": count, "_sort": "-date"}
     if category:
         params["category"] = category
     if code:
         params["code"] = code
-    
+
     async with await get_fhir_client() as client:
         response = await client.get("/Observation", params=params)
         response.raise_for_status()
         return _format_bundle(response.json(), "Observation")
 
 
-async def get_patient_encounters(patient_id: str, status: str = None, date: str = None, count: int = 20) -> dict:
+async def get_patient_encounters(
+    patient_id: str, status: Optional[str] = None, date: Optional[str] = None, count: int = 20
+) -> dict:
     """Get patient encounters."""
     if not FHIR_SERVER_URL:
         return _demo_encounters(patient_id)
-    
+
     params = {"patient": patient_id, "_count": count, "_sort": "-date"}
     if status:
         params["status"] = status
     if date:
         params["date"] = date
-    
+
     async with await get_fhir_client() as client:
         response = await client.get("/Encounter", params=params)
         response.raise_for_status()
@@ -255,7 +255,7 @@ async def search_practitioners(params: dict) -> dict:
     """Search for practitioners."""
     if not FHIR_SERVER_URL:
         return _demo_practitioners()
-    
+
     async with await get_fhir_client() as client:
         search_params = {k: v for k, v in params.items() if v}
         response = await client.get("/Practitioner", params=search_params)
@@ -267,46 +267,41 @@ async def validate_resource(resource_type: str, resource: dict) -> dict:
     """Validate a FHIR resource."""
     if not FHIR_SERVER_URL:
         return {"valid": True, "message": "Validation skipped (no FHIR server configured)"}
-    
+
     async with await get_fhir_client() as client:
         response = await client.post(
-            f"/{resource_type}/$validate",
-            json=resource,
-            headers={"Content-Type": "application/fhir+json"}
+            f"/{resource_type}/$validate", json=resource, headers={"Content-Type": "application/fhir+json"}
         )
         result = response.json()
-        
+
         issues = result.get("issue", [])
         errors = [i for i in issues if i.get("severity") in ["error", "fatal"]]
-        
-        return {
-            "valid": len(errors) == 0,
-            "issues": issues
-        }
+
+        return {"valid": len(errors) == 0, "issues": issues}
 
 
 def _format_bundle(bundle: dict, resource_type: str) -> dict:
     """Format a FHIR Bundle response."""
     entries = bundle.get("entry", [])
-    return {
-        "total": bundle.get("total", len(entries)),
-        "resources": [e.get("resource", {}) for e in entries]
-    }
+    return {"total": bundle.get("total", len(entries)), "resources": [e.get("resource", {}) for e in entries]}
 
 
 # Demo data functions (used when no FHIR server is configured)
 def _demo_patients(params: dict) -> dict:
     return {
         "total": 1,
-        "resources": [{
-            "resourceType": "Patient",
-            "id": "demo-patient-1",
-            "name": [{"family": "Smith", "given": ["John"]}],
-            "gender": "male",
-            "birthDate": "1970-01-15"
-        }],
-        "note": "Demo data - configure FHIR_SERVER_URL for real data"
+        "resources": [
+            {
+                "resourceType": "Patient",
+                "id": "demo-patient-1",
+                "name": [{"family": "Smith", "given": ["John"]}],
+                "gender": "male",
+                "birthDate": "1970-01-15",
+            }
+        ],
+        "note": "Demo data - configure FHIR_SERVER_URL for real data",
     }
+
 
 def _demo_patient(patient_id: str) -> dict:
     return {
@@ -316,57 +311,131 @@ def _demo_patient(patient_id: str) -> dict:
             "id": patient_id,
             "name": [{"family": "Smith", "given": ["John"]}],
             "gender": "male",
-            "birthDate": "1970-01-15"
+            "birthDate": "1970-01-15",
         },
-        "note": "Demo data"
+        "note": "Demo data",
     }
+
 
 def _demo_conditions(patient_id: str) -> dict:
     return {
         "total": 2,
         "resources": [
-            {"resourceType": "Condition", "id": "c1", "code": {"coding": [{"system": "http://hl7.org/fhir/sid/icd-10", "code": "E11.9", "display": "Type 2 diabetes mellitus"}]}, "clinicalStatus": {"coding": [{"code": "active"}]}},
-            {"resourceType": "Condition", "id": "c2", "code": {"coding": [{"system": "http://hl7.org/fhir/sid/icd-10", "code": "I10", "display": "Essential hypertension"}]}, "clinicalStatus": {"coding": [{"code": "active"}]}}
+            {
+                "resourceType": "Condition",
+                "id": "c1",
+                "code": {
+                    "coding": [
+                        {
+                            "system": "http://hl7.org/fhir/sid/icd-10",
+                            "code": "E11.9",
+                            "display": "Type 2 diabetes mellitus",
+                        }
+                    ]
+                },
+                "clinicalStatus": {"coding": [{"code": "active"}]},
+            },
+            {
+                "resourceType": "Condition",
+                "id": "c2",
+                "code": {
+                    "coding": [
+                        {"system": "http://hl7.org/fhir/sid/icd-10", "code": "I10", "display": "Essential hypertension"}
+                    ]
+                },
+                "clinicalStatus": {"coding": [{"code": "active"}]},
+            },
         ],
-        "note": "Demo data"
+        "note": "Demo data",
     }
+
 
 def _demo_medications(patient_id: str) -> dict:
     return {
         "total": 2,
         "resources": [
-            {"resourceType": "MedicationRequest", "id": "m1", "medicationCodeableConcept": {"coding": [{"system": "http://www.nlm.nih.gov/research/umls/rxnorm", "code": "860975", "display": "Metformin 500mg"}]}, "status": "active"},
-            {"resourceType": "MedicationRequest", "id": "m2", "medicationCodeableConcept": {"coding": [{"system": "http://www.nlm.nih.gov/research/umls/rxnorm", "code": "197361", "display": "Lisinopril 10mg"}]}, "status": "active"}
+            {
+                "resourceType": "MedicationRequest",
+                "id": "m1",
+                "medicationCodeableConcept": {
+                    "coding": [
+                        {
+                            "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+                            "code": "860975",
+                            "display": "Metformin 500mg",
+                        }
+                    ]
+                },
+                "status": "active",
+            },
+            {
+                "resourceType": "MedicationRequest",
+                "id": "m2",
+                "medicationCodeableConcept": {
+                    "coding": [
+                        {
+                            "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+                            "code": "197361",
+                            "display": "Lisinopril 10mg",
+                        }
+                    ]
+                },
+                "status": "active",
+            },
         ],
-        "note": "Demo data"
+        "note": "Demo data",
     }
+
 
 def _demo_observations(patient_id: str) -> dict:
     return {
         "total": 2,
         "resources": [
-            {"resourceType": "Observation", "id": "o1", "code": {"coding": [{"system": "http://loinc.org", "code": "8480-6", "display": "Systolic BP"}]}, "valueQuantity": {"value": 128, "unit": "mmHg"}},
-            {"resourceType": "Observation", "id": "o2", "code": {"coding": [{"system": "http://loinc.org", "code": "4548-4", "display": "HbA1c"}]}, "valueQuantity": {"value": 7.2, "unit": "%"}}
+            {
+                "resourceType": "Observation",
+                "id": "o1",
+                "code": {"coding": [{"system": "http://loinc.org", "code": "8480-6", "display": "Systolic BP"}]},
+                "valueQuantity": {"value": 128, "unit": "mmHg"},
+            },
+            {
+                "resourceType": "Observation",
+                "id": "o2",
+                "code": {"coding": [{"system": "http://loinc.org", "code": "4548-4", "display": "HbA1c"}]},
+                "valueQuantity": {"value": 7.2, "unit": "%"},
+            },
         ],
-        "note": "Demo data"
+        "note": "Demo data",
     }
+
 
 def _demo_encounters(patient_id: str) -> dict:
     return {
         "total": 1,
         "resources": [
-            {"resourceType": "Encounter", "id": "e1", "status": "finished", "class": {"code": "AMB"}, "period": {"start": "2025-01-15", "end": "2025-01-15"}}
+            {
+                "resourceType": "Encounter",
+                "id": "e1",
+                "status": "finished",
+                "class": {"code": "AMB"},
+                "period": {"start": "2025-01-15", "end": "2025-01-15"},
+            }
         ],
-        "note": "Demo data"
+        "note": "Demo data",
     }
+
 
 def _demo_practitioners() -> dict:
     return {
         "total": 1,
         "resources": [
-            {"resourceType": "Practitioner", "id": "p1", "name": [{"family": "Johnson", "given": ["Sarah"]}], "identifier": [{"system": "http://hl7.org/fhir/sid/us-npi", "value": "1234567890"}]}
+            {
+                "resourceType": "Practitioner",
+                "id": "p1",
+                "name": [{"family": "Johnson", "given": ["Sarah"]}],
+                "identifier": [{"system": "http://hl7.org/fhir/sid/us-npi", "value": "1234567890"}],
+            }
         ],
-        "note": "Demo data"
+        "note": "Demo data",
     }
 
 
@@ -374,18 +443,21 @@ def _demo_practitioners() -> dict:
 # Azure Function Endpoints
 # ============================================================================
 
+
 @app.route(route=".well-known/mcp", methods=["GET"])
 async def mcp_discovery(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(
-        json.dumps({
-            **SERVER_INFO,
-            "protocol_version": MCP_PROTOCOL_VERSION,
-            "capabilities": {"tools": True, "resources": False, "prompts": False},
-            "tools": TOOLS,
-            "fhir_server_configured": bool(FHIR_SERVER_URL)
-        }),
+        json.dumps(
+            {
+                **SERVER_INFO,
+                "protocol_version": MCP_PROTOCOL_VERSION,
+                "capabilities": {"tools": True, "resources": False, "prompts": False},
+                "tools": TOOLS,
+                "fhir_server_configured": bool(FHIR_SERVER_URL),
+            }
+        ),
         mimetype="application/json",
-        headers={"X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION}
+        headers={"X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION},
     )
 
 
@@ -396,63 +468,85 @@ async def mcp_message(req: func.HttpRequest) -> func.HttpResponse:
     except ValueError:
         return func.HttpResponse(
             json.dumps({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}}),
-            status_code=400, mimetype="application/json"
+            status_code=400,
+            mimetype="application/json",
         )
-    
+
     method = body.get("method")
     params = body.get("params", {})
     msg_id = body.get("id")
-    
+
     try:
         if method == "initialize":
             result = {
                 "protocolVersion": MCP_PROTOCOL_VERSION,
                 "serverInfo": {"name": SERVER_INFO["name"], "version": SERVER_INFO["version"]},
-                "capabilities": {"tools": {"listChanged": False}}
+                "capabilities": {"tools": {"listChanged": False}},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}
         elif method == "tools/call":
             tool_name = params.get("name")
             args = params.get("arguments", {})
-            
+
             tool_handlers = {
                 "search_patients": lambda: search_patients(args),
                 "get_patient": lambda: get_patient(args.get("patient_id", "")),
-                "get_patient_conditions": lambda: get_patient_conditions(args.get("patient_id", ""), args.get("clinical_status"), args.get("count", 50)),
-                "get_patient_medications": lambda: get_patient_medications(args.get("patient_id", ""), args.get("status", "active")),
-                "get_patient_observations": lambda: get_patient_observations(args.get("patient_id", ""), args.get("category"), args.get("code"), args.get("count", 20)),
-                "get_patient_encounters": lambda: get_patient_encounters(args.get("patient_id", ""), args.get("status"), args.get("date"), args.get("count", 20)),
+                "get_patient_conditions": lambda: get_patient_conditions(
+                    args.get("patient_id", ""), args.get("clinical_status"), args.get("count", 50)
+                ),
+                "get_patient_medications": lambda: get_patient_medications(
+                    args.get("patient_id", ""), args.get("status", "active")
+                ),
+                "get_patient_observations": lambda: get_patient_observations(
+                    args.get("patient_id", ""), args.get("category"), args.get("code"), args.get("count", 20)
+                ),
+                "get_patient_encounters": lambda: get_patient_encounters(
+                    args.get("patient_id", ""), args.get("status"), args.get("date"), args.get("count", 20)
+                ),
                 "search_practitioners": lambda: search_practitioners(args),
-                "validate_resource": lambda: validate_resource(args.get("resource_type", ""), args.get("resource", {}))
+                "validate_resource": lambda: validate_resource(args.get("resource_type", ""), args.get("resource", {})),
             }
-            
+
             if tool_name not in tool_handlers:
                 return func.HttpResponse(
-                    json.dumps({"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"}}),
-                    mimetype="application/json"
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": msg_id,
+                            "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"},
+                        }
+                    ),
+                    mimetype="application/json",
                 )
-            
+
             tool_result = await tool_handlers[tool_name]()
             result = {"content": [{"type": "text", "text": json.dumps(tool_result)}]}
         elif method == "ping":
             result = {}
         else:
             return func.HttpResponse(
-                json.dumps({"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32601, "message": f"Method not found: {method}"}}),
-                mimetype="application/json"
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "error": {"code": -32601, "message": f"Method not found: {method}"},
+                    }
+                ),
+                mimetype="application/json",
             )
-        
+
         return func.HttpResponse(
             json.dumps({"jsonrpc": "2.0", "id": msg_id, "result": result}),
             mimetype="application/json",
-            headers={"X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION}
+            headers={"X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION},
         )
     except Exception as e:
         logger.exception("Error handling MCP message")
         return func.HttpResponse(
             json.dumps({"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32603, "message": str(e)}}),
-            status_code=500, mimetype="application/json"
+            status_code=500,
+            mimetype="application/json",
         )
 
 
@@ -460,5 +554,5 @@ async def mcp_message(req: func.HttpRequest) -> func.HttpResponse:
 async def health_check(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(
         json.dumps({"status": "healthy", "server": SERVER_INFO["name"], "fhir_configured": bool(FHIR_SERVER_URL)}),
-        mimetype="application/json"
+        mimetype="application/json",
     )

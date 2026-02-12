@@ -4,14 +4,11 @@ from __future__ import annotations
 
 import json
 import subprocess
-import time
 from pathlib import Path
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 
-from .checks import _run
 from .styles import COPILOT_TIPS, MCP_SERVERS, THEME
 
 console = Console(theme=THEME)
@@ -20,6 +17,7 @@ console = Console(theme=THEME)
 # ---------------------------------------------------------------------------
 # Health / smoke checks
 # ---------------------------------------------------------------------------
+
 
 def _curl_json(url: str, method: str = "GET", data: dict | None = None, timeout: int = 5) -> tuple[bool, dict | str]:
     """Lightweight HTTP request via curl. Returns (ok, parsed_json_or_text)."""
@@ -76,6 +74,7 @@ def mcp_tools_list(server_name: str, port: int, *, key: str = "") -> tuple[bool,
 # ---------------------------------------------------------------------------
 # Full smoke test
 # ---------------------------------------------------------------------------
+
 
 def smoke_test_server(server_name: str, port: int, *, key: str = "") -> dict:
     """Run health + discovery + tools/list against one server."""
@@ -147,6 +146,7 @@ def run_smoke_tests(*, docker: bool = False) -> None:
 # ---------------------------------------------------------------------------
 # Eval shortcuts
 # ---------------------------------------------------------------------------
+
 
 def run_eval_contracts(project_root: Path) -> bool:
     """Run the contract eval script."""

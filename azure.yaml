@@ -42,7 +42,7 @@ hooks:
       echo "Environment: ${AZURE_ENV_NAME}"
       echo "Location: ${AZURE_LOCATION}"
       echo ""
-    
+
   postprovision:
     shell: sh
     run: |
@@ -64,13 +64,13 @@ hooks:
       # Deploy MCP server containers to Function Apps
       echo "Deploying MCP server containers..."
       ./scripts/deploy-mcp-containers.sh
-      
+
   predeploy:
     shell: sh
     run: |
       echo "Deploying MCP server containers to Azure Function Apps..."
       ./scripts/deploy-mcp-containers.sh
-      
+
   postdeploy:
     shell: sh
     run: ./scripts/postdeploy.sh

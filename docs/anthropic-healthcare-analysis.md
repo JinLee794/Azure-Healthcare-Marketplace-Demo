@@ -79,7 +79,7 @@ The GitHub repository (`anthropics/healthcare`) shows the **surface layer** only
 # Example structure from anthropics/healthcare
 ---
 name: fhir-developer
-description: "HL7 FHIR R4 for healthcare data exchange, including resource 
+description: "HL7 FHIR R4 for healthcare data exchange, including resource
               structures, coding systems (LOINC, SNOMED CT, RxNorm)"
 ---
 # FHIR Developer Skill
@@ -129,7 +129,7 @@ Core Methods:
       "name": "get_lcd_details",
       "description": "Get Local Coverage Determination details",
       "inputSchema": {
-        "type": "object", 
+        "type": "object",
         "properties": { "lcd_id": { "type": "string" } }
       }
     }
@@ -231,8 +231,8 @@ Here's how to build an equivalent system for Azure + GitHub Copilot + M365 Agent
 ```yaml
 ---
 name: azure-fhir-developer
-description: "Azure API for FHIR development including resource management, 
-              SMART on FHIR authentication, bulk data export, and integration 
+description: "Azure API for FHIR development including resource management,
+              SMART on FHIR authentication, bulk data export, and integration
               with Azure Health Data Services. Use when building FHIR apps on Azure."
 ---
 
@@ -430,16 +430,16 @@ export function activate(context: vscode.ExtensionContext) {
     async (request, context, response, token) => {
       // Load relevant skill based on request
       const skill = await loadHealthcareSkill(request.prompt);
-      
+
       // Augment prompt with skill instructions
       const augmentedPrompt = `${skill.instructions}\n\nUser request: ${request.prompt}`;
-      
+
       // Use Copilot API
       const result = await vscode.lm.selectChatModels({ family: 'gpt-4o' });
       // ... generate response
     }
   );
-  
+
   participant.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
 }
 ```
@@ -455,15 +455,15 @@ description: Assists with prior authorization workflows
 instructions: |
   You help healthcare administrators process prior authorization requests.
   Always verify coverage policies before recommending approval.
-  
+
 capabilities:
   - name: check_coverage
     description: Check insurance coverage for procedures
     connection: healthcare-logic-app
   - name: search_providers
-    description: Search NPI registry for provider information  
+    description: Search NPI registry for provider information
     connection: npi-mcp-server
-    
+
 actions:
   - type: plugin
     id: microsoft.graph
@@ -509,18 +509,18 @@ import { AuthenticationMiddleware } from '@azure/identity';
 
 server.use(async (req, res, next) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
-  
+
   // Validate Azure AD token
   const claims = await validateAzureAdToken(token, {
     audience: 'api://healthcare-mcp-server',
     issuer: `https://sts.windows.net/${TENANT_ID}/`
   });
-  
+
   // Check required scopes
   if (!claims.scp?.includes('Healthcare.Read')) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
-  
+
   req.user = claims;
   next();
 });

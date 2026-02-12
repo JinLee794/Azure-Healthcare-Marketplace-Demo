@@ -2,12 +2,13 @@
 CMS Coverage MCP Server - Azure Function App
 Provides Medicare coverage determination lookup capabilities.
 """
-import os
+
 import json
 import logging
-import azure.functions as func
-import httpx
+import os
 from typing import Optional
+
+import azure.functions as func
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
@@ -22,7 +23,7 @@ CMS_NCD_API = "https://www.cms.gov/medicare-coverage-database/search"
 SERVER_INFO = {
     "name": "cms-coverage",
     "version": "1.0.0",
-    "description": "Healthcare MCP server for CMS Medicare coverage determination lookups"
+    "description": "Healthcare MCP server for CMS Medicare coverage determination lookups",
 }
 
 TOOLS = [
@@ -34,24 +35,24 @@ TOOLS = [
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Search term (e.g., 'MRI lumbar spine', 'diabetes screening', 'knee replacement')"
+                    "description": "Search term (e.g., 'MRI lumbar spine', 'diabetes screening', 'knee replacement')",
                 },
                 "coverage_type": {
                     "type": "string",
                     "enum": ["all", "lcd", "ncd"],
                     "description": "Type of coverage determination: 'lcd' (Local), 'ncd' (National), or 'all'",
-                    "default": "all"
+                    "default": "all",
                 },
                 "limit": {
                     "type": "integer",
                     "description": "Maximum number of results (1-20, default 10)",
                     "minimum": 1,
                     "maximum": 20,
-                    "default": 10
-                }
+                    "default": 10,
+                },
             },
-            "required": ["query"]
-        }
+            "required": ["query"],
+        },
     },
     {
         "name": "get_coverage_by_cpt",
@@ -59,13 +60,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "cpt_code": {
-                    "type": "string",
-                    "description": "CPT or HCPCS procedure code (e.g., '99213', 'G0438')"
-                }
+                "cpt_code": {"type": "string", "description": "CPT or HCPCS procedure code (e.g., '99213', 'G0438')"}
             },
-            "required": ["cpt_code"]
-        }
+            "required": ["cpt_code"],
+        },
     },
     {
         "name": "get_coverage_by_icd10",
@@ -73,13 +71,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "icd10_code": {
-                    "type": "string",
-                    "description": "ICD-10-CM diagnosis code (e.g., 'E11.9', 'M54.5')"
-                }
+                "icd10_code": {"type": "string", "description": "ICD-10-CM diagnosis code (e.g., 'E11.9', 'M54.5')"}
             },
-            "required": ["icd10_code"]
-        }
+            "required": ["icd10_code"],
+        },
     },
     {
         "name": "check_medical_necessity",
@@ -87,18 +82,15 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "cpt_code": {
-                    "type": "string",
-                    "description": "CPT or HCPCS procedure code"
-                },
+                "cpt_code": {"type": "string", "description": "CPT or HCPCS procedure code"},
                 "icd10_codes": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of ICD-10-CM diagnosis codes supporting medical necessity"
-                }
+                    "description": "List of ICD-10-CM diagnosis codes supporting medical necessity",
+                },
             },
-            "required": ["cpt_code", "icd10_codes"]
-        }
+            "required": ["cpt_code", "icd10_codes"],
+        },
     },
     {
         "name": "get_mac_jurisdiction",
@@ -106,17 +98,11 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "state": {
-                    "type": "string",
-                    "description": "Two-letter state code (e.g., 'CA', 'NY')"
-                },
-                "zip_code": {
-                    "type": "string",
-                    "description": "5-digit ZIP code (alternative to state)"
-                }
-            }
-        }
-    }
+                "state": {"type": "string", "description": "Two-letter state code (e.g., 'CA', 'NY')"},
+                "zip_code": {"type": "string", "description": "5-digit ZIP code (alternative to state)"},
+            },
+        },
+    },
 ]
 
 # MAC Jurisdiction mapping (simplified)
@@ -139,38 +125,38 @@ COMMON_COVERAGES = {
         "description": "Office visit, established patient, low complexity",
         "coverage": "covered",
         "conditions": "Medical necessity must be documented",
-        "frequency": "As medically necessary"
+        "frequency": "As medically necessary",
     },
     "99214": {
-        "description": "Office visit, established patient, moderate complexity", 
+        "description": "Office visit, established patient, moderate complexity",
         "coverage": "covered",
         "conditions": "Medical necessity must be documented",
-        "frequency": "As medically necessary"
+        "frequency": "As medically necessary",
     },
     "G0438": {
         "description": "Annual wellness visit, initial",
         "coverage": "covered",
         "conditions": "Once per lifetime for initial visit",
-        "frequency": "Once per lifetime"
+        "frequency": "Once per lifetime",
     },
     "G0439": {
         "description": "Annual wellness visit, subsequent",
         "coverage": "covered",
         "conditions": "12 months after initial AWV",
-        "frequency": "Once per 12 months"
+        "frequency": "Once per 12 months",
     },
     "72148": {
         "description": "MRI lumbar spine without contrast",
         "coverage": "covered_with_conditions",
         "conditions": "LCD applies - must meet medical necessity criteria including failed conservative treatment",
-        "lcd_reference": "L34997"
+        "lcd_reference": "L34997",
     },
     "27447": {
         "description": "Total knee arthroplasty",
         "coverage": "covered_with_conditions",
         "conditions": "NCD 150.9 - Documentation of functional limitation and failed conservative treatment required",
-        "ncd_reference": "150.9"
-    }
+        "ncd_reference": "150.9",
+    },
 }
 
 
@@ -178,72 +164,82 @@ async def search_coverage(query: str, coverage_type: str = "all", limit: int = 1
     """Search for Medicare coverage determinations."""
     # In production, this would query the CMS Medicare Coverage Database API
     # For now, return simulated results based on keywords
-    
+
     results = []
     query_lower = query.lower()
-    
+
     # Simulate search results
     if "mri" in query_lower or "imaging" in query_lower:
-        results.append({
-            "type": "LCD",
-            "id": "L34997",
-            "title": "Magnetic Resonance Imaging (MRI) of the Spine",
-            "contractor": "Multiple MACs",
-            "effective_date": "2023-10-01",
-            "summary": "Outlines coverage criteria for MRI of the spine including medical necessity requirements"
-        })
-    
+        results.append(
+            {
+                "type": "LCD",
+                "id": "L34997",
+                "title": "Magnetic Resonance Imaging (MRI) of the Spine",
+                "contractor": "Multiple MACs",
+                "effective_date": "2023-10-01",
+                "summary": "Outlines coverage criteria for MRI of the spine including medical necessity requirements",
+            }
+        )
+
     if "knee" in query_lower or "arthroplasty" in query_lower:
-        results.append({
-            "type": "NCD",
-            "id": "150.9",
-            "title": "Knee Arthroplasty (Knee Replacement Surgery)",
-            "effective_date": "2022-04-01",
-            "summary": "National coverage criteria for total and partial knee replacement surgery"
-        })
-    
+        results.append(
+            {
+                "type": "NCD",
+                "id": "150.9",
+                "title": "Knee Arthroplasty (Knee Replacement Surgery)",
+                "effective_date": "2022-04-01",
+                "summary": "National coverage criteria for total and partial knee replacement surgery",
+            }
+        )
+
     if "diabetes" in query_lower or "glucose" in query_lower:
-        results.append({
-            "type": "NCD",
-            "id": "40.2",
-            "title": "Home Blood Glucose Monitors",
-            "effective_date": "2021-01-01", 
-            "summary": "Coverage of home blood glucose monitors for diabetic patients"
-        })
-        results.append({
-            "type": "LCD",
-            "id": "L33822",
-            "title": "Continuous Glucose Monitors",
-            "contractor": "CGS Administrators",
-            "effective_date": "2023-01-01",
-            "summary": "Local coverage for CGM devices and supplies"
-        })
-    
+        results.append(
+            {
+                "type": "NCD",
+                "id": "40.2",
+                "title": "Home Blood Glucose Monitors",
+                "effective_date": "2021-01-01",
+                "summary": "Coverage of home blood glucose monitors for diabetic patients",
+            }
+        )
+        results.append(
+            {
+                "type": "LCD",
+                "id": "L33822",
+                "title": "Continuous Glucose Monitors",
+                "contractor": "CGS Administrators",
+                "effective_date": "2023-01-01",
+                "summary": "Local coverage for CGM devices and supplies",
+            }
+        )
+
     if "screening" in query_lower or "preventive" in query_lower:
-        results.append({
-            "type": "NCD",
-            "id": "210.10",
-            "title": "Screening for Lung Cancer with LDCT",
-            "effective_date": "2022-02-10",
-            "summary": "Annual screening for lung cancer with LDCT for eligible beneficiaries"
-        })
-    
+        results.append(
+            {
+                "type": "NCD",
+                "id": "210.10",
+                "title": "Screening for Lung Cancer with LDCT",
+                "effective_date": "2022-02-10",
+                "summary": "Annual screening for lung cancer with LDCT for eligible beneficiaries",
+            }
+        )
+
     # Filter by coverage type
     if coverage_type != "all":
         results = [r for r in results if r["type"].lower() == coverage_type.lower()]
-    
+
     return {
         "query": query,
         "coverage_type": coverage_type,
         "result_count": len(results[:limit]),
-        "results": results[:limit]
+        "results": results[:limit],
     }
 
 
 async def get_coverage_by_cpt(cpt_code: str) -> dict:
     """Get coverage information for a CPT code."""
     code = cpt_code.upper().strip()
-    
+
     if code in COMMON_COVERAGES:
         coverage = COMMON_COVERAGES[code]
         return {
@@ -254,87 +250,87 @@ async def get_coverage_by_cpt(cpt_code: str) -> dict:
             "conditions": coverage["conditions"],
             "frequency_limitation": coverage.get("frequency"),
             "lcd_reference": coverage.get("lcd_reference"),
-            "ncd_reference": coverage.get("ncd_reference")
+            "ncd_reference": coverage.get("ncd_reference"),
         }
-    
+
     return {
         "code": code,
         "found": False,
         "message": "Coverage information not found in local database. Recommend checking CMS Medicare Coverage Database directly.",
-        "cms_link": f"https://www.cms.gov/medicare-coverage-database/search.aspx?q={code}"
+        "cms_link": f"https://www.cms.gov/medicare-coverage-database/search.aspx?q={code}",
     }
 
 
 async def get_coverage_by_icd10(icd10_code: str) -> dict:
     """Get coverage policies for an ICD-10 diagnosis."""
     code = icd10_code.upper().strip()
-    
+
     results = []
-    
+
     # Simulate diagnosis-based coverage lookup
     if code.startswith("E11") or code.startswith("E10"):  # Diabetes
-        results.append({
-            "code": code,
-            "diagnosis_group": "Diabetes Mellitus",
-            "relevant_coverages": [
-                {"type": "NCD", "id": "40.2", "title": "Home Blood Glucose Monitors"},
-                {"type": "LCD", "id": "L33822", "title": "Continuous Glucose Monitors"},
-                {"type": "NCD", "id": "280.1", "title": "Diabetes Self-Management Training"}
-            ]
-        })
-    
+        results.append(
+            {
+                "code": code,
+                "diagnosis_group": "Diabetes Mellitus",
+                "relevant_coverages": [
+                    {"type": "NCD", "id": "40.2", "title": "Home Blood Glucose Monitors"},
+                    {"type": "LCD", "id": "L33822", "title": "Continuous Glucose Monitors"},
+                    {"type": "NCD", "id": "280.1", "title": "Diabetes Self-Management Training"},
+                ],
+            }
+        )
+
     if code.startswith("M54"):  # Back pain
-        results.append({
-            "code": code,
-            "diagnosis_group": "Dorsalgia (Back Pain)",
-            "relevant_coverages": [
-                {"type": "LCD", "id": "L34997", "title": "MRI of the Spine"},
-                {"type": "LCD", "id": "L35036", "title": "Lumbar Spinal Fusion"}
-            ]
-        })
-    
+        results.append(
+            {
+                "code": code,
+                "diagnosis_group": "Dorsalgia (Back Pain)",
+                "relevant_coverages": [
+                    {"type": "LCD", "id": "L34997", "title": "MRI of the Spine"},
+                    {"type": "LCD", "id": "L35036", "title": "Lumbar Spinal Fusion"},
+                ],
+            }
+        )
+
     if not results:
         return {
             "code": code,
             "found": False,
             "message": "No specific coverage policies found for this diagnosis code",
-            "recommendation": "Check CMS Medicare Coverage Database for related coverage policies"
+            "recommendation": "Check CMS Medicare Coverage Database for related coverage policies",
         }
-    
-    return {
-        "code": code,
-        "found": True,
-        "results": results
-    }
+
+    return {"code": code, "found": True, "results": results}
 
 
 async def check_medical_necessity(cpt_code: str, icd10_codes: list[str]) -> dict:
     """Check medical necessity for a procedure given diagnoses."""
     cpt = cpt_code.upper().strip()
     diagnoses = [d.upper().strip() for d in icd10_codes]
-    
+
     # Get base coverage info
     coverage = COMMON_COVERAGES.get(cpt)
-    
+
     if not coverage:
         return {
             "cpt_code": cpt,
             "icd10_codes": diagnoses,
             "determination": "unknown",
-            "message": "CPT code not found in coverage database. Manual review required."
+            "message": "CPT code not found in coverage database. Manual review required.",
         }
-    
+
     # Simplified medical necessity check
     # In production, this would cross-reference LCD/NCD criteria
-    
+
     result = {
         "cpt_code": cpt,
         "cpt_description": coverage["description"],
         "icd10_codes": diagnoses,
         "base_coverage": coverage["coverage"],
-        "coverage_conditions": coverage["conditions"]
+        "coverage_conditions": coverage["conditions"],
     }
-    
+
     if coverage["coverage"] == "covered":
         result["determination"] = "likely_covered"
         result["message"] = "Procedure is generally covered. Ensure documentation supports medical necessity."
@@ -348,25 +344,22 @@ async def check_medical_necessity(cpt_code: str, icd10_codes: list[str]) -> dict
     else:
         result["determination"] = "not_covered"
         result["message"] = "Procedure may not be covered under Medicare."
-    
+
     return result
 
 
-async def get_mac_jurisdiction(state: str = None, zip_code: str = None) -> dict:
+async def get_mac_jurisdiction(state: Optional[str] = None, zip_code: Optional[str] = None) -> dict:
     """Get MAC information for a state or ZIP."""
     if not state and not zip_code:
         return {"error": "Either state or zip_code is required"}
-    
+
     lookup_state = state.upper() if state else None
-    
+
     # ZIP to state lookup would be done in production
     if zip_code and not state:
         # Simplified - in production would use ZIP database
-        return {
-            "zip_code": zip_code,
-            "message": "ZIP code lookup not implemented. Please provide state code."
-        }
-    
+        return {"zip_code": zip_code, "message": "ZIP code lookup not implemented. Please provide state code."}
+
     if lookup_state in MAC_JURISDICTIONS:
         mac_info = MAC_JURISDICTIONS[lookup_state]
         return {
@@ -375,32 +368,31 @@ async def get_mac_jurisdiction(state: str = None, zip_code: str = None) -> dict:
             "mac_name": mac_info["mac"],
             "jurisdiction": mac_info["jurisdiction"],
             "mac_type": mac_info["part_a"],
-            "contact_info": f"Visit MAC website for {mac_info['mac']}"
+            "contact_info": f"Visit MAC website for {mac_info['mac']}",
         }
-    
-    return {
-        "state": lookup_state,
-        "found": False,
-        "message": "State not found in MAC database"
-    }
+
+    return {"state": lookup_state, "found": False, "message": "State not found in MAC database"}
 
 
 # ============================================================================
 # Azure Function Endpoints
 # ============================================================================
 
+
 @app.route(route=".well-known/mcp", methods=["GET"])
 async def mcp_discovery(req: func.HttpRequest) -> func.HttpResponse:
     """MCP Discovery endpoint."""
     return func.HttpResponse(
-        json.dumps({
-            **SERVER_INFO,
-            "protocol_version": MCP_PROTOCOL_VERSION,
-            "capabilities": {"tools": True, "resources": False, "prompts": False},
-            "tools": TOOLS
-        }),
+        json.dumps(
+            {
+                **SERVER_INFO,
+                "protocol_version": MCP_PROTOCOL_VERSION,
+                "capabilities": {"tools": True, "resources": False, "prompts": False},
+                "tools": TOOLS,
+            }
+        ),
         mimetype="application/json",
-        headers={"X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION}
+        headers={"X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION},
     )
 
 
@@ -412,28 +404,31 @@ async def mcp_message(req: func.HttpRequest) -> func.HttpResponse:
     except ValueError:
         return func.HttpResponse(
             json.dumps({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}}),
-            status_code=400, mimetype="application/json"
+            status_code=400,
+            mimetype="application/json",
         )
-    
+
     method = body.get("method")
     params = body.get("params", {})
     msg_id = body.get("id")
-    
+
     try:
         if method == "initialize":
             result = {
                 "protocolVersion": MCP_PROTOCOL_VERSION,
                 "serverInfo": {"name": SERVER_INFO["name"], "version": SERVER_INFO["version"]},
-                "capabilities": {"tools": {"listChanged": False}}
+                "capabilities": {"tools": {"listChanged": False}},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}
         elif method == "tools/call":
             tool_name = params.get("name")
             args = params.get("arguments", {})
-            
+
             if tool_name == "search_coverage":
-                tool_result = await search_coverage(args.get("query", ""), args.get("coverage_type", "all"), args.get("limit", 10))
+                tool_result = await search_coverage(
+                    args.get("query", ""), args.get("coverage_type", "all"), args.get("limit", 10)
+                )
             elif tool_name == "get_coverage_by_cpt":
                 tool_result = await get_coverage_by_cpt(args.get("cpt_code", ""))
             elif tool_name == "get_coverage_by_icd10":
@@ -444,29 +439,42 @@ async def mcp_message(req: func.HttpRequest) -> func.HttpResponse:
                 tool_result = await get_mac_jurisdiction(args.get("state"), args.get("zip_code"))
             else:
                 return func.HttpResponse(
-                    json.dumps({"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"}}),
-                    mimetype="application/json"
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": msg_id,
+                            "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"},
+                        }
+                    ),
+                    mimetype="application/json",
                 )
-            
+
             result = {"content": [{"type": "text", "text": json.dumps(tool_result)}]}
         elif method == "ping":
             result = {}
         else:
             return func.HttpResponse(
-                json.dumps({"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32601, "message": f"Method not found: {method}"}}),
-                mimetype="application/json"
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "error": {"code": -32601, "message": f"Method not found: {method}"},
+                    }
+                ),
+                mimetype="application/json",
             )
-        
+
         return func.HttpResponse(
             json.dumps({"jsonrpc": "2.0", "id": msg_id, "result": result}),
             mimetype="application/json",
-            headers={"X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION}
+            headers={"X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION},
         )
     except Exception as e:
         logger.exception("Error handling MCP message")
         return func.HttpResponse(
             json.dumps({"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32603, "message": str(e)}}),
-            status_code=500, mimetype="application/json"
+            status_code=500,
+            mimetype="application/json",
         )
 
 
@@ -475,5 +483,5 @@ async def health_check(req: func.HttpRequest) -> func.HttpResponse:
     """Health check endpoint."""
     return func.HttpResponse(
         json.dumps({"status": "healthy", "server": SERVER_INFO["name"], "version": SERVER_INFO["version"]}),
-        mimetype="application/json"
+        mimetype="application/json",
     )

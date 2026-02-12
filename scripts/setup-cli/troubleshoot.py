@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import os
-import subprocess
 from pathlib import Path
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from .checks import EnvironmentReport, _run, scan_environment
+from .checks import _run, scan_environment
 from .styles import COPILOT_TIPS, MCP_SERVERS, THEME
 from .testing import health_check
 
@@ -47,7 +45,7 @@ def _check_venv_health(server_dir: Path, max_minor: int) -> list[str]:
         try:
             major, minor = [int(x) for x in ver.strip().split(".")]
             if major != 3 or minor < 9 or minor > max_minor:
-                issues.append(f"Python {ver.strip()} in venv — Azure Functions needs 3.9–3.{max_minor}")
+                issues.append(f"Python {ver.strip()} in venv — Azure Functions needs 3.9-3.{max_minor}")
         except ValueError:
             pass
 
@@ -83,6 +81,7 @@ def _check_local_settings(server_dir: Path) -> list[str]:
         return issues
 
     import json
+
     try:
         with open(settings_file) as f:
             data = json.load(f)
@@ -98,6 +97,7 @@ def _check_local_settings(server_dir: Path) -> list[str]:
 # ---------------------------------------------------------------------------
 # Main diagnostic
 # ---------------------------------------------------------------------------
+
 
 def run_diagnostics(project_root: Path) -> None:
     """Full troubleshooting diagnostic."""
@@ -115,7 +115,7 @@ def run_diagnostics(project_root: Path) -> None:
     env_table.add_column("Result")
 
     checks = [
-        (f"Python 3.9–3.{max_minor}", report.python and report.python.found),
+        (f"Python 3.9-3.{max_minor}", report.python and report.python.found),
         ("Node.js", report.node and report.node.found),
         ("Azure Functions Core Tools", report.func_tools and report.func_tools.found),
         ("Azurite", report.azurite and report.azurite.found),
@@ -134,7 +134,7 @@ def run_diagnostics(project_root: Path) -> None:
     if _check_azurite_running():
         console.print("  [success]✓[/success] Azurite is running")
     else:
-        console.print("  [warning]⚠  Azurite not detected on ports 10000–10002[/warning]")
+        console.print("  [warning]⚠  Azurite not detected on ports 10000-10002[/warning]")
         console.print("  [info]Start it with:[/info] azurite --silent --location /tmp/azurite &")
         console.print(COPILOT_TIPS["azurite_not_found"])
 
@@ -204,13 +204,15 @@ def run_diagnostics(project_root: Path) -> None:
 
     # 6. Summary + tips
     console.print()
-    console.print(Panel(
-        "[bold]Need more help?[/bold]\n\n"
-        "• Run [bold]make local-start[/bold] to start all servers\n"
-        "• Run [bold]make local-logs[/bold] to view server logs\n"
-        "• Open VS Code Copilot Chat and ask:\n"
-        '  [italic]"@healthcare Help me debug my local MCP setup"[/italic]\n\n'
-        "• Check docs: [info]docs/LOCAL-TESTING.md[/info] and [info]docs/DEVELOPER-GUIDE.md[/info]",
-        title="[header]💡 Quick References[/header]",
-        expand=False,
-    ))
+    console.print(
+        Panel(
+            "[bold]Need more help?[/bold]\n\n"
+            "• Run [bold]make local-start[/bold] to start all servers\n"
+            "• Run [bold]make local-logs[/bold] to view server logs\n"
+            "• Open VS Code Copilot Chat and ask:\n"
+            '  [italic]"@healthcare Help me debug my local MCP setup"[/italic]\n\n'
+            "• Check docs: [info]docs/LOCAL-TESTING.md[/info] and [info]docs/DEVELOPER-GUIDE.md[/info]",
+            title="[header]💡 Quick References[/header]",
+            expand=False,
+        )
+    )

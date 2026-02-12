@@ -1,4 +1,5 @@
 """Integration tests for NPI Lookup MCP server."""
+
 import pytest
 
 pytestmark = pytest.mark.integration

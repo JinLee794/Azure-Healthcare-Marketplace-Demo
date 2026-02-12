@@ -63,46 +63,46 @@ log_error() {
 
 check_prerequisites() {
     log_info "Checking prerequisites..."
-    
+
     if ! command -v az &> /dev/null; then
         log_error "Azure CLI not found. Please install: https://aka.ms/installazurecli"
         exit 1
     fi
-    
+
     if ! az account show &> /dev/null; then
         log_error "Not logged into Azure CLI. Run: az login"
         exit 1
     fi
-    
+
     log_success "Prerequisites check passed"
 }
 
 get_resource_info() {
     log_info "Retrieving resource information..."
-    
+
     # Try to get from azd environment if not provided
     if [ -z "$RESOURCE_GROUP" ]; then
         if command -v azd &> /dev/null; then
             RESOURCE_GROUP=$(azd env get-values 2>/dev/null | grep AZURE_RESOURCE_GROUP | cut -d'=' -f2 | tr -d '"' || echo "")
         fi
     fi
-    
+
     if [ -z "$RESOURCE_GROUP" ]; then
         log_error "Resource group not found. Please provide as argument or run from azd environment."
         echo "Usage: $0 <resource-group> <apim-name> <function-base-name>"
         exit 1
     fi
-    
+
     # Try to find APIM instance if not provided
     if [ -z "$APIM_NAME" ]; then
         APIM_NAME=$(az apim list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || echo "")
     fi
-    
+
     if [ -z "$APIM_NAME" ]; then
         log_error "API Management instance not found in resource group: $RESOURCE_GROUP"
         exit 1
     fi
-    
+
     # Try to find Function App base name if not provided
     if [ -z "$FUNCTION_BASE_NAME" ]; then
         # Get any function app and extract base name
@@ -112,12 +112,12 @@ get_resource_info() {
             FUNCTION_BASE_NAME=$(echo "$FUNC_APP" | sed 's/-[^-]*-func$//' | sed 's/-npi-lookup$//' | sed 's/-icd10-validation$//' | sed 's/-cms-coverage$//' | sed 's/-fhir-operations$//' | sed 's/-pubmed$//' | sed 's/-clinical-trials$//')
         fi
     fi
-    
+
     if [ -z "$FUNCTION_BASE_NAME" ]; then
         log_error "Could not determine Function App base name. Please provide as argument."
         exit 1
     fi
-    
+
     log_info "Resource Group: $RESOURCE_GROUP"
     log_info "APIM Name: $APIM_NAME"
     log_info "Function Base Name: $FUNCTION_BASE_NAME"
@@ -130,22 +130,22 @@ get_apim_gateway_url() {
 get_function_url() {
     local server_name="$1"
     local func_app_name="${FUNCTION_BASE_NAME}-${server_name}-func"
-    
+
     # Get Function App hostname
     local hostname=$(az functionapp show -g "$RESOURCE_GROUP" -n "$func_app_name" --query "defaultHostName" -o tsv 2>/dev/null)
-    
+
     if [ -z "$hostname" ]; then
         log_warning "Function App not found: $func_app_name"
         return 1
     fi
-    
+
     echo "https://${hostname}/api"
 }
 
 get_function_key() {
     local server_name="$1"
     local func_app_name="${FUNCTION_BASE_NAME}-${server_name}-func"
-    
+
     # Get Function App master key
     az functionapp keys list -g "$RESOURCE_GROUP" -n "$func_app_name" --query "masterKey" -o tsv 2>/dev/null
 }
@@ -159,11 +159,11 @@ create_mcp_backend() {
     local display_name="$2"
     local description="$3"
     local backend_url="$4"
-    
+
     local backend_name="${server_name}-backend"
-    
+
     log_info "Creating backend: $backend_name"
-    
+
     # Check if backend exists
     if az apim backend show -g "$RESOURCE_GROUP" -n "$APIM_NAME" --backend-id "$backend_name" &>/dev/null; then
         log_info "Backend already exists, updating..."
@@ -183,7 +183,7 @@ create_mcp_backend() {
             --title "$display_name Backend" \
             --description "Backend for $description"
     fi
-    
+
     log_success "Backend configured: $backend_name"
 }
 
@@ -192,12 +192,12 @@ create_mcp_api() {
     local display_name="$2"
     local description="$3"
     local backend_url="$4"
-    
+
     local api_id="${server_name}-mcp"
     local api_path="mcp/${server_name}"
-    
+
     log_info "Creating API: $api_id"
-    
+
     # Check if API exists
     if az apim api show -g "$RESOURCE_GROUP" -n "$APIM_NAME" --api-id "$api_id" &>/dev/null; then
         log_info "API already exists, updating..."
@@ -220,16 +220,16 @@ create_mcp_api() {
             --service-url "$backend_url" \
             --subscription-required false
     fi
-    
+
     log_success "API configured: $api_id"
 }
 
 create_mcp_operations() {
     local server_name="$1"
     local api_id="${server_name}-mcp"
-    
+
     log_info "Creating MCP operations for: $api_id"
-    
+
     # MCP Discovery endpoint (GET /.well-known/mcp)
     if ! az apim api operation show -g "$RESOURCE_GROUP" -n "$APIM_NAME" --api-id "$api_id" --operation-id "mcp-discovery" &>/dev/null; then
         az apim api operation create \
@@ -242,7 +242,7 @@ create_mcp_operations() {
             --url-template "/.well-known/mcp" \
             --description "Returns MCP server capabilities and tools"
     fi
-    
+
     # MCP Message endpoint (POST /mcp) - Streamable HTTP
     if ! az apim api operation show -g "$RESOURCE_GROUP" -n "$APIM_NAME" --api-id "$api_id" --operation-id "mcp-message" &>/dev/null; then
         az apim api operation create \
@@ -255,7 +255,7 @@ create_mcp_operations() {
             --url-template "/mcp" \
             --description "Handle MCP JSON-RPC messages (Streamable HTTP transport)"
     fi
-    
+
     log_success "Operations configured for: $api_id"
 }
 
@@ -263,9 +263,9 @@ apply_mcp_policy() {
     local server_name="$1"
     local api_id="${server_name}-mcp"
     local backend_name="${server_name}-backend"
-    
+
     log_info "Applying MCP policy for: $api_id"
-    
+
     # Create policy XML
     local policy_xml="<policies>
   <inbound>
@@ -318,16 +318,16 @@ apply_mcp_policy() {
     # Write policy to temp file
     local policy_file=$(mktemp)
     echo "$policy_xml" > "$policy_file"
-    
+
     # Apply policy using Azure CLI
     az apim api policy create \
         -g "$RESOURCE_GROUP" \
         -n "$APIM_NAME" \
         --api-id "$api_id" \
         --xml-policy "$policy_file"
-    
+
     rm -f "$policy_file"
-    
+
     log_success "Policy applied for: $api_id"
 }
 
@@ -335,9 +335,9 @@ add_api_to_product() {
     local server_name="$1"
     local api_id="${server_name}-mcp"
     local product_id="healthcare-mcp"
-    
+
     log_info "Adding $api_id to product: $product_id"
-    
+
     # Check if product exists, create if not
     if ! az apim product show -g "$RESOURCE_GROUP" -n "$APIM_NAME" --product-id "$product_id" &>/dev/null; then
         log_info "Creating product: $product_id"
@@ -351,14 +351,14 @@ add_api_to_product() {
             --approval-required false \
             --state published
     fi
-    
+
     # Add API to product
     az apim product api add \
         -g "$RESOURCE_GROUP" \
         -n "$APIM_NAME" \
         --product-id "$product_id" \
         --api-id "$api_id" 2>/dev/null || true
-    
+
     log_success "API added to product: $product_id"
 }
 
@@ -368,66 +368,66 @@ add_api_to_product() {
 
 setup_mcp_server() {
     local server_entry="$1"
-    
+
     # Parse server entry (name:display_name:description)
     IFS=':' read -r server_name display_name description <<< "$server_entry"
-    
+
     echo ""
     log_info "=========================================="
     log_info "Setting up MCP Server: $display_name"
     log_info "=========================================="
-    
+
     # Get Function App URL
     local backend_url=$(get_function_url "$server_name")
-    
+
     if [ -z "$backend_url" ]; then
         log_warning "Skipping $server_name - Function App not found"
         return
     fi
-    
+
     log_info "Backend URL: $backend_url"
-    
+
     # Create backend
     create_mcp_backend "$server_name" "$display_name" "$description" "$backend_url"
-    
+
     # Create API
     create_mcp_api "$server_name" "$display_name" "$description" "$backend_url"
-    
+
     # Create operations
     create_mcp_operations "$server_name"
-    
+
     # Apply policy
     apply_mcp_policy "$server_name"
-    
+
     # Add to product
     add_api_to_product "$server_name"
-    
+
     log_success "MCP Server setup complete: $display_name"
 }
 
 generate_mcp_config() {
     local gateway_url=$(get_apim_gateway_url)
-    
+
     echo ""
     log_info "=========================================="
     log_info "VS Code MCP Configuration"
     log_info "=========================================="
-    
+
     echo "Add the following to your .vscode/mcp.json:"
     echo ""
     echo "{"
     echo '  "servers": {'
-    
+
     local first=true
     for server_entry in "${MCP_SERVERS[@]}"; do
         IFS=':' read -r server_name display_name description <<< "$server_entry"
-        
+
         if [ "$first" = true ]; then
             first=false
         else
             echo ","
         fi
-        
+
         echo "    \"healthcare-${server_name}\": {"
         echo '      "type": "http",'
         echo "      \"url\": \"${gateway_url}/mcp/${server_name}/mcp\","
@@ -436,7 +436,7 @@ generate_mcp_config() {
         echo "      }"
         echo -n "    }"
     done
-    
+
     echo ""
     echo '  },'
     echo '  "inputs": ['
@@ -457,24 +457,24 @@ main() {
     echo "  Healthcare MCP Server Setup for Azure APIM"
     echo "=============================================="
     echo ""
-    
+
     check_prerequisites
     get_resource_info
-    
+
     # Setup each MCP server
     for server_entry in "${MCP_SERVERS[@]}"; do
         setup_mcp_server "$server_entry"
     done
-    
+
     # Generate VS Code configuration
     generate_mcp_config
-    
+
     echo ""
     log_success "=============================================="
     log_success "  All MCP Servers configured successfully!"
     log_success "=============================================="
     echo ""
-    
+
     local gateway_url=$(get_apim_gateway_url)
     log_info "APIM Gateway URL: $gateway_url"
     log_info ""

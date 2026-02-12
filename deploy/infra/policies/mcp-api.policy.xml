@@ -1,6 +1,6 @@
 <!--
     Azure API Management Policy for MCP API with Azure AD Token Validation
-    
+
     This policy validates Azure Active Directory (AAD) access tokens from incoming requests.
     If validation fails, it returns HTTP 401 with proper WWW-Authenticate header that includes
     the resource_metadata URL for OAuth discovery (PRM pattern).
@@ -9,9 +9,9 @@
     <inbound>
         <base />
         <!-- Validate Azure AD JWT Token -->
-        <validate-azure-ad-token 
-            tenant-id="{{McpTenantId}}" 
-            failed-validation-httpcode="401" 
+        <validate-azure-ad-token
+            tenant-id="{{McpTenantId}}"
+            failed-validation-httpcode="401"
             failed-validation-error-message="Unauthorized">
             <audiences>
                 <audience>{{McpClientId}}</audience>

@@ -28,13 +28,12 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from agent_framework import Agent
 from agent_framework.azure import AzureOpenAIResponsesClient
-from agent_framework_orchestrations import ConcurrentBuilder, SequentialBuilder
+from agent_framework_orchestrations import ConcurrentBuilder
 from azure.identity import AzureCliCredential, DefaultAzureCredential
 
 from ..agents import (
@@ -321,10 +320,7 @@ async def run_prior_auth_workflow(
     existing = _read_waypoint(assessment_path)
     beads = _make_beads()
     workflow_id = str(uuid.uuid4())
-    request_id = (
-        f"PA-{datetime.now(timezone.utc).strftime('%Y%m%d')}-"
-        f"{uuid.uuid4().hex[:5].upper()}"
-    )
+    request_id = f"PA-{datetime.now(timezone.utc).strftime('%Y%m%d')}-" f"{uuid.uuid4().hex[:5].upper()}"
 
     if existing and "beads" in existing:
         beads = existing["beads"]
@@ -332,9 +328,7 @@ async def run_prior_auth_workflow(
         request_id = existing.get("request_id", request_id)
         resume_bead = _first_incomplete_bead(beads)
         if resume_bead:
-            logger.info(
-                "Resuming from bead %s (prior session found)", resume_bead
-            )
+            logger.info("Resuming from bead %s (prior session found)", resume_bead)
         else:
             logger.info("All beads completed — returning existing assessment")
             return existing
@@ -393,71 +387,73 @@ async def run_prior_auth_workflow(
     }
 
     # ── Initialize assessment skeleton (skill contract) ────────────
-    assessment: dict[str, Any] = existing if existing and "beads" in existing else {
-        "request_id": request_id,
-        "workflow_id": workflow_id,
-        "created": datetime.now(timezone.utc).isoformat(),
-        "status": "in_progress",
-        "version": "2.0",
-        "beads": beads,
-        "request": request_block,
-        "fhir_patient_context": {
-            "patient_found": False,
-            "fhir_patient_id": None,
-            "active_conditions": [],
-            "active_medications": [],
-            "recent_observations": [],
-            "cross_reference_notes": "",
-        },
-        "clinical": {
-            "chief_complaint": "",
-            "key_findings": [],
-            "prior_treatments": [],
-            "extraction_confidence": 0,
-        },
-        "policy": {
-            "policy_id": "",
-            "policy_title": "",
-            "policy_type": "",
-            "contractor": "",
-            "covered_indications": [],
-            "medical_necessity_check": {
-                "cpt_code": cpt_codes[0] if cpt_codes else "",
-                "icd10_codes": icd10_codes,
-                "is_covered": None,
-                "policy_basis": "",
+    assessment: dict[str, Any] = (
+        existing
+        if existing and "beads" in existing
+        else {
+            "request_id": request_id,
+            "workflow_id": workflow_id,
+            "created": datetime.now(timezone.utc).isoformat(),
+            "status": "in_progress",
+            "version": "2.0",
+            "beads": beads,
+            "request": request_block,
+            "fhir_patient_context": {
+                "patient_found": False,
+                "fhir_patient_id": None,
+                "active_conditions": [],
+                "active_medications": [],
+                "recent_observations": [],
+                "cross_reference_notes": "",
             },
-            "rag_context": "",
-        },
-        "literature_support": {
-            "searched": False,
-            "query_used": "",
-            "articles_found": 0,
-            "key_citations": [],
-            "evidence_summary": "",
-        },
-        "criteria_evaluation": [],
-        "recommendation": {
-            "decision": "",
-            "confidence": "",
-            "confidence_score": 0,
-            "rationale": "",
-            "criteria_met": "",
-            "criteria_percentage": 0,
-            "prerequisite_checks": {
-                "provider_verified": False,
-                "codes_valid": False,
-                "policy_found": False,
-                "criteria_threshold_met": False,
-                "confidence_threshold_met": False,
+            "clinical": {
+                "chief_complaint": "",
+                "key_findings": [],
+                "prior_treatments": [],
+                "extraction_confidence": 0,
             },
-            "gaps": [],
-        },
-    }
-
-    logger.info(
-        "=== Prior Authorization Workflow Started (id=%s) ===", workflow_id
+            "policy": {
+                "policy_id": "",
+                "policy_title": "",
+                "policy_type": "",
+                "contractor": "",
+                "covered_indications": [],
+                "medical_necessity_check": {
+                    "cpt_code": cpt_codes[0] if cpt_codes else "",
+                    "icd10_codes": icd10_codes,
+                    "is_covered": None,
+                    "policy_basis": "",
+                },
+                "rag_context": "",
+            },
+            "literature_support": {
+                "searched": False,
+                "query_used": "",
+                "articles_found": 0,
+                "key_citations": [],
+                "evidence_summary": "",
+            },
+            "criteria_evaluation": [],
+            "recommendation": {
+                "decision": "",
+                "confidence": "",
+                "confidence_score": 0,
+                "rationale": "",
+                "criteria_met": "",
+                "criteria_percentage": 0,
+                "prerequisite_checks": {
+                    "provider_verified": False,
+                    "codes_valid": False,
+                    "policy_found": False,
+                    "criteria_threshold_met": False,
+                    "confidence_threshold_met": False,
+                },
+                "gaps": [],
+            },
+        }
     )
+
+    logger.info("=== Prior Authorization Workflow Started (id=%s) ===", workflow_id)
 
     async with toolkit:
         # ==============================================================
@@ -470,13 +466,13 @@ async def run_prior_auth_workflow(
 
             # --- RAG policy retrieval (folded into intake per skill) ---
             rag_context = await _rag_policy_retrieval(toolkit, request_data)
-            assessment["policy"]["rag_context"] = (
-                rag_context[:2000] if rag_context else ""
-            )
+            assessment["policy"]["rag_context"] = rag_context[:2000] if rag_context else ""
 
             await _record_audit_event(
-                toolkit, workflow_id,
-                "bead-001-intake", "rag_retrieval",
+                toolkit,
+                workflow_id,
+                "bead-001-intake",
+                "rag_retrieval",
                 "success" if rag_context else "skipped",
                 output_summary=f"Retrieved {len(rag_context)} chars of policy context",
             )
@@ -504,22 +500,12 @@ async def run_prior_auth_workflow(
 
             # --- Populate assessment from compliance output ---
             if compliance_parsed:
-                pv = _safe_get(
-                    compliance_parsed, "provider_verification", default={}
-                )
-                assessment["request"]["provider"]["verified"] = pv.get(
-                    "verified", False
-                )
-                assessment["request"]["provider"]["name"] = pv.get(
-                    "name", provider.get("name", "")
-                )
-                assessment["request"]["provider"]["specialty"] = pv.get(
-                    "specialty", provider.get("specialty", "")
-                )
+                pv = _safe_get(compliance_parsed, "provider_verification", default={})
+                assessment["request"]["provider"]["verified"] = pv.get("verified", False)
+                assessment["request"]["provider"]["name"] = pv.get("name", provider.get("name", ""))
+                assessment["request"]["provider"]["specialty"] = pv.get("specialty", provider.get("specialty", ""))
 
-                cv = _safe_get(
-                    compliance_parsed, "code_validation", default={}
-                )
+                cv = _safe_get(compliance_parsed, "code_validation", default={})
                 checks = assessment["recommendation"]["prerequisite_checks"]
                 checks["codes_valid"] = cv.get("all_codes_valid", False)
                 checks["provider_verified"] = pv.get("verified", False)
@@ -528,8 +514,10 @@ async def run_prior_auth_workflow(
             logger.info("Bead 001: Compliance result — can_proceed=%s", can_proceed)
 
             await _record_audit_event(
-                toolkit, workflow_id,
-                "bead-001-intake", "compliance_check",
+                toolkit,
+                workflow_id,
+                "bead-001-intake",
+                "compliance_check",
                 "success" if can_proceed else "failure",
                 agent_name="ComplianceAgent",
                 input_summary=f"PA request with {len(icd10_codes)} ICD-10 codes",
@@ -582,9 +570,7 @@ async def run_prior_auth_workflow(
             rag_section = ""
             rag_ctx = assessment.get("policy", {}).get("rag_context", "")
             if rag_ctx:
-                rag_section = (
-                    "\n\n## Indexed Payer Policy Context (from RAG)\n" + rag_ctx
-                )
+                rag_section = "\n\n## Indexed Payer Policy Context (from RAG)\n" + rag_ctx
 
             combined_prompt = (
                 "You are part of a prior authorization review team. Below is the "
@@ -603,9 +589,7 @@ async def run_prior_auth_workflow(
                 concurrent_results = await concurrent_workflow.run(combined_prompt)
 
             concurrent_text = str(concurrent_results)
-            logger.info(
-                "Bead 002: Concurrent phase produced %d chars", len(concurrent_text)
-            )
+            logger.info("Bead 002: Concurrent phase produced %d chars", len(concurrent_text))
 
             # --- Parse clinical reviewer output ---
             clinical_parsed = _extract_json_from_text(concurrent_text)
@@ -615,15 +599,11 @@ async def run_prior_auth_workflow(
                     "primary_diagnosis",
                     _safe_get(request_data, "clinical_summary", default=""),
                 )
-                assessment["clinical"]["key_findings"] = cs.get(
-                    "clinical_indicators", []
-                )
+                assessment["clinical"]["key_findings"] = cs.get("clinical_indicators", [])
                 assessment["clinical"]["prior_treatments"] = (
                     [cs["treatment_history"]] if cs.get("treatment_history") else []
                 )
-                assessment["clinical"]["extraction_confidence"] = (
-                    clinical_parsed.get("clinical_confidence", 70)
-                )
+                assessment["clinical"]["extraction_confidence"] = clinical_parsed.get("clinical_confidence", 70)
 
                 # Evidence mapping → criteria_evaluation
                 em = clinical_parsed.get("evidence_mapping", [])
@@ -649,9 +629,7 @@ async def run_prior_auth_workflow(
                 fhir_ctx = clinical_parsed.get("patient_data", {})
                 if fhir_ctx:
                     assessment["fhir_patient_context"]["patient_found"] = True
-                    assessment["fhir_patient_context"]["active_conditions"] = (
-                        fhir_ctx.get("conditions", [])
-                    )
+                    assessment["fhir_patient_context"]["active_conditions"] = fhir_ctx.get("conditions", [])
 
             # --- Parse coverage agent output ---
             coverage_parsed = None
@@ -670,9 +648,7 @@ async def run_prior_auth_workflow(
                     assessment["policy"]["policy_id"] = p.get("policy_id", "")
                     assessment["policy"]["policy_title"] = p.get("title", "")
                     assessment["policy"]["policy_type"] = p.get("type", "LCD")
-                    assessment["policy"]["covered_indications"] = p.get(
-                        "coverage_criteria", []
-                    )
+                    assessment["policy"]["covered_indications"] = p.get("coverage_criteria", [])
                     checks = assessment["recommendation"]["prerequisite_checks"]
                     checks["policy_found"] = True
 
@@ -683,8 +659,10 @@ async def run_prior_auth_workflow(
                     mnc["policy_basis"] = mn.get("rationale", "")
 
             await _record_audit_event(
-                toolkit, workflow_id,
-                "bead-002-clinical", "concurrent_review",
+                toolkit,
+                workflow_id,
+                "bead-002-clinical",
+                "concurrent_review",
                 "success",
                 agent_name="ClinicalReviewer+CoverageAgent",
                 output_summary=(
@@ -749,11 +727,7 @@ async def run_prior_auth_workflow(
                     confidence_level = "LOW"
 
                 criteria_summary = synthesis_parsed.get("criteria_summary", [])
-                met_count = sum(
-                    1
-                    for c in criteria_summary
-                    if c.get("status", "").upper() == "MET"
-                )
+                met_count = sum(1 for c in criteria_summary if c.get("status", "").upper() == "MET")
                 total = max(
                     len(criteria_summary),
                     len(assessment["criteria_evaluation"]),
@@ -766,15 +740,11 @@ async def run_prior_auth_workflow(
                     "confidence_score": confidence_score,
                     "rationale": synthesis_parsed.get(
                         "summary",
-                        synthesis_parsed.get(
-                            "approval_rationale", synthesis_text[:500]
-                        ),
+                        synthesis_parsed.get("approval_rationale", synthesis_text[:500]),
                     ),
                     "criteria_met": f"{met_count}/{total}",
                     "criteria_percentage": round(met_count / total * 100),
-                    "prerequisite_checks": assessment["recommendation"][
-                        "prerequisite_checks"
-                    ],
+                    "prerequisite_checks": assessment["recommendation"]["prerequisite_checks"],
                     "gaps": [
                         {"what": r, "critical": True, "request": r}
                         for r in synthesis_parsed.get(
@@ -784,9 +754,7 @@ async def run_prior_auth_workflow(
                     ],
                 }
 
-                if criteria_summary and len(criteria_summary) >= len(
-                    assessment["criteria_evaluation"]
-                ):
+                if criteria_summary and len(criteria_summary) >= len(assessment["criteria_evaluation"]):
                     assessment["criteria_evaluation"] = [
                         {
                             "criterion": c.get("criterion", ""),
@@ -804,16 +772,11 @@ async def run_prior_auth_workflow(
                     checks["provider_verified"] = cb.get("provider", 0) >= 60
                     checks["codes_valid"] = cb.get("codes", 0) >= 60
                     checks["policy_found"] = cb.get("policy", 0) >= 60
-                    checks["criteria_threshold_met"] = (
-                        assessment["recommendation"]["criteria_percentage"] >= 80
-                    )
+                    checks["criteria_threshold_met"] = assessment["recommendation"]["criteria_percentage"] >= 80
                     checks["confidence_threshold_met"] = confidence_score >= 60
             else:
                 rec = "PEND"
-                if (
-                    "approve" in synthesis_text.lower()
-                    and "pend" not in synthesis_text.lower()
-                ):
+                if "approve" in synthesis_text.lower() and "pend" not in synthesis_text.lower():
                     rec = "APPROVE"
                 assessment["recommendation"]["decision"] = rec
                 assessment["recommendation"]["rationale"] = synthesis_text[:500]
@@ -825,8 +788,10 @@ async def run_prior_auth_workflow(
             )
 
             await _record_audit_event(
-                toolkit, workflow_id,
-                "bead-003-recommend", "recommendation_rendered",
+                toolkit,
+                workflow_id,
+                "bead-003-recommend",
+                "recommendation_rendered",
                 "success",
                 agent_name="SynthesisAgent",
                 output_summary=(
@@ -848,9 +813,7 @@ async def run_prior_auth_workflow(
             _write_waypoint(assessment_path, assessment)
             logger.info("Bead 003: COMPLETED — assessment_complete")
 
-    logger.info(
-        "=== Subskill 1 Complete — Assessment ready for human review ==="
-    )
+    logger.info("=== Subskill 1 Complete — Assessment ready for human review ===")
     return assessment
 
 
@@ -896,9 +859,7 @@ async def run_prior_auth_decision(
     # --- Load assessment ---
     assessment = _read_waypoint(assessment_path)
     if not assessment or assessment.get("status") != "assessment_complete":
-        raise ValueError(
-            "Assessment not found or incomplete. Complete Subskill 1 first."
-        )
+        raise ValueError("Assessment not found or incomplete. Complete Subskill 1 first.")
 
     beads = assessment.get("beads", _make_beads())
     request_id = assessment.get("request_id", "")
@@ -917,14 +878,9 @@ async def run_prior_auth_decision(
     valid_through = None
 
     if outcome == "APPROVED":
-        auth_number = (
-            f"PA-{datetime.now(timezone.utc).strftime('%Y%m%d')}-"
-            f"{uuid.uuid4().hex[:5].upper()}"
-        )
+        auth_number = f"PA-{datetime.now(timezone.utc).strftime('%Y%m%d')}-" f"{uuid.uuid4().hex[:5].upper()}"
         valid_from = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        valid_through = (
-            datetime.now(timezone.utc) + timedelta(days=30)
-        ).strftime("%Y-%m-%d")
+        valid_through = (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%Y-%m-%d")
 
     decision: dict[str, Any] = {
         "request_id": request_id,
@@ -947,14 +903,10 @@ async def run_prior_auth_decision(
             "policy_basis": assessment.get("policy", {}).get("policy_title", ""),
         },
         "audit": {
-            "reviewed_by": decision_input.get(
-                "overriding_authority", "AI-Assisted Review"
-            ),
+            "reviewed_by": decision_input.get("overriding_authority", "AI-Assisted Review"),
             "review_date": datetime.now(timezone.utc).isoformat(),
             "turnaround_hours": None,
-            "confidence": assessment.get("recommendation", {}).get(
-                "confidence", ""
-            ),
+            "confidence": assessment.get("recommendation", {}).get("confidence", ""),
             "auto_approved": not override_applied and outcome == "APPROVED",
         },
         "override_details": (
@@ -962,9 +914,7 @@ async def run_prior_auth_decision(
                 "original_recommendation": original_rec,
                 "final_decision": outcome,
                 "override_reason": decision_input.get("justification", ""),
-                "overriding_authority": decision_input.get(
-                    "overriding_authority", ""
-                ),
+                "overriding_authority": decision_input.get("overriding_authority", ""),
             }
             if override_applied
             else None
@@ -995,19 +945,28 @@ async def run_prior_auth_decision(
 
     if outcome == "APPROVED":
         letter = _generate_approval_letter(
-            member, service_block, provider_block,
-            decision["decision"], request_id,
+            member,
+            service_block,
+            provider_block,
+            decision["decision"],
+            request_id,
         )
         _write_output_file(output_path / "approval_letter.md", letter)
     elif outcome == "PENDING":
         letter = _generate_pend_letter(
-            member, service_block, rec_block.get("gaps", []), request_id,
+            member,
+            service_block,
+            rec_block.get("gaps", []),
+            request_id,
         )
         _write_output_file(output_path / "pend_letter.md", letter)
     elif outcome == "DENIED":
         letter = _generate_denial_letter(
-            member, service_block, assessment.get("policy", {}),
-            decision_input.get("justification", ""), request_id,
+            member,
+            service_block,
+            assessment.get("policy", {}),
+            decision_input.get("justification", ""),
+            request_id,
         )
         _write_output_file(output_path / "denial_letter.md", letter)
 
@@ -1036,9 +995,7 @@ def _generate_audit_justification(assessment: dict) -> str:
 
     criteria_rows = ""
     for c in criteria:
-        icon = {"MET": "✅", "NOT_MET": "❌", "INSUFFICIENT": "⚠️"}.get(
-            c.get("status", ""), "❓"
-        )
+        icon = {"MET": "✅", "NOT_MET": "❌", "INSUFFICIENT": "⚠️"}.get(c.get("status", ""), "❓")
         evidence_text = str(c.get("evidence", "N/A"))[:100]
         criteria_rows += (
             f"| {icon} {c.get('status', 'N/A')} "
@@ -1109,7 +1066,8 @@ def _generate_audit_justification(assessment: dict) -> str:
 
 
 def _generate_determination_json(
-    assessment: dict, decision: dict,
+    assessment: dict,
+    decision: dict,
 ) -> dict:
     """Generate outputs/determination.json per prompt module 05 schema."""
     outcome = decision.get("decision", {}).get("outcome", "PENDING")
@@ -1129,13 +1087,9 @@ def _generate_determination_json(
         criteria_assessment.append(
             {
                 "CriterionName": c.get("criterion", ""),
-                "Assessment": status_map.get(
-                    c.get("status", ""), "Partially Met"
-                ),
+                "Assessment": status_map.get(c.get("status", ""), "Partially Met"),
                 "Evidence": c.get("evidence", ""),
-                "PolicyReference": assessment.get("policy", {}).get(
-                    "policy_id", ""
-                ),
+                "PolicyReference": assessment.get("policy", {}).get("policy_id", ""),
                 "Notes": c.get("notes", ""),
             }
         )
@@ -1161,17 +1115,16 @@ def _generate_determination_json(
 
 
 def _generate_approval_letter(
-    member: dict, service: dict, provider: dict,
-    decision_block: dict, request_id: str,
+    member: dict,
+    service: dict,
+    provider: dict,
+    decision_block: dict,
+    request_id: str,
 ) -> str:
     """Generate outputs/approval_letter.md."""
     today = datetime.now(timezone.utc).strftime("%B %d, %Y")
     limitations = decision_block.get("limitations", [])
-    limitations_text = (
-        "\n".join(f"- {lim}" for lim in limitations)
-        if limitations
-        else "- None"
-    )
+    limitations_text = "\n".join(f"- {lim}" for lim in limitations) if limitations else "- None"
     return (
         "# Prior Authorization Approval\n\n"
         f"**Date:** {today}\n"
@@ -1199,7 +1152,10 @@ def _generate_approval_letter(
 
 
 def _generate_pend_letter(
-    member: dict, service: dict, gaps: list, request_id: str,
+    member: dict,
+    service: dict,
+    gaps: list,
+    request_id: str,
 ) -> str:
     """Generate outputs/pend_letter.md."""
     today = datetime.now(timezone.utc).strftime("%B %d, %Y")
@@ -1238,8 +1194,11 @@ def _generate_pend_letter(
 
 
 def _generate_denial_letter(
-    member: dict, service: dict, policy: dict,
-    justification: str, request_id: str,
+    member: dict,
+    service: dict,
+    policy: dict,
+    justification: str,
+    request_id: str,
 ) -> str:
     """Generate outputs/denial_letter.md."""
     today = datetime.now(timezone.utc).strftime("%B %d, %Y")

@@ -2,13 +2,15 @@
 PubMed MCP Server - Azure Function App
 Provides PubMed/MEDLINE literature search capabilities via NCBI E-utilities.
 """
-import os
+
 import json
 import logging
-import azure.functions as func
-import httpx
+import os
 from typing import Optional
 from xml.etree import ElementTree as ET
+
+import azure.functions as func
+import httpx
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
@@ -25,7 +27,7 @@ ESUMMARY_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
 SERVER_INFO = {
     "name": "pubmed",
     "version": "1.0.0",
-    "description": "Healthcare MCP server for PubMed/MEDLINE medical literature search"
+    "description": "Healthcare MCP server for PubMed/MEDLINE medical literature search",
 }
 
 TOOLS = [
@@ -37,46 +39,38 @@ TOOLS = [
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Search query (supports PubMed search syntax, MeSH terms, boolean operators)"
+                    "description": "Search query (supports PubMed search syntax, MeSH terms, boolean operators)",
                 },
                 "max_results": {
                     "type": "integer",
                     "description": "Maximum number of results (1-100, default 20)",
                     "minimum": 1,
                     "maximum": 100,
-                    "default": 20
+                    "default": 20,
                 },
                 "sort": {
                     "type": "string",
                     "enum": ["relevance", "pub_date", "first_author"],
                     "description": "Sort order for results",
-                    "default": "relevance"
+                    "default": "relevance",
                 },
                 "date_range": {
                     "type": "object",
-                    "properties": {
-                        "from_year": {"type": "integer"},
-                        "to_year": {"type": "integer"}
-                    },
-                    "description": "Filter by publication date range"
-                }
+                    "properties": {"from_year": {"type": "integer"}, "to_year": {"type": "integer"}},
+                    "description": "Filter by publication date range",
+                },
             },
-            "required": ["query"]
-        }
+            "required": ["query"],
+        },
     },
     {
         "name": "get_article",
         "description": "Get detailed information about a specific PubMed article by PMID.",
         "inputSchema": {
             "type": "object",
-            "properties": {
-                "pmid": {
-                    "type": "string",
-                    "description": "PubMed ID (PMID) of the article"
-                }
-            },
-            "required": ["pmid"]
-        }
+            "properties": {"pmid": {"type": "string", "description": "PubMed ID (PMID) of the article"}},
+            "required": ["pmid"],
+        },
     },
     {
         "name": "get_articles_batch",
@@ -88,22 +82,20 @@ TOOLS = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "List of PubMed IDs",
-                    "maxItems": 50
+                    "maxItems": 50,
                 }
             },
-            "required": ["pmids"]
-        }
+            "required": ["pmids"],
+        },
     },
     {
         "name": "get_article_abstract",
         "description": "Get the abstract text for a PubMed article.",
         "inputSchema": {
             "type": "object",
-            "properties": {
-                "pmid": {"type": "string", "description": "PubMed ID"}
-            },
-            "required": ["pmid"]
-        }
+            "properties": {"pmid": {"type": "string", "description": "PubMed ID"}},
+            "required": ["pmid"],
+        },
     },
     {
         "name": "find_related_articles",
@@ -112,10 +104,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "pmid": {"type": "string", "description": "PubMed ID of the reference article"},
-                "max_results": {"type": "integer", "default": 10, "maximum": 50}
+                "max_results": {"type": "integer", "default": 10, "maximum": 50},
             },
-            "required": ["pmid"]
-        }
+            "required": ["pmid"],
+        },
     },
     {
         "name": "search_clinical_queries",
@@ -127,43 +119,43 @@ TOOLS = [
                 "category": {
                     "type": "string",
                     "enum": ["therapy", "diagnosis", "prognosis", "etiology", "clinical_prediction_guides"],
-                    "description": "Clinical study category filter"
+                    "description": "Clinical study category filter",
                 },
                 "scope": {
                     "type": "string",
                     "enum": ["broad", "narrow"],
                     "description": "Search scope - broad is more sensitive, narrow is more specific",
-                    "default": "narrow"
+                    "default": "narrow",
                 },
-                "max_results": {"type": "integer", "default": 20, "maximum": 100}
+                "max_results": {"type": "integer", "default": 20, "maximum": 100},
             },
-            "required": ["query", "category"]
-        }
-    }
+            "required": ["query", "category"],
+        },
+    },
 ]
 
 # Clinical query filters (PubMed clinical queries)
 CLINICAL_FILTERS = {
     "therapy": {
         "narrow": "((clinical[Title/Abstract] AND trial[Title/Abstract]) OR clinical trials as topic[MeSH Terms] OR clinical trial[Publication Type] OR random*[Title/Abstract] OR random allocation[MeSH Terms] OR therapeutic use[MeSH Subheading])",
-        "broad": "(clinical trial[Publication Type] OR (clinical[Title/Abstract] AND trial[Title/Abstract]) OR clinical trials as topic[MeSH Terms] OR random*[Title/Abstract] OR control*[Title/Abstract])"
+        "broad": "(clinical trial[Publication Type] OR (clinical[Title/Abstract] AND trial[Title/Abstract]) OR clinical trials as topic[MeSH Terms] OR random*[Title/Abstract] OR control*[Title/Abstract])",
     },
     "diagnosis": {
         "narrow": "(sensitivity and specificity[MeSH Terms] OR (predictive[Title/Abstract] AND value*[Title/Abstract]) OR accuracy[Title/Abstract])",
-        "broad": "(sensitivity and specificity[MeSH Terms] OR diagnosis[MeSH Subheading] OR diagnostic[Title/Abstract])"
+        "broad": "(sensitivity and specificity[MeSH Terms] OR diagnosis[MeSH Subheading] OR diagnostic[Title/Abstract])",
     },
     "prognosis": {
         "narrow": "(prognosis[MeSH Terms] OR (disease[Title/Abstract] AND progression[Title/Abstract]) OR mortality[MeSH Terms])",
-        "broad": "(prognosis[MeSH Terms] OR survival[Title/Abstract] OR outcome[Title/Abstract])"
+        "broad": "(prognosis[MeSH Terms] OR survival[Title/Abstract] OR outcome[Title/Abstract])",
     },
     "etiology": {
         "narrow": "(risk[MeSH Terms] OR (odds[Title/Abstract] AND ratio*[Title/Abstract]) OR (relative[Title/Abstract] AND risk[Title/Abstract]))",
-        "broad": "(risk[MeSH Terms] OR etiology[MeSH Subheading] OR caus*[Title/Abstract])"
+        "broad": "(risk[MeSH Terms] OR etiology[MeSH Subheading] OR caus*[Title/Abstract])",
     },
     "clinical_prediction_guides": {
         "narrow": "(predict*[Title/Abstract] AND (valid*[Title/Abstract] OR rule*[Title/Abstract]))",
-        "broad": "(predict*[Title/Abstract] OR score[Title/Abstract] OR model[Title/Abstract])"
-    }
+        "broad": "(predict*[Title/Abstract] OR score[Title/Abstract] OR model[Title/Abstract])",
+    },
 }
 
 
@@ -175,7 +167,9 @@ def _get_base_params() -> dict:
     return params
 
 
-async def search_pubmed(query: str, max_results: int = 20, sort: str = "relevance", date_range: dict = None) -> dict:
+async def search_pubmed(
+    query: str, max_results: int = 20, sort: str = "relevance", date_range: Optional[dict] = None
+) -> dict:
     """Search PubMed for articles."""
     params = {
         **_get_base_params(),
@@ -183,95 +177,84 @@ async def search_pubmed(query: str, max_results: int = 20, sort: str = "relevanc
         "term": query,
         "retmax": max_results,
         "retmode": "json",
-        "sort": sort
+        "sort": sort,
     }
-    
+
     if date_range:
         if date_range.get("from_year"):
             params["mindate"] = f"{date_range['from_year']}/01/01"
         if date_range.get("to_year"):
             params["maxdate"] = f"{date_range['to_year']}/12/31"
         params["datetype"] = "pdat"
-    
+
     async with httpx.AsyncClient() as client:
         response = await client.get(ESEARCH_URL, params=params)
         response.raise_for_status()
         data = response.json()
-        
+
         result = data.get("esearchresult", {})
         pmids = result.get("idlist", [])
-        
+
         # Get summaries for found articles
         articles = []
         if pmids:
             articles = await _get_summaries(pmids)
-        
+
         return {
             "query": query,
             "total_count": int(result.get("count", 0)),
             "returned_count": len(pmids),
-            "articles": articles
+            "articles": articles,
         }
 
 
 async def _get_summaries(pmids: list[str]) -> list[dict]:
     """Get article summaries for PMIDs."""
-    params = {
-        **_get_base_params(),
-        "db": "pubmed",
-        "id": ",".join(pmids),
-        "retmode": "json"
-    }
-    
+    params = {**_get_base_params(), "db": "pubmed", "id": ",".join(pmids), "retmode": "json"}
+
     async with httpx.AsyncClient() as client:
         response = await client.get(ESUMMARY_URL, params=params)
         response.raise_for_status()
         data = response.json()
-        
+
         articles = []
         result = data.get("result", {})
-        
+
         for pmid in pmids:
             if pmid in result:
                 article = result[pmid]
-                articles.append({
-                    "pmid": pmid,
-                    "title": article.get("title", ""),
-                    "authors": [a.get("name", "") for a in article.get("authors", [])[:5]],
-                    "journal": article.get("fulljournalname", ""),
-                    "pub_date": article.get("pubdate", ""),
-                    "doi": next((i.get("value") for i in article.get("articleids", []) if i.get("idtype") == "doi"), None),
-                    "pub_type": article.get("pubtype", [])
-                })
-        
+                articles.append(
+                    {
+                        "pmid": pmid,
+                        "title": article.get("title", ""),
+                        "authors": [a.get("name", "") for a in article.get("authors", [])[:5]],
+                        "journal": article.get("fulljournalname", ""),
+                        "pub_date": article.get("pubdate", ""),
+                        "doi": next(
+                            (i.get("value") for i in article.get("articleids", []) if i.get("idtype") == "doi"), None
+                        ),
+                        "pub_type": article.get("pubtype", []),
+                    }
+                )
+
         return articles
 
 
 async def get_article(pmid: str) -> dict:
     """Get detailed article information."""
-    params = {
-        **_get_base_params(),
-        "db": "pubmed",
-        "id": pmid,
-        "rettype": "abstract",
-        "retmode": "xml"
-    }
-    
+    params = {**_get_base_params(), "db": "pubmed", "id": pmid, "rettype": "abstract", "retmode": "xml"}
+
     async with httpx.AsyncClient() as client:
         response = await client.get(EFETCH_URL, params=params)
         response.raise_for_status()
-        
+
         return _parse_article_xml(response.text, pmid)
 
 
 async def get_articles_batch(pmids: list[str]) -> dict:
     """Get multiple articles."""
     articles = await _get_summaries(pmids)
-    return {
-        "requested": len(pmids),
-        "returned": len(articles),
-        "articles": articles
-    }
+    return {"requested": len(pmids), "returned": len(articles), "articles": articles}
 
 
 async def get_article_abstract(pmid: str) -> dict:
@@ -280,7 +263,7 @@ async def get_article_abstract(pmid: str) -> dict:
     return {
         "pmid": pmid,
         "title": article.get("title", ""),
-        "abstract": article.get("abstract", "No abstract available")
+        "abstract": article.get("abstract", "No abstract available"),
     }
 
 
@@ -292,47 +275,40 @@ async def find_related_articles(pmid: str, max_results: int = 10) -> dict:
         "dbfrom": "pubmed",
         "cmd": "neighbor_score",
         "id": pmid,
-        "retmode": "json"
+        "retmode": "json",
     }
-    
+
     async with httpx.AsyncClient() as client:
         response = await client.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi", params=params)
         response.raise_for_status()
         data = response.json()
-        
+
         # Extract related PMIDs
         related_pmids = []
         linksets = data.get("linksets", [])
         if linksets and linksets[0].get("linksetdbs"):
             for linkdb in linksets[0]["linksetdbs"]:
                 if linkdb.get("linkname") == "pubmed_pubmed":
-                    related_pmids = [str(l.get("id")) for l in linkdb.get("links", [])][:max_results]
-        
+                    related_pmids = [str(link.get("id")) for link in linkdb.get("links", [])][:max_results]
+
         articles = []
         if related_pmids:
             articles = await _get_summaries(related_pmids)
-        
-        return {
-            "reference_pmid": pmid,
-            "related_count": len(articles),
-            "articles": articles
-        }
+
+        return {"reference_pmid": pmid, "related_count": len(articles), "articles": articles}
 
 
 async def search_clinical_queries(query: str, category: str, scope: str = "narrow", max_results: int = 20) -> dict:
     """Search using clinical query filters."""
     filter_query = CLINICAL_FILTERS.get(category, {}).get(scope, "")
-    
-    if filter_query:
-        full_query = f"({query}) AND {filter_query}"
-    else:
-        full_query = query
-    
+
+    full_query = f"({query}) AND {filter_query}" if filter_query else query
+
     result = await search_pubmed(full_query, max_results)
     result["category"] = category
     result["scope"] = scope
     result["original_query"] = query
-    
+
     return result
 
 
@@ -341,17 +317,17 @@ def _parse_article_xml(xml_text: str, pmid: str) -> dict:
     try:
         root = ET.fromstring(xml_text)
         article = root.find(".//PubmedArticle")
-        
+
         if not article:
             return {"pmid": pmid, "found": False}
-        
+
         medline = article.find(".//MedlineCitation")
         article_elem = medline.find(".//Article")
-        
+
         # Title
         title_elem = article_elem.find(".//ArticleTitle")
         title = "".join(title_elem.itertext()) if title_elem is not None else ""
-        
+
         # Abstract
         abstract_elem = article_elem.find(".//Abstract")
         abstract_parts = []
@@ -364,7 +340,7 @@ def _parse_article_xml(xml_text: str, pmid: str) -> dict:
                 else:
                     abstract_parts.append(content)
         abstract = "\n\n".join(abstract_parts)
-        
+
         # Authors
         authors = []
         for author in article_elem.findall(".//Author"):
@@ -372,10 +348,10 @@ def _parse_article_xml(xml_text: str, pmid: str) -> dict:
             first = author.findtext("ForeName", "")
             if last:
                 authors.append(f"{last} {first}".strip())
-        
+
         # Journal
         journal = article_elem.findtext(".//Journal/Title", "")
-        
+
         # Publication date
         pub_date_elem = article_elem.find(".//Journal/JournalIssue/PubDate")
         pub_date = ""
@@ -383,17 +359,17 @@ def _parse_article_xml(xml_text: str, pmid: str) -> dict:
             year = pub_date_elem.findtext("Year", "")
             month = pub_date_elem.findtext("Month", "")
             pub_date = f"{year} {month}".strip()
-        
+
         # MeSH terms
         mesh_terms = []
         for mesh in medline.findall(".//MeshHeading/DescriptorName"):
             mesh_terms.append(mesh.text)
-        
+
         # Keywords
         keywords = []
         for kw in medline.findall(".//KeywordList/Keyword"):
             keywords.append(kw.text)
-        
+
         return {
             "pmid": pmid,
             "found": True,
@@ -403,7 +379,7 @@ def _parse_article_xml(xml_text: str, pmid: str) -> dict:
             "journal": journal,
             "pub_date": pub_date,
             "mesh_terms": mesh_terms[:15],
-            "keywords": keywords[:10]
+            "keywords": keywords[:10],
         }
     except Exception as e:
         logger.exception(f"Error parsing XML for PMID {pmid}")
@@ -414,17 +390,20 @@ def _parse_article_xml(xml_text: str, pmid: str) -> dict:
 # Azure Function Endpoints
 # ============================================================================
 
+
 @app.route(route=".well-known/mcp", methods=["GET"])
 async def mcp_discovery(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(
-        json.dumps({
-            **SERVER_INFO,
-            "protocol_version": MCP_PROTOCOL_VERSION,
-            "capabilities": {"tools": True, "resources": False, "prompts": False},
-            "tools": TOOLS
-        }),
+        json.dumps(
+            {
+                **SERVER_INFO,
+                "protocol_version": MCP_PROTOCOL_VERSION,
+                "capabilities": {"tools": True, "resources": False, "prompts": False},
+                "tools": TOOLS,
+            }
+        ),
         mimetype="application/json",
-        headers={"X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION}
+        headers={"X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION},
     )
 
 
@@ -435,28 +414,34 @@ async def mcp_message(req: func.HttpRequest) -> func.HttpResponse:
     except ValueError:
         return func.HttpResponse(
             json.dumps({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}}),
-            status_code=400, mimetype="application/json"
+            status_code=400,
+            mimetype="application/json",
         )
-    
+
     method = body.get("method")
     params = body.get("params", {})
     msg_id = body.get("id")
-    
+
     try:
         if method == "initialize":
             result = {
                 "protocolVersion": MCP_PROTOCOL_VERSION,
                 "serverInfo": {"name": SERVER_INFO["name"], "version": SERVER_INFO["version"]},
-                "capabilities": {"tools": {"listChanged": False}}
+                "capabilities": {"tools": {"listChanged": False}},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}
         elif method == "tools/call":
             tool_name = params.get("name")
             args = params.get("arguments", {})
-            
+
             if tool_name == "search_pubmed":
-                tool_result = await search_pubmed(args.get("query", ""), args.get("max_results", 20), args.get("sort", "relevance"), args.get("date_range"))
+                tool_result = await search_pubmed(
+                    args.get("query", ""),
+                    args.get("max_results", 20),
+                    args.get("sort", "relevance"),
+                    args.get("date_range"),
+                )
             elif tool_name == "get_article":
                 tool_result = await get_article(args.get("pmid", ""))
             elif tool_name == "get_articles_batch":
@@ -466,32 +451,50 @@ async def mcp_message(req: func.HttpRequest) -> func.HttpResponse:
             elif tool_name == "find_related_articles":
                 tool_result = await find_related_articles(args.get("pmid", ""), args.get("max_results", 10))
             elif tool_name == "search_clinical_queries":
-                tool_result = await search_clinical_queries(args.get("query", ""), args.get("category", "therapy"), args.get("scope", "narrow"), args.get("max_results", 20))
+                tool_result = await search_clinical_queries(
+                    args.get("query", ""),
+                    args.get("category", "therapy"),
+                    args.get("scope", "narrow"),
+                    args.get("max_results", 20),
+                )
             else:
                 return func.HttpResponse(
-                    json.dumps({"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"}}),
-                    mimetype="application/json"
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": msg_id,
+                            "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"},
+                        }
+                    ),
+                    mimetype="application/json",
                 )
-            
+
             result = {"content": [{"type": "text", "text": json.dumps(tool_result)}]}
         elif method == "ping":
             result = {}
         else:
             return func.HttpResponse(
-                json.dumps({"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32601, "message": f"Method not found: {method}"}}),
-                mimetype="application/json"
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "error": {"code": -32601, "message": f"Method not found: {method}"},
+                    }
+                ),
+                mimetype="application/json",
             )
-        
+
         return func.HttpResponse(
             json.dumps({"jsonrpc": "2.0", "id": msg_id, "result": result}),
             mimetype="application/json",
-            headers={"X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION}
+            headers={"X-MCP-Protocol-Version": MCP_PROTOCOL_VERSION},
         )
     except Exception as e:
         logger.exception("Error handling MCP message")
         return func.HttpResponse(
             json.dumps({"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32603, "message": str(e)}}),
-            status_code=500, mimetype="application/json"
+            status_code=500,
+            mimetype="application/json",
         )
 
 
@@ -499,5 +502,5 @@ async def mcp_message(req: func.HttpRequest) -> func.HttpResponse:
 async def health_check(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(
         json.dumps({"status": "healthy", "server": SERVER_INFO["name"], "version": SERVER_INFO["version"]}),
-        mimetype="application/json"
+        mimetype="application/json",
     )

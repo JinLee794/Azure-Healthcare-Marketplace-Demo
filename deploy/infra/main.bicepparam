@@ -23,6 +23,12 @@ param vnetAddressPrefix = '192.168.0.0/16'
 // Enable public network access for development (set to false for production)
 param enablePublicAccess = false
 
+// Keep AHDS FHIR private endpoint disabled by default due intermittent Private Link provisioning failures
+param enableFhirPrivateEndpoint = false
+
+// Keep Cosmos DB reachable from local dev while private endpoints remain enabled
+param enableCosmosPublicAccess = true
+
 // Container Registry SKU for dockerized MCP server images (Basic|Standard|Premium)
 param containerRegistrySku = 'Basic'
 
@@ -33,7 +39,7 @@ param containerRegistryAdminUserEnabled = false
 // Recommended regions with good Cosmos DB availability:
 //   - 'westus2'        - West US 2 (typically best availability)
 //   - 'westeurope'     - West Europe
-//   - 'northeurope'    - North Europe  
+//   - 'northeurope'    - North Europe
 //   - 'southeastasia'  - Southeast Asia
 //   - 'australiaeast'  - Australia East
 //   - 'canadacentral'  - Canada Central

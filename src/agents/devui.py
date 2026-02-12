@@ -19,13 +19,11 @@ import os
 import queue
 import textwrap
 import time
-from datetime import datetime, timezone
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 
 import gradio as gr
-
-from .config import AgentConfig
 
 # ---------------------------------------------------------------------------
 # Demo data — same as main.py, kept here for the UI's Load Demo buttons
@@ -210,6 +208,7 @@ INPUT_SCHEMAS: dict[str, str] = {
 # Log capture — intercepts agent logging for real-time display
 # ---------------------------------------------------------------------------
 
+
 class QueueHandler(logging.Handler):
     """Logging handler that pushes formatted records into a queue."""
 
@@ -301,6 +300,7 @@ def _validate_settings() -> str:
 # Workflow execution wrapper (generator for streaming logs)
 # ---------------------------------------------------------------------------
 
+
 async def _run_workflow_async(
     workflow_name: str,
     input_data: dict[str, Any],
@@ -308,10 +308,10 @@ async def _run_workflow_async(
     log_queue: queue.Queue,
 ) -> dict[str, Any]:
     """Run the appropriate workflow, capturing logs to the queue."""
-    from .workflows.prior_auth import run_prior_auth_workflow
     from .workflows.clinical_trials import run_clinical_trials_workflow
-    from .workflows.patient_data import run_patient_data_workflow
     from .workflows.literature_search import run_literature_search_workflow
+    from .workflows.patient_data import run_patient_data_workflow
+    from .workflows.prior_auth import run_prior_auth_workflow
 
     workflows = {
         "prior-auth": run_prior_auth_workflow,
@@ -353,10 +353,13 @@ def run_workflow_streaming(
             "Open the ⚙️ Settings accordion at the top of the page and enter your\n"
             "Azure OpenAI endpoint, then click 'Save Settings' before running.\n\n"
             "Example: https://my-resource.openai.azure.com",
-            json.dumps({
-                "error": "Azure OpenAI endpoint not configured",
-                "fix": "Open Settings and enter your AZURE_OPENAI_ENDPOINT",
-            }, indent=2),
+            json.dumps(
+                {
+                    "error": "Azure OpenAI endpoint not configured",
+                    "fix": "Open Settings and enter your AZURE_OPENAI_ENDPOINT",
+                },
+                indent=2,
+            ),
             "⚠️ Configure Azure OpenAI in Settings first",
         )
         return
@@ -389,18 +392,18 @@ def run_workflow_streaming(
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(
-                _run_workflow_async(workflow_name, input_data, local, log_queue)
-            )
+            result = loop.run_until_complete(_run_workflow_async(workflow_name, input_data, local, log_queue))
             result_container["data"] = result
         except BaseException as e:
             error_container["error"] = str(e)
             import traceback
+
             error_container["traceback"] = traceback.format_exc()
         finally:
             log_queue.put(None)  # Sentinel
 
     import threading
+
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
 
@@ -459,7 +462,9 @@ def run_workflow_streaming(
         status = f"✅ Complete{rec}"
         yield (log_text, result_json, status)
     else:
-        log_lines.append("\n⚠️ Workflow returned no result or error. Check Azure OpenAI credentials and MCP server connectivity.")
+        log_lines.append(
+            "\n⚠️ Workflow returned no result or error. Check Azure OpenAI credentials and MCP server connectivity."
+        )
         log_text = "\n".join(log_lines)
         yield (log_text, '{"error": "No result returned — check credentials and connectivity"}', "⚠️ No result")
 
@@ -467,6 +472,7 @@ def run_workflow_streaming(
 # ---------------------------------------------------------------------------
 # Gradio UI builder
 # ---------------------------------------------------------------------------
+
 
 def _make_workflow_tab(
     workflow_key: str,
@@ -550,7 +556,7 @@ def build_app(local: bool = False) -> gr.Blocks:
         )
 
         with gr.Row(elem_classes=["meta-row"]):
-            mode_display = gr.Markdown(
+            gr.Markdown(
                 f"**Mode:** {'🖥️ Local (localhost)' if local else '☁️ APIM Passthrough'}",
                 elem_classes=["mode-badge"],
             )
@@ -619,7 +625,6 @@ def build_app(local: bool = False) -> gr.Blocks:
 
         # Wire up events for each tab
         for wf_key, (input_box, demo_btn, run_btn, log_box, result_box, status_box) in tabs_data.items():
-
             # Load demo data
             def _load_demo(wf=wf_key):
                 return json.dumps(DEMO_DATA[wf], indent=2)
@@ -631,8 +636,7 @@ def build_app(local: bool = False) -> gr.Blocks:
 
             # Run workflow (streaming)
             def _run_streaming(input_json: str, wf=wf_key, is_local=local):
-                for log_text, result_json, status in run_workflow_streaming(wf, input_json, is_local):
-                    yield log_text, result_json, status
+                yield from run_workflow_streaming(wf, input_json, is_local)
 
             run_btn.click(
                 fn=_run_streaming,
@@ -644,7 +648,7 @@ def build_app(local: bool = False) -> gr.Blocks:
         gr.Markdown(
             textwrap.dedent("""\
                 ---
-                **MCP Servers**: NPI Lookup · ICD-10 Validation · CMS Coverage · FHIR Operations · PubMed · Clinical Trials  
+                **MCP Servers**: NPI Lookup · ICD-10 Validation · CMS Coverage · FHIR Operations · PubMed · Clinical Trials
                 *Agent Framework*: `agent-framework[azure]` · *Orchestration*: Sequential · Concurrent · Hybrid
             """),
             elem_classes=["app-footer"],
@@ -656,6 +660,7 @@ def build_app(local: bool = False) -> gr.Blocks:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def launch(local: bool = False, share: bool = False, port: int = 7860) -> None:
     """Build and launch the dev UI."""

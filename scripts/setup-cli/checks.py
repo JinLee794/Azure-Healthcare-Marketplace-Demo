@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import platform
 import shutil
 import subprocess
 import sys
@@ -21,6 +19,7 @@ console = Console(theme=THEME)
 # ---------------------------------------------------------------------------
 # Data model
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class CheckResult:
@@ -50,6 +49,7 @@ class EnvironmentReport:
 # ---------------------------------------------------------------------------
 # Individual checks
 # ---------------------------------------------------------------------------
+
 
 def _run(cmd: list[str], timeout: int = 10) -> tuple[bool, str]:
     """Run a command and return (success, stdout)."""
@@ -112,7 +112,7 @@ def check_python(max_minor: int = 11) -> CheckResult:
                     return CheckResult("Python", True, version_str, path)
             except ValueError:
                 continue
-    return CheckResult(f"Python 3.9–3.{max_minor}", False, note="Required for Azure Functions runtime")
+    return CheckResult(f"Python 3.9-3.{max_minor}", False, note="Required for Azure Functions runtime")
 
 
 def check_node() -> CheckResult:
@@ -186,6 +186,7 @@ def find_project_root() -> Path | None:
 # Full scan
 # ---------------------------------------------------------------------------
 
+
 def scan_environment() -> EnvironmentReport:
     """Run all prerequisite checks and return a report."""
     report = EnvironmentReport()
@@ -203,7 +204,7 @@ def scan_environment() -> EnvironmentReport:
 
     # Derive issues and tips
     if not report.python.found:
-        report.issues.append(f"No compatible Python (3.9–3.{report.python_max_minor}) found.")
+        report.issues.append(f"No compatible Python (3.9-3.{report.python_max_minor}) found.")
         report.copilot_tips.append(COPILOT_TIPS["venv_fail"])
     if not report.func_tools.found:
         report.issues.append("Azure Functions Core Tools not installed.")
@@ -220,6 +221,7 @@ def scan_environment() -> EnvironmentReport:
 # Display
 # ---------------------------------------------------------------------------
 
+
 def print_report(report: EnvironmentReport) -> None:
     """Pretty-print the environment report."""
     table = Table(title="Environment Check", show_lines=True)
@@ -228,8 +230,14 @@ def print_report(report: EnvironmentReport) -> None:
     table.add_column("Details")
 
     checks = [
-        report.python, report.node, report.func_tools, report.azurite,
-        report.docker, report.az_cli, report.azd_cli, report.git,
+        report.python,
+        report.node,
+        report.func_tools,
+        report.azurite,
+        report.docker,
+        report.az_cli,
+        report.azd_cli,
+        report.git,
     ]
 
     for c in checks:
@@ -264,7 +272,5 @@ def print_report(report: EnvironmentReport) -> None:
 def is_ready(report: EnvironmentReport) -> bool:
     """Return True if minimum requirements are met for local MCP testing."""
     return bool(
-        report.python and report.python.found
-        and report.func_tools and report.func_tools.found
-        and report.project_root
+        report.python and report.python.found and report.func_tools and report.func_tools.found and report.project_root
     )

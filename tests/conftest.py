@@ -4,9 +4,11 @@ Shared pytest fixtures for MCP server integration tests.
 These fixtures provide HTTP clients and helper utilities for testing
 MCP servers running locally or in Docker.
 """
+
 import os
-import pytest
+
 import httpx
+import pytest
 
 # Default base URLs — override via env vars for CI or Docker
 MCP_SERVER_PORTS = {
@@ -16,6 +18,7 @@ MCP_SERVER_PORTS = {
     "fhir-operations": int(os.getenv("MCP_FHIR_PORT", "7074")),
     "pubmed": int(os.getenv("MCP_PUBMED_PORT", "7075")),
     "clinical-trials": int(os.getenv("MCP_CLINICALTRIALS_PORT", "7076")),
+    "cosmos-rag": int(os.getenv("MCP_COSMOS_RAG_PORT", "7077")),
 }
 
 MCP_BASE_HOST = os.getenv("MCP_BASE_HOST", "http://localhost")
@@ -37,6 +40,7 @@ def _headers() -> dict:
 # ---------------------------------------------------------------------------
 # Generic MCP helpers
 # ---------------------------------------------------------------------------
+
 
 class MCPClient:
     """Lightweight wrapper for MCP JSON-RPC calls."""
@@ -66,10 +70,13 @@ class MCPClient:
         return self._http.post("/mcp", json=payload)
 
     def initialize(self) -> httpx.Response:
-        return self.rpc("initialize", {
-            "protocolVersion": "2025-06-18",
-            "clientInfo": {"name": "pytest", "version": "1.0.0"},
-        })
+        return self.rpc(
+            "initialize",
+            {
+                "protocolVersion": "2025-06-18",
+                "clientInfo": {"name": "pytest", "version": "1.0.0"},
+            },
+        )
 
     def list_tools(self) -> httpx.Response:
         return self.rpc("tools/list")
@@ -84,6 +91,7 @@ class MCPClient:
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="session")
 def mcp_npi(request) -> MCPClient:
@@ -123,5 +131,12 @@ def mcp_pubmed(request) -> MCPClient:
 @pytest.fixture(scope="session")
 def mcp_clinical_trials(request) -> MCPClient:
     client = MCPClient(_base_url("clinical-trials"))
+    yield client
+    client.close()
+
+
+@pytest.fixture(scope="session")
+def mcp_cosmos_rag(request) -> MCPClient:
+    client = MCPClient(_base_url("cosmos-rag"))
     yield client
     client.close()
