@@ -6,7 +6,8 @@ Supports environment variable overrides for local development.
 """
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,18 +26,21 @@ LOCAL_PORTS = {
     "fhir": 7074,
     "pubmed": 7075,
     "clinical-trials": 7076,
+    "cosmos-rag": 7077,
 }
 
 
 @dataclass(frozen=True)
 class MCPEndpoints:
     """MCP server endpoint URLs."""
+
     npi: str
     icd10: str
     cms: str
     fhir: str
     pubmed: str
     clinical_trials: str
+    cosmos_rag: str
 
     @classmethod
     def from_env(cls, local: bool = False) -> "MCPEndpoints":
@@ -48,7 +52,10 @@ class MCPEndpoints:
                 cms=os.getenv("MCP_CMS_URL", f"http://localhost:{LOCAL_PORTS['cms']}/mcp"),
                 fhir=os.getenv("MCP_FHIR_URL", f"http://localhost:{LOCAL_PORTS['fhir']}/mcp"),
                 pubmed=os.getenv("MCP_PUBMED_URL", f"http://localhost:{LOCAL_PORTS['pubmed']}/mcp"),
-                clinical_trials=os.getenv("MCP_CLINICAL_TRIALS_URL", f"http://localhost:{LOCAL_PORTS['clinical-trials']}/mcp"),
+                clinical_trials=os.getenv(
+                    "MCP_CLINICAL_TRIALS_URL", f"http://localhost:{LOCAL_PORTS['clinical-trials']}/mcp"
+                ),
+                cosmos_rag=os.getenv("MCP_COSMOS_RAG_URL", f"http://localhost:{LOCAL_PORTS['cosmos-rag']}/mcp"),
             )
 
         base = os.getenv("APIM_BASE_URL", DEFAULT_APIM_BASE_URL).rstrip("/")
@@ -59,12 +66,14 @@ class MCPEndpoints:
             fhir=os.getenv("MCP_FHIR_URL", f"{base}/fhir/mcp"),
             pubmed=os.getenv("MCP_PUBMED_URL", f"{base}/pubmed/mcp"),
             clinical_trials=os.getenv("MCP_CLINICAL_TRIALS_URL", f"{base}/clinical-trials/mcp"),
+            cosmos_rag=os.getenv("MCP_COSMOS_RAG_URL", f"{base}/cosmos-rag/mcp"),
         )
 
 
 @dataclass(frozen=True)
 class AzureOpenAIConfig:
     """Azure OpenAI settings for agent LLM backend."""
+
     endpoint: str = ""
     deployment_name: str = "gpt-4o"
     api_version: str = "preview"
@@ -83,6 +92,7 @@ class AzureOpenAIConfig:
 @dataclass
 class AgentConfig:
     """Top-level configuration bundle."""
+
     endpoints: MCPEndpoints
     openai: AzureOpenAIConfig
     apim_subscription_key: str = ""

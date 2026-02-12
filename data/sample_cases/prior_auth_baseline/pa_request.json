@@ -1,0 +1,46 @@
+{
+  "request_id": "DEMO-2024-001",
+  "request_date": "2024-12-15",
+  "urgency": "standard",
+
+  "member": {
+    "name": "Jane Doe",
+    "id": "1EG4-TE5-MK72",
+    "dob": "1965-03-15",
+    "state": "CA",
+    "plan_type": "Medicare Advantage"
+  },
+
+  "service": {
+    "description": "CT-guided percutaneous lung biopsy",
+    "service_type": "Outpatient Procedure",
+    "cpt_codes": ["32405"],
+    "icd10_codes": ["R91.1", "Z87.891"],
+    "requested_dos": "2024-12-22",
+    "place_of_service": "22",
+    "units": 1
+  },
+
+  "provider": {
+    "name": "Dr. Sarah Chen",
+    "npi": "1234567890",
+    "specialty": "Interventional Radiology",
+    "facility": "Bay Area Medical Center",
+    "facility_npi": "1122334455",
+    "address": {
+      "street": "100 Medical Center Drive",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94110"
+    },
+    "phone": "415-555-0100"
+  },
+
+  "clinical_summary": "58-year-old female with incidental finding of 2.3 cm pulmonary nodule on chest CT performed for pre-operative evaluation. Patient is a former smoker (quit 5 years ago, 20 pack-year history). Nodule is in the right lower lobe, spiculated margins, no calcification. PET scan shows SUV of 4.2. No evidence of mediastinal lymphadenopathy. Patient has no respiratory symptoms. Differential includes primary lung malignancy vs. inflammatory/infectious process. CT-guided biopsy recommended for tissue diagnosis given high suspicion for malignancy based on imaging characteristics and smoking history.",
+
+  "supporting_documents": [
+    "ct_chest_report.txt",
+    "pet_scan_report.txt",
+    "pulmonology_consultation.txt"
+  ]
+}

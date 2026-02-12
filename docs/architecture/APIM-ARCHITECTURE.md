@@ -108,7 +108,7 @@ products:
       - icd10-codes
     subscriptionRequired: true
     approvalRequired: false
-    
+
   - name: healthcare-mcp-clinical
     displayName: Healthcare MCP Clinical
     description: Clinical workflow MCP tools
@@ -137,7 +137,7 @@ products:
             <audience>api://healthcare-mcp-gateway</audience>
         </audiences>
     </validate-azure-ad-token>
-    
+
     <!-- Extract claims for audit logging -->
     <set-variable name="userId" value="@(context.Request.Headers.GetValueOrDefault("Authorization","").Split(' ').Last().AsJwt()?.Claims.GetValueOrDefault("oid", "anonymous"))" />
 </inbound>
@@ -147,16 +147,16 @@ products:
 
 ```xml
 <inbound>
-    <rate-limit-by-key 
-        calls="100" 
-        renewal-period="60" 
-        counter-key="@(context.Subscription?.Key ?? context.Request.IpAddress)" 
+    <rate-limit-by-key
+        calls="100"
+        renewal-period="60"
+        counter-key="@(context.Subscription?.Key ?? context.Request.IpAddress)"
         increment-condition="@(context.Response.StatusCode >= 200 && context.Response.StatusCode < 400)" />
-    
+
     <!-- Burst protection for MCP operations -->
-    <quota-by-key 
-        calls="10000" 
-        renewal-period="86400" 
+    <quota-by-key
+        calls="10000"
+        renewal-period="86400"
         counter-key="@(context.Subscription?.Key ?? "anonymous")" />
 </inbound>
 ```
@@ -208,7 +208,7 @@ Transform incoming MCP requests to match Azure Function endpoints:
         var body = context.Request.Body.As<JObject>(preserveContent: true);
         return body["method"]?.ToString() ?? "";
     }" />
-    
+
     <!-- Route to appropriate backend based on MCP method -->
     <choose>
         <when condition="@(context.Variables.GetValueOrDefault<string>("mcpMethod").StartsWith("tools/"))">
@@ -232,7 +232,7 @@ Ensure MCP-compliant responses:
     <set-header name="Content-Type" exists-action="override">
         <value>application/json</value>
     </set-header>
-    
+
     <!-- Add MCP-specific headers -->
     <set-header name="X-MCP-Version" exists-action="override">
         <value>1.0</value>
@@ -339,7 +339,7 @@ For GitHub Copilot integration, tokens are acquired via:
 // MCP Operations Summary
 ApiManagementGatewayLogs
 | where ApiId contains "healthcare"
-| summarize 
+| summarize
     TotalRequests = count(),
     SuccessRate = round(100.0 * countif(ResponseCode < 400) / count(), 2),
     AvgLatency = avg(TotalTime),
@@ -394,7 +394,7 @@ ApiManagementGatewayLogs
 
 ## APIM MCP Server Configuration (Post-Deployment)
 
-After deploying the infrastructure with `azd provision` and `azd deploy`, you need to configure the MCP servers in APIM. 
+After deploying the infrastructure with `azd provision` and `azd deploy`, you need to configure the MCP servers in APIM.
 
 ### Option 1: Automated Setup Script (Recommended)
 
@@ -461,7 +461,7 @@ After registration, add to `.vscode/mcp.json`:
       }
     },
     "healthcare-icd10": {
-      "type": "http", 
+      "type": "http",
       "url": "https://{apim-name}.azure-api.net/icd10-validation-mcp/mcp",
       "headers": {
         "Ocp-Apim-Subscription-Key": "${input:apimSubscriptionKey}"
@@ -469,7 +469,7 @@ After registration, add to `.vscode/mcp.json`:
     },
     "healthcare-cms": {
       "type": "http",
-      "url": "https://{apim-name}.azure-api.net/cms-coverage-mcp/mcp", 
+      "url": "https://{apim-name}.azure-api.net/cms-coverage-mcp/mcp",
       "headers": {
         "Ocp-Apim-Subscription-Key": "${input:apimSubscriptionKey}"
       }

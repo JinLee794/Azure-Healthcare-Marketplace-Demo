@@ -1,0 +1,60 @@
+// Healthcare MCP — Dev Container Configuration
+// Provides a zero-config development environment with all prerequisites pre-installed.
+// Usage: Open in VS Code → "Reopen in Container" (or Codespaces)
+{
+  "name": "Healthcare MCP Dev Environment",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+
+  "features": {
+    // Node.js for Azurite and TS tooling
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    // Azure CLI for deployment
+    "ghcr.io/devcontainers/features/azure-cli:1": {
+      "installBicep": true
+    },
+    // Azure Functions Core Tools
+    "ghcr.io/devcontainers/features/azure-functions-core-tools:1": {},
+    // Docker-in-Docker for container builds
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+
+  // Install global tools after container creation
+  "postCreateCommand": "npm install -g azurite azure-functions-core-tools@4 && pip install rich && echo '✓ Dev container ready — run: make setup-guided'",
+
+  // Forward MCP server ports automatically
+  "forwardPorts": [7071, 7072, 7073, 7074, 7075, 7076, 7077],
+  "portsAttributes": {
+    "7071": { "label": "npi-lookup" },
+    "7072": { "label": "icd10-validation" },
+    "7073": { "label": "cms-coverage" },
+    "7074": { "label": "fhir-operations" },
+    "7075": { "label": "pubmed" },
+    "7076": { "label": "clinical-trials" },
+    "7077": { "label": "cosmos-rag" }
+  },
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.analysis.typeCheckingMode": "basic",
+        "editor.formatOnSave": true,
+        "files.trimTrailingWhitespace": true
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-azuretools.vscode-azurefunctions",
+        "ms-azuretools.vscode-bicep",
+        "github.copilot",
+        "github.copilot-chat",
+        "charliermarsh.ruff",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  },
+
+  "remoteUser": "vscode"
+}

@@ -22,11 +22,9 @@ from typing import Any
 
 from agent_framework import Agent
 from agent_framework.azure import AzureOpenAIResponsesClient
-from agent_framework_orchestrations import SequentialBuilder
 from azure.identity import AzureCliCredential, DefaultAzureCredential
 
-from ..agents import create_trials_research_agent
-from ..agents import PROTOCOL_DRAFT_AGENT_INSTRUCTIONS
+from ..agents import PROTOCOL_DRAFT_AGENT_INSTRUCTIONS, create_trials_research_agent
 from ..config import AgentConfig
 from ..tools import MCPToolKit
 

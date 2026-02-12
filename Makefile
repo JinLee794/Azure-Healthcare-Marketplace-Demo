@@ -2,9 +2,12 @@ SHELL := /bin/bash
 
 LOG_DIR := .local-logs
 
-.PHONY: local-start local-stop local-logs local-start-npi local-start-icd10 local-start-cms local-start-fhir local-start-pubmed local-start-clinical setup-mcp-config eval-contracts eval-latency-local eval-native-local eval-all \
+.PHONY: local-start local-stop local-logs local-start-npi local-start-icd10 local-start-cms local-start-fhir local-start-pubmed local-start-clinical local-start-cosmos-rag setup-mcp-config eval-contracts eval-latency-local eval-native-local eval-all \
 	docker-build docker-up docker-down docker-logs docker-ps docker-test \
-	azure-deploy azure-deploy-single
+	azure-deploy azure-deploy-single \
+	devui devui-local devui-framework devui-framework-local \
+	setup setup-check setup-doctor setup-guided setup-status setup-test setup-tips \
+	seed-data seed-policies seed-policies-dry-run
 
 define START_SERVER
 	@bash -c 'mkdir -p "$(LOG_DIR)"; \
@@ -30,10 +33,22 @@ define START_SERVER
 	    echo "ERROR: Port $(3) is still in use. Could not start $(1)."; \
 	    exit 1; \
 	  fi; \
-	  ./scripts/local-test.sh $(1) $(3) > "$(LOG_DIR)/$(2).log" 2>&1 & echo $$! > "$(LOG_DIR)/$(2).pid"'
+	  echo "Starting $(1) on port $(3)..."; \
+	  ./scripts/local-test.sh $(1) $(3) > "$(LOG_DIR)/$(2).log" 2>&1 & echo $$! > "$(LOG_DIR)/$(2).pid"; \
+	  for i in $$(seq 1 30); do \
+	    if lsof -ti tcp:$(3) -sTCP:LISTEN >/dev/null 2>&1; then \
+	      echo "  ✓ $(1) ready on http://localhost:$(3) (pid $$(cat $(LOG_DIR)/$(2).pid))"; \
+	      echo "    Logs: $(LOG_DIR)/$(2).log"; \
+	      exit 0; \
+	    fi; \
+	    sleep 1; \
+	  done; \
+	  echo "  ⚠ $(1) launched but port $(3) not listening yet after 30s."; \
+	  echo "    Check logs: $(LOG_DIR)/$(2).log"; \
+	  tail -5 "$(LOG_DIR)/$(2).log" 2>/dev/null || true'
 endef
 
-local-start: local-stop local-start-npi local-start-icd10 local-start-cms local-start-fhir local-start-pubmed local-start-clinical
+local-start: local-stop local-start-npi local-start-icd10 local-start-cms local-start-fhir local-start-pubmed local-start-clinical local-start-cosmos-rag
 	@echo "All MCP servers started. Logs: $(LOG_DIR)/<server>.log"
 
 local-start-npi:
@@ -53,6 +68,24 @@ local-start-pubmed:
 
 local-start-clinical:
 	$(call START_SERVER,clinical-trials,clinical-trials,7076)
+
+local-start-cosmos-rag:
+	$(call START_SERVER,cosmos-rag,cosmos-rag,7077)
+
+# -- Seed Cosmos DB with policy PDFs -----------------------------------------
+seed-data: seed-policies
+
+seed-policies:
+	@echo "Seeding Cosmos DB via cosmos-rag MCP server (port 7077)..."
+	python scripts/seed_cosmos_policies.py --mcp --port 7077
+
+seed-policies-direct:
+	@echo "Seeding Cosmos DB directly via SDK..."
+	python scripts/seed_cosmos_policies.py --direct
+
+seed-policies-dry-run:
+	@echo "Dry-run: extracting text from policy PDFs..."
+	python scripts/seed_cosmos_policies.py --dry-run
 
 local-stop:
 	@bash -c 'if [ -d "$(LOG_DIR)" ]; then \
@@ -77,7 +110,7 @@ local-stop:
 	else \
 	  echo "No $(LOG_DIR) directory found. Nothing to stop."; \
 	fi; \
-	for port in 7071 7072 7073 7074 7075 7076; do \
+	for port in 7071 7072 7073 7074 7075 7076 7077; do \
 	  pids=$$(lsof -ti tcp:$$port 2>/dev/null || true); \
 	  if [ -n "$$pids" ]; then \
 	    echo "Stopping listener(s) on port $$port: $$pids"; \
@@ -110,6 +143,26 @@ eval-native-local:
 eval-all: eval-contracts eval-latency-local eval-native-local
 
 # ============================================================================
+# DevUI targets
+# ============================================================================
+
+# Gradio DevUI (cloud endpoints)
+devui:
+	@cd src && source agents/.venv/bin/activate && python -m agents --devui
+
+# Gradio DevUI (local MCP servers)
+devui-local:
+	@cd src && source agents/.venv/bin/activate && python -m agents --devui --local
+
+# Framework DevUI (cloud endpoints)
+devui-framework:
+	@cd src && source agents/.venv/bin/activate && python -m agents --framework-devui
+
+# Framework DevUI (local MCP servers)
+devui-framework-local:
+	@cd src && source agents/.venv/bin/activate && python -m agents --framework-devui --local
+
+# ============================================================================
 # Docker targets
 # ============================================================================
 
@@ -135,7 +188,7 @@ docker-ps:
 docker-test:
 	@echo "Running health checks on all Docker MCP servers..."
 	@failed=0; \
-	for pair in "npi-lookup:7071" "icd10-validation:7072" "cms-coverage:7073" "fhir-operations:7074" "pubmed:7075" "clinical-trials:7076"; do \
+	for pair in "npi-lookup:7071" "icd10-validation:7072" "cms-coverage:7073" "fhir-operations:7074" "pubmed:7075" "clinical-trials:7076" "cosmos-rag:7077"; do \
 	  name=$${pair%%:*}; port=$${pair##*:}; \
 	  printf "  %-22s " "$$name"; \
 	  if curl -sf "http://localhost:$$port/health?code=docker-default-key" > /dev/null 2>&1; then \
@@ -160,7 +213,40 @@ azure-deploy:
 azure-deploy-single:
 	@if [ -z "$(SERVER)" ]; then \
 	  echo "Usage: make azure-deploy-single SERVER=<server-name>"; \
-	  echo "Valid servers: npi-lookup icd10-validation cms-coverage fhir-operations pubmed clinical-trials"; \
+	  echo "Valid servers: npi-lookup icd10-validation cms-coverage fhir-operations pubmed clinical-trials cosmos-rag"; \
 	  exit 1; \
 	fi
 	./scripts/deploy-mcp-containers.sh $(SERVER)
+
+# ============================================================================
+# Interactive Setup CLI
+# ============================================================================
+
+# Install setup CLI deps if needed, then run
+define SETUP_CLI
+	@pip install -q rich 2>/dev/null || pip3 install -q rich 2>/dev/null || true
+	@python3 -m scripts.setup-cli $(1)
+endef
+
+# Interactive menu
+setup:
+	$(call SETUP_CLI,)
+
+# Sub-commands
+setup-check:
+	$(call SETUP_CLI,check)
+
+setup-guided:
+	$(call SETUP_CLI,guided)
+
+setup-doctor:
+	$(call SETUP_CLI,doctor)
+
+setup-status:
+	$(call SETUP_CLI,status)
+
+setup-test:
+	$(call SETUP_CLI,test)
+
+setup-tips:
+	$(call SETUP_CLI,tips)

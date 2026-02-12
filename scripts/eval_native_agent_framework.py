@@ -29,9 +29,7 @@ from urllib.parse import urlparse, urlunparse
 try:
     from agent_framework_lab_gaia import Evaluation, Prediction, Task, TaskResult
 except Exception as exc:  # pragma: no cover
-    raise RuntimeError(
-        "agent_framework_lab_gaia is required. Run with src/agents/.venv/bin/python"
-    ) from exc
+    raise RuntimeError("agent_framework_lab_gaia is required. Run with src/agents/.venv/bin/python") from exc
 
 
 def _expand_env(value: object) -> object:
@@ -207,7 +205,9 @@ def _print_summary(results: list[TaskResult]) -> int:
     correct = sum(1 for r in results if r.evaluation.is_correct)
     avg_runtime = sum((r.runtime_seconds or 0.0) for r in results) / total if total else 0.0
 
-    print(f"Native eval summary: {correct}/{total} passed, accuracy={correct/total if total else 0:.0%}, avg_runtime={avg_runtime:.3f}s")
+    print(
+        f"Native eval summary: {correct}/{total} passed, accuracy={correct/total if total else 0:.0%}, avg_runtime={avg_runtime:.3f}s"
+    )
 
     for result in sorted(results, key=lambda r: r.task_id):
         status = "PASS" if result.evaluation.is_correct else "FAIL"
@@ -295,11 +295,7 @@ def main() -> int:
             probe_interval_seconds=args.probe_interval_seconds,
         )
         if missing:
-            wait_note = (
-                f" within {args.wait_for_servers_seconds:.1f}s"
-                if args.wait_for_servers_seconds > 0
-                else ""
-            )
+            wait_note = f" within {args.wait_for_servers_seconds:.1f}s" if args.wait_for_servers_seconds > 0 else ""
             print(f"MCP endpoint preflight failed{wait_note}:")
             for mcp_url, health_url in missing:
                 print(f"  - {mcp_url} (health: {health_url})")

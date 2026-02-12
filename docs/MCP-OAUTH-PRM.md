@@ -107,7 +107,7 @@ az deployment group create \
 
 After deployment, note these outputs:
 - `mcpClientId` - Entra app client ID
-- `mcpTenantId` - Azure AD tenant ID  
+- `mcpTenantId` - Azure AD tenant ID
 - `mcpPrmEndpoint` - PRM discovery URL
 - `apimGatewayUrl` - APIM gateway base URL
 

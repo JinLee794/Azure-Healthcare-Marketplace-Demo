@@ -135,7 +135,7 @@ indexes:
       - name: condition (filterable, facetable)
       - name: source (filterable)
       - name: effective_date (sortable)
-    
+
   pubmed-articles:
     fields:
       - name: title (searchable)
@@ -306,7 +306,7 @@ class CMSCoverageStore:
         )
         self.database = self.client.get_database_client("healthcare")
         self.container = self.database.get_container_client("coverage-policies")
-    
+
     async def search_policies(
         self,
         search_term: str,
@@ -316,7 +316,7 @@ class CMSCoverageStore:
         """Search coverage policies with Cosmos DB query"""
         query = """
         SELECT TOP @max_results
-            c.id, c.policy_id, c.title, c.policy_type, 
+            c.id, c.policy_id, c.title, c.policy_type,
             c.state, c.contractor, c.effective_date,
             c.covered_icd10_codes, c.covered_cpt_codes
         FROM c
@@ -327,20 +327,20 @@ class CMSCoverageStore:
             {"name": "@search_term", "value": search_term},
             {"name": "@max_results", "value": max_results}
         ]
-        
+
         if state:
             query += " AND c.state = @state"
             params.append({"name": "@state", "value": state})
-        
+
         results = []
         async for item in self.container.query_items(
             query=query,
             parameters=params
         ):
             results.append(item)
-        
+
         return results
-    
+
     async def get_policy_details(self, policy_id: str) -> dict | None:
         """Get full policy by ID"""
         try:
@@ -374,7 +374,7 @@ class GuidelinesSearchClient:
             api_version="2024-02-01",
             azure_ad_token_provider=self._get_token
         )
-    
+
     async def _get_embedding(self, text: str) -> list[float]:
         """Generate embedding for search query"""
         response = await self.embedding_client.embeddings.create(
@@ -382,7 +382,7 @@ class GuidelinesSearchClient:
             input=text
         )
         return response.data[0].embedding
-    
+
     async def search_guidelines(
         self,
         query: str,
@@ -392,25 +392,25 @@ class GuidelinesSearchClient:
         use_semantic: bool = True
     ) -> list[dict]:
         """Hybrid search over clinical guidelines"""
-        
+
         # Generate query embedding
         query_vector = await self._get_embedding(query)
-        
+
         vector_query = VectorizedQuery(
             vector=query_vector,
             k_nearest_neighbors=top,
             fields="content_vector"
         )
-        
+
         # Build filter
         filters = []
         if specialty:
             filters.append(f"specialty eq '{specialty}'")
         if condition:
             filters.append(f"condition/any(c: c eq '{condition}')")
-        
+
         filter_str = " and ".join(filters) if filters else None
-        
+
         # Execute hybrid search
         results = await self.search_client.search(
             search_text=query,
@@ -421,7 +421,7 @@ class GuidelinesSearchClient:
             semantic_configuration_name="healthcare-semantic" if use_semantic else None,
             select=["id", "title", "content", "specialty", "condition", "source"]
         )
-        
+
         docs = []
         async for result in results:
             docs.append({
@@ -434,7 +434,7 @@ class GuidelinesSearchClient:
                 "score": result["@search.score"],
                 "reranker_score": result.get("@search.reranker_score")
             })
-        
+
         return docs
 ```
 
@@ -464,10 +464,10 @@ async def sync_coverage_policies():
             params={"limit": 1000, "modified_since": last_sync_date}
         )
         policies = response.json()["results"]
-    
+
     async with CosmosClient(...) as cosmos:
         container = cosmos.get_database_client("healthcare").get_container_client("coverage-policies")
-        
+
         for policy in policies:
             # Transform to our schema
             doc = {
@@ -484,7 +484,7 @@ async def sync_coverage_policies():
                 "covered_cpt_codes": policy.get("cpt_codes", []),
                 "last_updated": datetime.utcnow().isoformat()
             }
-            
+
             await container.upsert_item(doc)
 ```
 
@@ -501,16 +501,16 @@ import openai
 
 async def index_guidelines(documents: list[dict]):
     """Chunk, embed, and index clinical guideline documents"""
-    
+
     chunks = []
     for doc in documents:
         # Chunk document into ~500 token segments
         doc_chunks = chunk_document(doc["content"], chunk_size=500, overlap=50)
-        
+
         for i, chunk in enumerate(doc_chunks):
             # Generate embedding
             embedding = await get_embedding(chunk)
-            
+
             chunks.append({
                 "id": f"{doc['id']}_chunk_{i}",
                 "title": doc["title"],
@@ -523,7 +523,7 @@ async def index_guidelines(documents: list[dict]):
                 "effective_date": doc.get("effective_date"),
                 "chunk_id": i
             })
-    
+
     # Batch upload to search index
     async with SearchIndexingBufferedSender(
         endpoint=SEARCH_ENDPOINT,

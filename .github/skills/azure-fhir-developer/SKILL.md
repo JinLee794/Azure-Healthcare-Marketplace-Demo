@@ -226,7 +226,7 @@ class Patient(BaseModel):
     name: Optional[List[HumanName]] = None
     gender: Optional[str] = None
     birthDate: Optional[date] = None
-    
+
     model_config = {
         "populate_by_name": True,
         "json_schema_extra": {

@@ -78,10 +78,10 @@ Create `waypoints/protocol_complete.md` with:
 ```markdown
 # [Protocol Title]
 
-**Protocol Version:** 1.0 Draft  
-**Protocol Date:** [Date]  
-**Intervention:** [Intervention Name]  
-**Intervention Type:** [Device/Drug]  
+**Protocol Version:** 1.0 Draft
+**Protocol Date:** [Date]
+**Intervention:** [Intervention Name]
+**Intervention Type:** [Device/Drug]
 **Regulatory Pathway:** [IDE/IND]
 
 ---

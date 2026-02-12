@@ -1,0 +1,133 @@
+CONSULTATION NOTE
+
+DATE: 2024-12-05
+PATIENT: Jane Doe
+MRN: 1EG4-TE5-MK72
+DOB: 03/15/1965
+CONSULTING SERVICE: Pulmonology
+ATTENDING PHYSICIAN: Maria Martinez, MD
+
+REASON FOR CONSULTATION:
+Evaluation of suspicious pulmonary nodule for tissue diagnosis recommendation.
+
+HISTORY OF PRESENT ILLNESS:
+Ms. Doe is a 58-year-old female referred for evaluation of a 2.3 cm right lower
+lobe pulmonary nodule discovered incidentally on CT chest performed during
+pre-operative workup for elective hip replacement surgery.
+
+The patient denies any respiratory symptoms including cough, dyspnea, hemoptysis,
+or chest pain. She reports no constitutional symptoms such as weight loss,
+fatigue, or night sweats. She has not had any recent respiratory infections.
+
+PAST MEDICAL HISTORY:
+1. Osteoarthritis - right hip (scheduled for replacement)
+2. Hypertension - well controlled on lisinopril
+3. Hyperlipidemia - on atorvastatin
+4. GERD - on omeprazole
+
+SURGICAL HISTORY:
+1. Appendectomy (1985)
+2. Cesarean section x2 (1990, 1993)
+
+MEDICATIONS:
+1. Lisinopril 10 mg daily
+2. Atorvastatin 20 mg daily
+3. Omeprazole 20 mg daily
+4. Acetaminophen PRN for hip pain
+
+ALLERGIES: NKDA
+
+SOCIAL HISTORY:
+- Tobacco: Former smoker, quit 5 years ago. 20 pack-year history (1 pack/day
+  from age 18 to 53).
+- Alcohol: Occasional wine with dinner, 1-2 glasses per week.
+- Occupation: Retired school teacher.
+- Lives with husband. Two adult children.
+
+FAMILY HISTORY:
+- Father: Lung cancer, diagnosed at age 72, deceased at 74
+- Mother: Breast cancer, alive at 82
+- No siblings
+
+REVIEW OF SYSTEMS:
+Constitutional: No fever, chills, or weight loss
+Respiratory: No cough, dyspnea, wheezing, or hemoptysis
+Cardiovascular: No chest pain, palpitations, or edema
+Gastrointestinal: Stable GERD symptoms
+Musculoskeletal: Right hip pain (known osteoarthritis)
+
+PHYSICAL EXAMINATION:
+Vitals: BP 128/78, HR 72, RR 14, SpO2 98% on room air, Temp 98.2°F
+General: Well-appearing female in no acute distress
+HEENT: Normal
+Neck: No lymphadenopathy, no JVD
+Lungs: Clear to auscultation bilaterally, no wheezes or crackles
+Heart: Regular rate and rhythm, no murmurs
+Abdomen: Soft, non-tender, non-distended
+Extremities: No clubbing or cyanosis, mild decreased ROM right hip
+
+DIAGNOSTIC STUDIES REVIEWED:
+
+1. CT Chest (11/20/2024):
+   - 2.3 cm spiculated nodule, right lower lobe
+   - Lung-RADS 4B
+
+2. PET/CT (12/01/2024):
+   - SUVmax 4.2 in the right lower lobe nodule
+   - No mediastinal lymphadenopathy
+   - No distant metastases
+
+PULMONARY FUNCTION TESTS (12/03/2024):
+- FEV1: 2.4 L (92% predicted)
+- FVC: 3.1 L (96% predicted)
+- FEV1/FVC: 77%
+- DLCO: 85% predicted
+Comment: Normal spirometry, no significant obstructive or restrictive disease.
+
+ASSESSMENT AND PLAN:
+
+58-year-old former smoker with incidentally discovered 2.3 cm spiculated
+pulmonary nodule demonstrating hypermetabolic activity on PET scan.
+
+RISK ASSESSMENT:
+Using the Brock model and incorporating PET data:
+- Probability of malignancy: >90%
+- Risk factors: Spiculated margins, PET positivity (SUV 4.2), smoking history,
+  family history of lung cancer
+
+DIFFERENTIAL DIAGNOSIS:
+1. Primary lung malignancy (most likely - adenocarcinoma vs squamous cell)
+2. Metastatic disease (less likely given no known primary)
+3. Infectious/inflammatory (unlikely given PET characteristics)
+4. Granulomatous disease (unlikely)
+
+RECOMMENDATION:
+
+Given the HIGH PROBABILITY OF MALIGNANCY, I recommend CT-GUIDED PERCUTANEOUS
+LUNG BIOPSY for tissue diagnosis.
+
+Rationale for percutaneous approach vs. bronchoscopy:
+- Peripheral location in posterior basal segment
+- Size and location accessible to CT guidance
+- Higher diagnostic yield expected (>90% for peripheral lesions)
+
+PROCEDURE RISKS DISCUSSED:
+1. Pneumothorax (15-25%, most resolve without intervention)
+2. Bleeding/hemoptysis (<5%)
+3. Air embolism (rare)
+4. Infection (rare)
+5. Non-diagnostic sample requiring repeat procedure
+
+Patient understands risks and benefits. She wishes to proceed with biopsy
+before any further treatment planning.
+
+Referral placed to Interventional Radiology (Dr. Sarah Chen) for CT-guided
+percutaneous lung biopsy.
+
+Case to be presented at thoracic multidisciplinary tumor board pending
+pathology results.
+
+Electronically signed by:
+Maria Martinez, MD
+Pulmonary and Critical Care Medicine
+License #: CA-345678

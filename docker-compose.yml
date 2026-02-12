@@ -120,6 +120,25 @@ services:
     environment:
       - MCP_SERVER_NAME=clinical-trials
 
+  # --------------------------------------------------------------------------
+  cosmos-rag:
+    <<: *mcp-server-defaults
+    container_name: mcp-cosmos-rag
+    build:
+      context: ./src/mcp-servers
+      dockerfile: Dockerfile
+      args:
+        SERVER_NAME: cosmos-rag
+    ports:
+      - "7077:80"
+    environment:
+      - MCP_SERVER_NAME=cosmos-rag
+      - COSMOS_DB_ENDPOINT=${COSMOS_DB_ENDPOINT:-}
+      - COSMOS_DB_DATABASE=${COSMOS_DB_DATABASE:-healthcare-mcp}
+      - AZURE_AI_SERVICES_ENDPOINT=${AZURE_AI_SERVICES_ENDPOINT:-}
+      - EMBEDDING_DEPLOYMENT_NAME=${EMBEDDING_DEPLOYMENT_NAME:-text-embedding-3-large}
+      - EMBEDDING_DIMENSIONS=${EMBEDDING_DIMENSIONS:-3072}
+
 networks:
   mcp-network:
     driver: bridge

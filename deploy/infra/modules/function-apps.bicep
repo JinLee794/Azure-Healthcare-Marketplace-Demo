@@ -38,6 +38,12 @@ param tags object = {}
 @description('FHIR Server URL from Azure Health Data Services')
 param fhirServerUrl string = ''
 
+@description('Cosmos DB endpoint for RAG and audit trail operations')
+param cosmosDbEndpoint string = ''
+
+@description('Azure AI Services endpoint for embeddings')
+param aiServicesEndpoint string = ''
+
 // Get storage account reference
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: storageAccountName
@@ -86,6 +92,10 @@ var mcpServers = [
   {
     name: 'clinical-trials'
     displayName: 'Clinical Trials MCP Server'
+  }
+  {
+    name: 'cosmos-rag'
+    displayName: 'Cosmos DB RAG & Audit MCP Server'
   }
 ]
 
@@ -193,6 +203,26 @@ resource functionApps 'Microsoft.Web/sites@2023-12-01' = [for server in mcpServe
         {
           name: 'FHIR_SERVER_URL'
           value: fhirServerUrl
+        }
+        {
+          name: 'COSMOS_DB_ENDPOINT'
+          value: cosmosDbEndpoint
+        }
+        {
+          name: 'COSMOS_DB_DATABASE'
+          value: 'healthcare-mcp'
+        }
+        {
+          name: 'AZURE_AI_SERVICES_ENDPOINT'
+          value: aiServicesEndpoint
+        }
+        {
+          name: 'EMBEDDING_DEPLOYMENT_NAME'
+          value: 'text-embedding-3-large'
+        }
+        {
+          name: 'EMBEDDING_DIMENSIONS'
+          value: '3072'
         }
       ]
       cors: {

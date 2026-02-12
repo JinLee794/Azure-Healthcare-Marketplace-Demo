@@ -1,0 +1,60 @@
+# ============================================================================
+# Healthcare MCP Platform — Python Project Configuration
+# ============================================================================
+# This file provides shared Python tooling configuration for the entire repo.
+# Individual MCP servers and agents maintain their own requirements.txt files.
+
+[project]
+name = "healthcare-mcp"
+version = "0.1.0"
+description = "Azure-native healthcare marketplace with MCP servers, skills, and agent workflows"
+requires-python = ">=3.9"
+readme = "README.md"
+license = { text = "MIT" }
+
+# ── Ruff (linter + formatter) ───────────────────────────────────────────────
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+src = ["src", "scripts"]
+
+[tool.ruff.lint]
+select = [
+  "E",    # pycodestyle errors
+  "W",    # pycodestyle warnings
+  "F",    # pyflakes
+  "I",    # isort
+  "UP",   # pyupgrade
+  "B",    # flake8-bugbear
+  "SIM",  # flake8-simplify
+  "RUF",  # ruff-specific rules
+]
+ignore = [
+  "E501",   # line length handled by formatter
+  "B008",   # do not perform function call in argument defaults (common in FastAPI/Functions)
+  "RUF012", # mutable class variables (dataclass pattern)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agents", "shared"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ── Pytest ──────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests", "src"]
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+markers = [
+    "integration: MCP server integration tests (require running servers)",
+]
+
+# ── MyPy (optional type checking) ──────────────────────────────────────────
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

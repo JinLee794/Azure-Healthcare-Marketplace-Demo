@@ -1,6 +1,6 @@
 #!/bin/bash
 # postdeploy hook for azd
-# 
+#
 # This script:
 # 1. Generates .vscode/mcp.json from the parameterized template
 # 2. Uses azd environment outputs (Bicep outputs) to fill in URLs

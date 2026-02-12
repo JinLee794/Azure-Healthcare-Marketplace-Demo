@@ -117,19 +117,19 @@ Enter choice (a or b):
 
 **For Continuous Endpoints:**
 ```
-2. Expected Effect Size (mean difference between groups): 
-3. Expected Standard Deviation: 
-4. Alpha (Type I error rate, default 0.05): 
-5. Power (default 0.80): 
+2. Expected Effect Size (mean difference between groups):
+3. Expected Standard Deviation:
+4. Alpha (Type I error rate, default 0.05):
+5. Power (default 0.80):
 6. Expected Dropout Rate (default 0.15):
 ```
 
 **For Binary Endpoints:**
 ```
-2. Expected proportion in control group (p1): 
-3. Expected proportion in treatment group (p2): 
-4. Alpha (Type I error rate, default 0.05): 
-5. Power (default 0.80): 
+2. Expected proportion in control group (p1):
+3. Expected proportion in treatment group (p2):
+4. Alpha (Type I error rate, default 0.05):
+5. Power (default 0.80):
 6. Expected Dropout Rate (default 0.15):
 ```
 

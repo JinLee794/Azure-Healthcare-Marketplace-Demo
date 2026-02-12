@@ -89,13 +89,13 @@ def store_dicom(dicom_path: str, base_url: str, token: str) -> dict:
     """Store a DICOM file using STOW-RS."""
     with open(dicom_path, "rb") as f:
         dicom_data = f.read()
-    
+
     boundary = "myboundary"
     body = (
         f"--{boundary}\r\n"
         f"Content-Type: application/dicom\r\n\r\n"
     ).encode() + dicom_data + f"\r\n--{boundary}--".encode()
-    
+
     response = requests.post(
         f"{base_url}/v1/studies",
         headers={
@@ -105,7 +105,7 @@ def store_dicom(dicom_path: str, base_url: str, token: str) -> dict:
         },
         data=body
     )
-    
+
     return response.json()
 ```
 
@@ -198,12 +198,12 @@ def retrieve_study(study_uid: str, base_url: str, token: str) -> list:
         },
         stream=True
     )
-    
+
     # Parse multipart response
     instances = []
     content_type = response.headers.get("Content-Type")
     boundary = content_type.split("boundary=")[1].split(";")[0]
-    
+
     for part in response.content.split(f"--{boundary}".encode()):
         if b"application/dicom" in part:
             # Extract DICOM data
@@ -211,7 +211,7 @@ def retrieve_study(study_uid: str, base_url: str, token: str) -> list:
             if dicom_start > 4:
                 dcm = dcmread(BytesIO(part[dicom_start:]))
                 instances.append(dcm)
-    
+
     return instances
 ```
 
@@ -313,7 +313,7 @@ def search_studies(base_url: str, token: str, **params) -> list:
         },
         params=params
     )
-    
+
     return response.json()
 
 # Example usage
@@ -456,10 +456,10 @@ POST /v1/extendedquerytags/{tagPath}/reindex
 def batch_store(dicom_files: list, base_url: str, token: str, batch_size: int = 50):
     """Store multiple DICOM files in batches."""
     boundary = "batch_boundary"
-    
+
     for i in range(0, len(dicom_files), batch_size):
         batch = dicom_files[i:i + batch_size]
-        
+
         body_parts = []
         for filepath in batch:
             with open(filepath, "rb") as f:
@@ -467,9 +467,9 @@ def batch_store(dicom_files: list, base_url: str, token: str, batch_size: int = 
                     f"--{boundary}\r\nContent-Type: application/dicom\r\n\r\n".encode()
                     + f.read()
                 )
-        
+
         body = b"\r\n".join(body_parts) + f"\r\n--{boundary}--".encode()
-        
+
         response = requests.post(
             f"{base_url}/v1/studies",
             headers={
@@ -479,7 +479,7 @@ def batch_store(dicom_files: list, base_url: str, token: str, batch_size: int = 
             data=body,
             timeout=300
         )
-        
+
         if response.status_code != 200:
             print(f"Batch {i//batch_size} failed: {response.text}")
 ```
@@ -492,10 +492,10 @@ def parallel_retrieve(study_uids: list, base_url: str, token: str, max_workers: 
     """Retrieve multiple studies in parallel."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(retrieve_study, uid, base_url, token): uid 
+            executor.submit(retrieve_study, uid, base_url, token): uid
             for uid in study_uids
         }
-        
+
         results = {}
         for future in concurrent.futures.as_completed(futures):
             uid = futures[future]
@@ -503,7 +503,7 @@ def parallel_retrieve(study_uids: list, base_url: str, token: str, max_workers: 
                 results[uid] = future.result()
             except Exception as e:
                 results[uid] = {"error": str(e)}
-        
+
         return results
 ```
 

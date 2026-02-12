@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================================
 # test-apim-passthrough.sh
-# 
+#
 # Tests APIM → Function App backend connectivity using the lightweight
 # passthrough API (no OAuth). Uses APIM subscription key for auth.
 #
@@ -60,7 +60,7 @@ if [[ -z "$SUBSCRIPTION_KEY" ]]; then
         -n "$APIM_NAME" \
         --subscription-id "mcp-passthrough-sub" \
         --query "primaryKey" -o tsv 2>/dev/null || true)
-    
+
     if [[ -z "$SUBSCRIPTION_KEY" ]]; then
         # Try listing subscriptions to find it
         SUBSCRIPTION_KEY=$(az rest \
@@ -68,7 +68,7 @@ if [[ -z "$SUBSCRIPTION_KEY" ]]; then
             --url "https://management.azure.com/subscriptions/$(az account show --query id -o tsv)/resourceGroups/$RG/providers/Microsoft.ApiManagement/service/$APIM_NAME/subscriptions/mcp-passthrough-sub/listSecrets?api-version=2023-09-01-preview" \
             --query "primaryKey" -o tsv 2>/dev/null || true)
     fi
-    
+
     if [[ -z "$SUBSCRIPTION_KEY" ]]; then
         fail "Could not retrieve subscription key. Set APIM_SUBSCRIPTION_KEY env var."
         fail "Try: az rest --method post --url 'https://management.azure.com/subscriptions/{sub-id}/resourceGroups/$RG/providers/Microsoft.ApiManagement/service/$APIM_NAME/subscriptions/mcp-passthrough-sub/listSecrets?api-version=2023-09-01-preview'"
@@ -86,16 +86,16 @@ BASE_URL="$GATEWAY_URL/mcp-pt"
 test_health() {
     local server=$1
     log "Testing $server health check..."
-    
+
     local response
     response=$(curl -s -w "\n%{http_code}" \
         -H "Ocp-Apim-Subscription-Key: $SUBSCRIPTION_KEY" \
         "$BASE_URL/$server/health" 2>&1)
-    
+
     local body http_code
     http_code=$(echo "$response" | tail -1)
     body=$(echo "$response" | head -n -1)
-    
+
     if [[ "$http_code" == "200" ]]; then
         ok "$server health: $http_code - $body"
         return 0
@@ -109,16 +109,16 @@ test_health() {
 test_mcp_get() {
     local server=$1
     log "Testing $server GET /mcp..."
-    
+
     local response
     response=$(curl -s -w "\n%{http_code}" \
         -H "Ocp-Apim-Subscription-Key: $SUBSCRIPTION_KEY" \
         "$BASE_URL/$server/mcp" 2>&1)
-    
+
     local body http_code
     http_code=$(echo "$response" | tail -1)
     body=$(echo "$response" | head -n -1)
-    
+
     if [[ "$http_code" == "200" || "$http_code" == "405" ]]; then
         ok "$server GET /mcp: HTTP $http_code"
         echo "  Response: $(echo "$body" | head -c 200)"
@@ -133,7 +133,7 @@ test_mcp_get() {
 test_mcp_initialize() {
     local server=$1
     log "Testing $server POST /mcp (initialize)..."
-    
+
     local response
     response=$(curl -s -w "\n%{http_code}" \
         -X POST \
@@ -150,11 +150,11 @@ test_mcp_initialize() {
             }
         }' \
         "$BASE_URL/$server/mcp" 2>&1)
-    
+
     local body http_code
     http_code=$(echo "$response" | tail -1)
     body=$(echo "$response" | head -n -1)
-    
+
     if [[ "$http_code" == "200" ]]; then
         if echo "$body" | grep -q '"result"'; then
             ok "$server initialize: HTTP $http_code - SUCCESS"
@@ -175,7 +175,7 @@ test_mcp_initialize() {
 test_mcp_tools_list() {
     local server=$1
     log "Testing $server POST /mcp (tools/list)..."
-    
+
     local response
     response=$(curl -s -w "\n%{http_code}" \
         -X POST \
@@ -188,11 +188,11 @@ test_mcp_tools_list() {
             "params": {}
         }' \
         "$BASE_URL/$server/mcp" 2>&1)
-    
+
     local body http_code
     http_code=$(echo "$response" | tail -1)
     body=$(echo "$response" | head -n -1)
-    
+
     if [[ "$http_code" == "200" ]]; then
         local tool_count
         tool_count=$(echo "$body" | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('result',{}).get('tools',[])))" 2>/dev/null || echo "?")
@@ -212,34 +212,34 @@ test_mcp_tools_list() {
 run_server_tests() {
     local server=$1
     local pass=0 total=0
-    
+
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "  Testing: $server"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
+
     # Only NPI has a health endpoint exposed in passthrough
     if [[ "$server" == "npi" ]]; then
         total=$((total + 1))
         test_health "$server" && pass=$((pass + 1))
     fi
-    
+
     total=$((total + 1))
     test_mcp_get "$server" && pass=$((pass + 1))
-    
+
     total=$((total + 1))
     test_mcp_initialize "$server" && pass=$((pass + 1))
-    
+
     total=$((total + 1))
     test_mcp_tools_list "$server" && pass=$((pass + 1))
-    
+
     echo ""
     if [[ "$pass" == "$total" ]]; then
         ok "[$server] $pass/$total tests passed"
     else
         fail "[$server] $pass/$total tests passed"
     fi
-    
+
     return $((total - pass))
 }
 

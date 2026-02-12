@@ -36,6 +36,7 @@ declare -A SERVER_RESOURCE_VARS=(
   [fhir-operations]="SERVICE_FHIR_OPERATIONS_RESOURCE_NAME"
   [pubmed]="SERVICE_PUBMED_RESOURCE_NAME"
   [clinical-trials]="SERVICE_CLINICAL_TRIALS_RESOURCE_NAME"
+  [cosmos-rag]="SERVICE_COSMOS_RAG_RESOURCE_NAME"
 )
 
 # ---------------------------------------------------------------------------

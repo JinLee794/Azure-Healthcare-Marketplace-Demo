@@ -77,6 +77,7 @@ param apimPublisherName = 'Healthcare MCP Platform'
 param apimSku = 'StandardV2'                            // StandardV2 or Premium
 param vnetAddressPrefix = '192.168.0.0/16'
 param enablePublicAccess = false                        // true for dev
+param enableCosmosPublicAccess = true                   // local Cosmos access + private endpoint
 ```
 
 ### 2. Create Resource Group
@@ -159,6 +160,9 @@ After deployment, MCP servers are available at:
 | FHIR Operations | `{apimGatewayUrl}/mcp/fhir` |
 | PubMed | `{apimGatewayUrl}/mcp/pubmed` |
 | Clinical Trials | `{apimGatewayUrl}/mcp/clinical-trials` |
+| Azure OpenAI v1 | `{apimGatewayUrl}/ai/openai/v1` |
+
+For the Azure OpenAI v1 API, send the APIM subscription key in the `api-key` header.
 
 ## Testing the Deployment
 

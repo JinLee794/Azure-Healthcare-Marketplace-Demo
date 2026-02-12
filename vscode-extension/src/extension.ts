@@ -10,7 +10,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Initialize skill loader
   skillLoader = new HealthcareSkillLoader(context);
-  
+
   // Initialize chat handler
   chatHandler = new HealthcareChatHandler(skillLoader);
 
@@ -59,7 +59,7 @@ async function validateCurrentResource(): Promise<void> {
   try {
     const content = document.getText();
     const resource = JSON.parse(content);
-    
+
     if (!resource.resourceType) {
       vscode.window.showWarningMessage('Not a valid FHIR resource (missing resourceType)');
       return;
@@ -72,7 +72,7 @@ async function validateCurrentResource(): Promise<void> {
 
     // Simulated validation result
     const diagnostics: vscode.Diagnostic[] = [];
-    
+
     // Check for common issues
     if (resource.resourceType === 'Patient' && !resource.identifier) {
       diagnostics.push(
@@ -109,7 +109,7 @@ async function searchPatient(): Promise<void> {
   }
 
   vscode.window.showInformationMessage(`Searching for patient: ${name}...`);
-  
+
   // In production, would call MCP server
   // For now, show placeholder
   vscode.window.showInformationMessage(
@@ -128,7 +128,7 @@ async function checkCoverage(): Promise<void> {
   }
 
   vscode.window.showInformationMessage(`Checking coverage for CPT ${cptCode}...`);
-  
+
   // In production, would call MCP server
   vscode.window.showInformationMessage(
     'Coverage check requires MCP server connection. Configure in settings.'

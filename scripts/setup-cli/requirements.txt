@@ -1,0 +1,3 @@
+# Interactive Setup CLI dependencies
+# Uses only stdlib where possible; rich for pretty output
+rich>=13.0.0

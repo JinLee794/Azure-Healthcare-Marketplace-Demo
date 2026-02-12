@@ -1,0 +1,142 @@
+{
+  "beads": [
+    {"id": "bd-pa-001-intake", "status": "completed", "completed_at": "2026-02-12T00:00:00Z"},
+    {"id": "bd-pa-002-clinical", "status": "completed", "completed_at": "2026-02-12T00:01:00Z"},
+    {"id": "bd-pa-003-recommend", "status": "completed", "completed_at": "2026-02-12T00:02:00Z"},
+    {"id": "bd-pa-004-decision", "status": "not-started"},
+    {"id": "bd-pa-005-notify", "status": "not-started"}
+  ],
+  "request": {
+    "member": {
+      "patient_name": "Not provided (PA form blank)",
+      "patient_date_of_birth": "10/19/2014",
+      "patient_id": "MRN 123456",
+      "patient_address": "Not provided",
+      "patient_phone_number": "Not provided",
+      "patient_sex": "Female",
+      "patient_age": "10 years"
+    },
+    "provider": {
+      "physician_name": "Not provided (PA form blank)",
+      "specialty": "Not documented — GI on consult per notes",
+      "npi": "Not provided",
+      "physician_contact": {
+        "office_phone": "Not provided",
+        "fax": "Not provided",
+        "office_address": "Not provided"
+      },
+      "verification_status": "UNVERIFIED — NPI not available"
+    },
+    "service": {
+      "name_of_medication_or_procedure": "Adalimumab (Humira)",
+      "code_of_medication_or_procedure": "J0135 (HCPCS — adalimumab injection)",
+      "dosage": "Not specified in documentation",
+      "duration": "Not specified in documentation",
+      "rationale": "Initiation of biologic therapy for moderate-to-severe Crohn's disease refractory to corticosteroid therapy",
+      "urgency": "Not specified"
+    }
+  },
+  "clinical": {
+    "diagnosis": "Crohn's disease (IBD) — ileal and colonic involvement with strictures, cobblestoning, aphthous ulcers",
+    "icd_10_code": "K50.80 (inferred — Crohn's disease of both small and large intestine, without complications). Consider K50.811 (with rectal bleeding) given hematochezia.",
+    "prior_treatments_and_results": "Methylprednisolone 40mg daily — currently failing. Patient has ongoing hematochezia (x3 episodes overnight), abdominal cramping, and worsening anemia (Hgb 9.0) requiring pRBC transfusion.",
+    "specific_drugs_taken_and_failures": "Methylprednisolone 40mg daily — inadequate response (continued bloody stools, pain, anemia despite therapy)",
+    "alternative_drugs_required": "Per Cigna policy Section 2.A.ii: Patient must have tried or be currently taking corticosteroids, OR tried one other conventional systemic therapy. Patient meets criterion (a) — currently on corticosteroids.",
+    "relevant_lab_results_or_imaging": {
+      "cbc": "Hgb 9.0 (LOW), Hct 32% (LOW), RBC 3.5 (LOW), MCV 78 (LOW — microcytic), Platelets 450k (HIGH — reactive), WBC 12k (normal for age)",
+      "inflammatory_markers": "ESR 30 (HIGH, ref <20), CRP 25 (HIGH, ref <5), Fecal Calprotectin 150 (HIGH, ref <50), Fecal Occult Blood POSITIVE",
+      "iron_panel": "Ferritin 15 (low-normal), Iron 40 (LOW), TIBC 450 (HIGH) — iron deficiency pattern",
+      "cmp": "Within normal limits (glucose, BUN, creatinine, electrolytes, liver function all normal)",
+      "egd": "Gastritis with erythema, mild-to-moderate duodenitis with edema. Biopsies pending.",
+      "colonoscopy": "Ileum: patchy inflammation, erythema, ulceration, segmental strictures. Colon: diffuse inflammation, cobblestone appearance, multiple aphthous ulcers with skip areas, granularity and friability. Rectum: mild inflammation. Biopsies pending.",
+      "mri_enterography": "Pending"
+    },
+    "symptom_severity_and_impact": "Multiple episodes of abdominal cramping and hematochezia (x3 overnight), poor sleep, pallor, fatigue, dizziness, tachycardia (HR 110). Symptomatic anemia requiring transfusion.",
+    "prognosis_and_risk_if_not_approved": "Without biologic therapy, patient at risk for continued GI bleeding, worsening anemia requiring repeated transfusions, bowel stricture progression potentially requiring surgery, growth failure, and malnutrition in this pediatric patient.",
+    "clinical_rationale_for_urgency": "Patient is actively symptomatic with hemodynamically significant anemia (HR 110, Hgb 9.0) requiring transfusion. Steroid therapy is failing. Biologic initiation is time-sensitive to prevent disease progression and surgical intervention.",
+    "extraction_confidence": {
+      "patient_info": 40,
+      "physician_info": 20,
+      "clinical_info": 88,
+      "overall": 68,
+      "notes": "Patient and physician info severely limited by blank PA form. Clinical documentation from notes, labs, and imaging is comprehensive."
+    }
+  },
+  "policy": {
+    "policy_id": "Cigna-Adalimumab-Products-PA-Policy",
+    "policy_title": "Inflammatory Conditions – Adalimumab Products Prior Authorization Policy",
+    "policy_type": "Commercial payer (Cigna)",
+    "applicable_section": "Section 2: Crohn's Disease — Initial Therapy (2.A)",
+    "review_date": "03/27/2024; revised 09/11/2024",
+    "covered_indications": [
+      "Crohn's disease in patients ≥ 6 years of age",
+      "Patient has tried/is currently taking corticosteroids OR corticosteroids are contraindicated",
+      "OR patient has tried one other conventional systemic therapy (azathioprine, 6-MP, methotrexate)",
+      "OR patient has tried at least one other biologic",
+      "OR patient had ileocolonic resection",
+      "Prescribed by or in consultation with a gastroenterologist"
+    ],
+    "approval_duration": "6 months (initial therapy)"
+  },
+  "criteria_evaluation": [
+    {
+      "criterion": "2.A.i — Patient is ≥ 6 years of age",
+      "status": "MET",
+      "evidence": ["Patient DOB 10/19/2014, currently 10 years old per progress note header"],
+      "policy_reference": "Section 2.A.i",
+      "confidence": 95,
+      "notes": ""
+    },
+    {
+      "criterion": "2.A.ii — Patient meets ONE of (a, b, c, d): (a) has tried or is currently taking corticosteroids",
+      "status": "MET",
+      "evidence": [
+        "Currently on Methylprednisolone 40mg daily per progress note Plan section",
+        "Continued hematochezia, abdominal pain, and anemia despite steroid therapy — documented failure of current corticosteroid treatment"
+      ],
+      "policy_reference": "Section 2.A.ii(a)",
+      "confidence": 95,
+      "notes": "Patient clearly meets criterion (a) — currently taking corticosteroids with inadequate response"
+    },
+    {
+      "criterion": "2.A.iii — Medication prescribed by or in consultation with a gastroenterologist",
+      "status": "INSUFFICIENT",
+      "evidence": [
+        "Notes state: 'Gastroenterology on consult, appreciate recommendations'",
+        "PA form is blank — no prescribing physician specialty documented"
+      ],
+      "policy_reference": "Section 2.A.iii",
+      "confidence": 55,
+      "notes": "GI is involved as a consult, which should satisfy 'in consultation with a gastroenterologist.' However, the PA form lacks any prescribing physician identification. A formal GI recommendation for adalimumab initiation would strengthen this criterion."
+    }
+  ],
+  "recommendation": {
+    "decision": "PEND",
+    "rationale": "Clinical evidence strongly supports medical necessity for adalimumab in this 10-year-old with moderate-to-severe Crohn's disease failing corticosteroid therapy. However, the PA form is entirely blank (no provider info, no NPI, no patient demographics, no medication details). Provider verification cannot be completed. Overall confidence 53.8% falls below the 60% threshold required for approval.",
+    "confidence_scores": {
+      "provider_verification": 10,
+      "code_validation": 50,
+      "coverage_policy_match": 90,
+      "clinical_criteria": 78,
+      "documentation_quality": 30,
+      "overall": 53.8
+    },
+    "gaps": [
+      "PA form is completely blank — all required fields must be completed",
+      "Provider NPI required for verification",
+      "GI consult recommendation for adalimumab should be formally documented",
+      "ICD-10 code should be explicitly stated (suggest K50.80 or K50.811)",
+      "Medication name, strength, and dosing schedule not specified on PA form"
+    ],
+    "clinical_strength": "STRONG — Disease severity, steroid failure, objective lab/imaging findings, and guideline support all favor adalimumab initiation",
+    "literature_support": {
+      "pubmed_articles_found": 31,
+      "key_references": [
+        "PMID 32783974 — Biological therapy in pediatric age (2020)",
+        "PMID 22828183 — Use of biologic agents in pediatric IBD (2012)",
+        "ACG Guidelines — TNFi for steroid-resistant Crohn's disease (2018)",
+        "AGA Guidelines — TNFi for moderate-to-severe Crohn's disease (2021)"
+      ]
+    }
+  }
+}

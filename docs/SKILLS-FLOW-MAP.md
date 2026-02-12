@@ -1,50 +1,44 @@
 # Skills Flow Map
 
-This document visualizes how GitHub Copilot, the VS Code extension, MCP server configuration, and the `.github/skills` workflows work together in this repository.
+This document visualizes how GitHub Copilot, MCP server configuration, and the `.github/skills` workflows work together in this repository.
 
-## 1) System Flow (Two Runtime Paths)
+## 1) System Flow (Copilot + MCP)
 
 ```mermaid
 flowchart LR
-    U[Developer in VS Code] --> VSC[VS Code Chat Surface]
-
-    VSC --> EXT[Path A: healthcare extension chat participant]
-    EXT --> SL[HealthcareSkillLoader<br/>loads .github/skills]
-    SL --> LM[GitHub Copilot Agent]
-    LM --> R1[Response in chat]
-
-    VSC --> MCPMODE[Path B: Native MCP tool routing]
-    MCPMODE --> M[.vscode/mcp.json]
-    M --> L[Local MCP<br/>localhost:7071-7076]
-    M --> F[Function App MCP<br/>https://*.azurewebsites.net/mcp]
-    M --> A[APIM MCP<br/>https://*.azure-api.net/mcp*/...]
+    U["Developer in VS Code"] --> VSC["VS Code Chat Surface"]
+    VSC --> LM["GitHub Copilot Agent"]
+    LM --> SK[".github/skills/* context"]
+    LM --> M[".vscode/mcp.json"]
+    M --> L["Local MCP<br/>localhost:7071-7076"]
+    M --> F["Function App MCP<br/>https://*.azurewebsites.net/mcp"]
+    M --> A["APIM MCP<br/>https://*.azure-api.net/mcp*/..."]
     L --> X[src/mcp-servers/*]
     F --> X
     A --> X
-    X --> E[Healthcare data APIs]
+    X --> E["Healthcare data APIs"]
+    LM --> R1["Response in chat"]
 ```
 
-## 2) VS Code Extension Invocation Path (`@healthcare`)
+## 2) Copilot Skills Loading Path
 
 ```mermaid
 sequenceDiagram
     participant Dev as Developer
     participant VS as VS Code
-    participant Ext as azure-healthcare extension
-    participant Loader as HealthcareSkillLoader
-    participant LLM as VS Code LM API model
+    participant Repo as .github/skills
+    participant LLM as GitHub Copilot Agent
 
-    Dev->>VS: Ask @healthcare /pa or /fhir
-    VS->>Ext: Route to chat participant handler
-    Ext->>Loader: Load skill + references from .github/skills
-    Ext->>LLM: sendRequest(prompt + skill context)
-    LLM-->>Ext: Streamed model response
-    Ext-->>VS: Structured response
+    Dev->>VS: Ask a healthcare workflow question
+    VS->>LLM: Send prompt
+    LLM->>Repo: Read relevant skill + references
+    Repo-->>LLM: Skill context
+    LLM-->>VS: Streamed response
 ```
 
 Notes:
-- This path is implemented by `vscode-extension/src/extension.ts`, `vscode-extension/src/chat/chat-handler.ts`, and `vscode-extension/src/skills/skill-loader.ts`.
-- In the current implementation, the extension path injects skill context into model prompts and does not directly execute MCP tool calls.
+- No custom VS Code chat participant is required.
+- Skill routing is model-driven from repository context in `.github/skills`.
 
 ## 3) Native Copilot MCP Path (`mcp.json`)
 
@@ -231,6 +225,6 @@ flowchart LR
 
 1. Open `SKILL.md` for orchestration rules.
 2. Follow `references/*.md` in execution order.
-3. Use `assets/sample/*` for test runs.
+3. Use `data/sample_cases/prior_auth_baseline/*` for test runs.
 4. Validate MCP connectivity in `.vscode/mcp.json`.
 5. Run workflow and inspect `waypoints/*`.

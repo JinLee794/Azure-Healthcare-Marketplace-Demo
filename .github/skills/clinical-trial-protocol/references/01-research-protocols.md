@@ -16,7 +16,7 @@ Throughout this step, provide clear status updates to the user:
 ```
 📊 Research Progress
 ├── Similar Trials Search: [Searching.../Complete]
-├── FDA Guidance Search: [Searching.../Complete]  
+├── FDA Guidance Search: [Searching.../Complete]
 ├── Protocol Analysis: [In Progress/Complete]
 └── Summary Generation: [Pending/Complete]
 ```
