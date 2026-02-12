@@ -149,7 +149,7 @@ module vnet 'modules/vnet.bicep' = {
   }
 }
 
-// 2. Dependent Resources (Storage, AI Search, Cosmos DB, App Insights)
+// 2. Dependent Resources (Storage, Cosmos DB, App Insights)
 module dependentResources 'modules/dependent-resources.bicep' = {
   name: 'dependent-resources-deployment'
   params: {
@@ -183,7 +183,6 @@ module aiFoundry 'modules/ai-foundry.bicep' = {
     aiProjectName: '${baseName}-aiproject-${uniqueSuffix}'
     agentSubnetId: vnet.outputs.agentSubnetId
     storageAccountId: dependentResources.outputs.storageAccountId
-    aiSearchId: dependentResources.outputs.aiSearchId
     publicNetworkAccess: publicNetworkAccess
     modelDeployments: modelDeployments
     tags: tags
@@ -298,7 +297,6 @@ module privateEndpoints 'modules/private-endpoints.bicep' = {
     vnetId: vnet.outputs.vnetId
     peSubnetId: vnet.outputs.peSubnetId
     aiServicesId: aiFoundry.outputs.aiServicesId
-    aiSearchId: dependentResources.outputs.aiSearchId
     storageAccountId: dependentResources.outputs.storageAccountId
     cosmosDbId: dependentResources.outputs.cosmosDbId
     apimId: apim.outputs.apimId
@@ -318,17 +316,6 @@ resource aiServicesStorageRole 'Microsoft.Authorization/roleAssignments@2022-04-
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
-    principalId: aiFoundry.outputs.aiServicesPrincipalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-// Search Index Data Contributor for AI Services
-resource aiServicesSearchRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, '${baseName}-aiservices', 'search-index-contributor')
-  scope: resourceGroup()
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7') // Search Index Data Contributor
     principalId: aiFoundry.outputs.aiServicesPrincipalId
     principalType: 'ServicePrincipal'
   }
@@ -440,8 +427,6 @@ output ahdsWorkspaceName string = healthDataServices.outputs.workspaceName
 // Dependent Resources
 output storageAccountId string = dependentResources.outputs.storageAccountId
 output storageAccountName string = dependentResources.outputs.storageAccountName
-output aiSearchId string = dependentResources.outputs.aiSearchId
-output aiSearchName string = dependentResources.outputs.aiSearchName
 output cosmosDbId string = dependentResources.outputs.cosmosDbId
 output cosmosDbEndpoint string = dependentResources.outputs.cosmosDbEndpoint
 output appInsightsId string = dependentResources.outputs.appInsightsId

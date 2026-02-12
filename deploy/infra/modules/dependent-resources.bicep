@@ -10,21 +10,6 @@ param cosmosDbLocation string = location
 @description('Base name for resources')
 param baseName string
 
-@description('SKU for AI Search')
-@allowed([
-  'basic'
-  'standard'
-  'standard2'
-  'standard3'
-])
-param aiSearchSku string = 'standard'
-
-@description('Partition count for AI Search')
-param aiSearchPartitionCount int = 1
-
-@description('Replica count for AI Search')
-param aiSearchReplicaCount int = 1
-
 @description('Enable public network access')
 param publicNetworkAccess string = 'Disabled'
 
@@ -87,32 +72,6 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
 
 // Unique suffix for globally unique resource names
 var uniqueSuffix = uniqueString(resourceGroup().id)
-
-// AI Search - name must be globally unique
-resource aiSearch 'Microsoft.Search/searchServices@2024-06-01-preview' = {
-  name: '${baseName}-search-${uniqueSuffix}'
-  location: location
-  tags: tags
-  sku: {
-    name: aiSearchSku
-  }
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    replicaCount: aiSearchReplicaCount
-    partitionCount: aiSearchPartitionCount
-    hostingMode: 'default'
-    publicNetworkAccess: publicNetworkAccess
-    networkRuleSet: {
-      ipRules: []
-    }
-    encryptionWithCmk: {
-      enforcement: 'Unspecified'
-    }
-    semanticSearch: 'standard'
-  }
-}
 
 // Cosmos DB Account - name must be globally unique
 // Note: cosmosDbLocation allows deploying to a different region if primary has capacity issues
@@ -405,10 +364,6 @@ resource appInsightsDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-0
 
 output storageAccountId string = storageAccount.id
 output storageAccountName string = storageAccount.name
-output aiSearchId string = aiSearch.id
-output aiSearchName string = aiSearch.name
-output aiSearchEndpoint string = 'https://${aiSearch.name}.search.windows.net'
-output aiSearchPrincipalId string = aiSearch.identity.principalId
 output cosmosDbId string = cosmosDb.id
 output cosmosDbName string = cosmosDb.name
 output cosmosDbEndpoint string = cosmosDb.properties.documentEndpoint
