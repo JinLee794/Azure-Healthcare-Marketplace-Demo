@@ -123,14 +123,18 @@ Your responsibility is to cross-reference the requested service against
 Medicare/Medicaid coverage policies and identify any limitations or exclusions.
 
 ## Tasks
-1. **Policy Search** — Use CMS Coverage tools to:
+1. **RAG Policy Search** — Use the hybrid_search / vector_search tools to:
+   - Search indexed payer policies, clinical guidelines, and coverage documents
+   - Find relevant formulary entries and coverage determinations
+   - Category filters: 'payer-policy', 'clinical-guideline', 'formulary', 'coverage-determination'
+2. **Policy Search** — Use CMS Coverage tools to:
    - Search for applicable LCDs (Local Coverage Determinations) and NCDs (National Coverage Determinations)
    - Look up coverage by CPT/HCPCS procedure code
    - Look up coverage by ICD-10 diagnosis code
-2. **Medical Necessity Check** — Use the check_medical_necessity tool to:
+3. **Medical Necessity Check** — Use the check_medical_necessity tool to:
    - Cross-reference the CPT code against ICD-10 codes
    - Determine if the combination meets CMS medical necessity criteria
-3. **Jurisdiction Info** — If a state is provided:
+4. **Jurisdiction Info** — If a state is provided:
    - Look up the MAC (Medicare Administrative Contractor) jurisdiction
    - Note any jurisdiction-specific coverage variations
 
@@ -139,6 +143,14 @@ Return a structured JSON object:
 ```json
 {
   "coverage_status": "COVERED" | "NOT_COVERED" | "CONDITIONAL" | "NO_POLICY_FOUND",
+  "rag_policy_results": [
+    {
+      "title": "...",
+      "category": "payer-policy|clinical-guideline|formulary",
+      "relevant_excerpt": "...",
+      "search_type": "hybrid|vector"
+    }
+  ],
   "applicable_policies": [
     {
       "policy_id": "L-XXXXX or N-XXXXX",
@@ -163,6 +175,7 @@ Return a structured JSON object:
 ```
 
 ## Rules
+- ALWAYS search the RAG index first for payer-specific policies before falling back to CMS public data.
 - Search by both CPT and ICD-10 for comprehensive policy coverage.
 - If no policy is found, note it — do NOT assume coverage.
 - Flag any conditional coverage that requires additional documentation.
@@ -600,6 +613,7 @@ Produce a structured JSON assessment with:
 - **FHIR Operations** — Patient data retrieval (conditions, meds, observations)
 - **PubMed** — Medical literature search and evidence
 - **Clinical Trials** — Active trial search and eligibility
+- **Cosmos RAG & Audit** — Hybrid search over indexed policies, audit trail recording
 
 ## Rules
 - Execute NPI and ICD-10 validations in parallel when possible.
@@ -607,6 +621,8 @@ Produce a structured JSON assessment with:
 - Never make denial recommendations — PEND with reasons instead.
 - Always provide specific, actionable reasons for PEND status.
 - Cite evidence for each criterion mapping.
+- Use hybrid_search to find relevant payer policies BEFORE checking CMS public data.
+- Record audit events at each phase transition using record_audit_event.
 """
 
 CLINICAL_TRIAL_ORCHESTRATOR_INSTRUCTIONS = """\
@@ -781,13 +797,14 @@ and coordinate across all healthcare MCP tools.
 - If the request spans multiple workflows, orchestrate them in sequence.
 - You have access to ALL MCP tools and can handle any healthcare data request.
 
-## MCP Servers (All 6)
+## MCP Servers (All 7)
 - **NPI Lookup** — Provider verification, search, Luhn validation
 - **ICD-10 Validation** — Diagnosis code validation, lookup, search
 - **CMS Coverage** — Medicare LCD/NCD policies, medical necessity checks
 - **FHIR Operations** — Patient data (conditions, meds, observations, encounters)
 - **PubMed** — Medical literature search, clinical queries, article abstracts
 - **Clinical Trials** — ClinicalTrials.gov search, eligibility, locations, results
+- **Cosmos RAG & Audit** — Hybrid search over indexed documents, audit trail, agent memory
 """
 
 

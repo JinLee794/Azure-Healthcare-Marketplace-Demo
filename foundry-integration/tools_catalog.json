@@ -153,6 +153,86 @@
         "auditLogging": true
       },
       "tags": ["healthcare", "coverage", "prior-auth", "insurance"]
+    },
+    {
+      "id": "healthcare.cosmos-rag-audit",
+      "name": "Cosmos DB RAG & Audit Tools",
+      "description": "Tools for hybrid search over healthcare documents (payer policies, clinical guidelines), audit trail recording, and agent memory via Azure Cosmos DB",
+      "version": "1.0.0",
+      "publisher": "Healthcare IT",
+      "category": "Healthcare",
+      "type": "mcp",
+      "server": {
+        "url": "${COSMOS_RAG_MCP_URL}",
+        "transport": "streamable-http",
+        "authentication": {
+          "type": "azure_ad",
+          "audience": "api://healthcare-mcp-server"
+        }
+      },
+      "capabilities": [
+        {
+          "name": "hybrid_search",
+          "description": "Search indexed documents using hybrid retrieval (vector + BM25 full-text) with RRF fusion. Best for finding relevant clinical guidelines, payer policies, and coverage information.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": { "type": "string", "description": "Natural language search query" },
+              "category": { "type": "string", "description": "Optional category filter (payer-policy, clinical-guideline, formulary, coverage-determination)" },
+              "top_k": { "type": "integer", "default": 5, "minimum": 1, "maximum": 20 }
+            },
+            "required": ["query"]
+          }
+        },
+        {
+          "name": "index_document",
+          "description": "Index a document for RAG retrieval. Chunks content, generates embeddings, and stores in Cosmos DB with full-text and vector indexes.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string", "description": "Document title" },
+              "content": { "type": "string", "description": "Full document text content" },
+              "category": { "type": "string", "description": "Document category (payer-policy, clinical-guideline, formulary)" },
+              "metadata": { "type": "object", "description": "Optional metadata" }
+            },
+            "required": ["title", "content", "category"]
+          }
+        },
+        {
+          "name": "record_audit_event",
+          "description": "Record an immutable audit event for a healthcare workflow. Used at each decision point for compliance tracking.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "workflow_id": { "type": "string", "description": "Unique workflow/session identifier" },
+              "workflow_type": { "type": "string", "description": "Type of workflow (prior-auth, clinical-trial, etc.)" },
+              "phase": { "type": "string", "description": "Workflow phase" },
+              "agent_name": { "type": "string", "description": "Name of the agent performing the action" },
+              "action": { "type": "string", "description": "Action performed" },
+              "status": { "type": "string", "enum": ["success", "failure", "warning", "pending"] }
+            },
+            "required": ["workflow_id", "workflow_type", "phase", "agent_name", "action", "status"]
+          }
+        },
+        {
+          "name": "get_audit_trail",
+          "description": "Retrieve the audit trail for a specific workflow, ordered by timestamp.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "workflow_id": { "type": "string", "description": "Workflow/session identifier" },
+              "limit": { "type": "integer", "default": 50 }
+            },
+            "required": ["workflow_id"]
+          }
+        }
+      ],
+      "compliance": {
+        "hipaa": true,
+        "dataResidency": ["US"],
+        "auditLogging": true
+      },
+      "tags": ["healthcare", "rag", "search", "audit", "cosmos-db", "vector-search"]
     }
   ]
 }

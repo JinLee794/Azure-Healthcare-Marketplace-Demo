@@ -220,6 +220,8 @@ module functionApps 'modules/function-apps.bicep' = {
     logAnalyticsId: dependentResources.outputs.logAnalyticsId
     fhirServerUrl: healthDataServices.outputs.fhirServerUrl
     acrLoginServer: containerRegistry.outputs.registryLoginServer
+    cosmosDbEndpoint: dependentResources.outputs.cosmosDbEndpoint
+    aiServicesEndpoint: aiFoundry.outputs.aiServicesEndpoint
     tags: tags
   }
 }
@@ -345,7 +347,7 @@ resource apimOpenAIRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 
 // FHIR Data Contributor for Function Apps (allows MCP servers to access FHIR data)
 // Index 3 = fhir-operations server; assigning to all for flexibility
-var mcpServerCount = 6 // Must match mcpServers array length in function-apps.bicep
+var mcpServerCount = 7 // Must match mcpServers array length in function-apps.bicep
 
 resource containerRegistryResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
   name: containerRegistryName
@@ -367,6 +369,20 @@ resource acrPullRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [fo
   scope: containerRegistryResource
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d') // AcrPull
+    principalId: functionApps.outputs.functionAppPrincipalIds[i]
+    principalType: 'ServicePrincipal'
+  }
+}]
+
+// Cosmos DB Built-in Data Contributor for Function Apps (allows MCP servers to read/write Cosmos DB)
+// Role ID: 00000000-0000-0000-0000-000000000002 is the Cosmos DB Built-in Data Contributor
+// We use the ARM role 'DocumentDB Account Contributor' (5bd9cd88-fe45-4216-938b-f97437e15450) at RG scope
+// and additionally the Cosmos DB data-plane RBAC via SQL Role Assignment
+resource cosmosDbDataContributorRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for i in range(0, mcpServerCount): {
+  name: guid(resourceGroup().id, 'func-${i}', 'cosmos-data-contributor')
+  scope: resourceGroup()
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5bd9cd88-fe45-4216-938b-f97437e15450') // DocumentDB Account Contributor
     principalId: functionApps.outputs.functionAppPrincipalIds[i]
     principalType: 'ServicePrincipal'
   }
@@ -459,3 +475,4 @@ output SERVICE_CMS_COVERAGE_RESOURCE_NAME string = functionApps.outputs.function
 output SERVICE_FHIR_OPERATIONS_RESOURCE_NAME string = functionApps.outputs.functionAppNames[3]
 output SERVICE_PUBMED_RESOURCE_NAME string = functionApps.outputs.functionAppNames[4]
 output SERVICE_CLINICAL_TRIALS_RESOURCE_NAME string = functionApps.outputs.functionAppNames[5]
+output SERVICE_COSMOS_RAG_RESOURCE_NAME string = functionApps.outputs.functionAppNames[6]

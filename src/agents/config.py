@@ -25,6 +25,7 @@ LOCAL_PORTS = {
     "fhir": 7074,
     "pubmed": 7075,
     "clinical-trials": 7076,
+    "cosmos-rag": 7077,
 }
 
 
@@ -37,6 +38,7 @@ class MCPEndpoints:
     fhir: str
     pubmed: str
     clinical_trials: str
+    cosmos_rag: str
 
     @classmethod
     def from_env(cls, local: bool = False) -> "MCPEndpoints":
@@ -49,6 +51,7 @@ class MCPEndpoints:
                 fhir=os.getenv("MCP_FHIR_URL", f"http://localhost:{LOCAL_PORTS['fhir']}/mcp"),
                 pubmed=os.getenv("MCP_PUBMED_URL", f"http://localhost:{LOCAL_PORTS['pubmed']}/mcp"),
                 clinical_trials=os.getenv("MCP_CLINICAL_TRIALS_URL", f"http://localhost:{LOCAL_PORTS['clinical-trials']}/mcp"),
+                cosmos_rag=os.getenv("MCP_COSMOS_RAG_URL", f"http://localhost:{LOCAL_PORTS['cosmos-rag']}/mcp"),
             )
 
         base = os.getenv("APIM_BASE_URL", DEFAULT_APIM_BASE_URL).rstrip("/")
@@ -59,6 +62,7 @@ class MCPEndpoints:
             fhir=os.getenv("MCP_FHIR_URL", f"{base}/fhir/mcp"),
             pubmed=os.getenv("MCP_PUBMED_URL", f"{base}/pubmed/mcp"),
             clinical_trials=os.getenv("MCP_CLINICAL_TRIALS_URL", f"{base}/clinical-trials/mcp"),
+            cosmos_rag=os.getenv("MCP_COSMOS_RAG_URL", f"{base}/cosmos-rag/mcp"),
         )
 
 

@@ -71,6 +71,13 @@ var mcpServers = [
     funcHostName: '${functionAppBaseName}-clinical-trials-func.azurewebsites.net'
     keyName: 'clinical-trials-pt-key'
   }
+  {
+    name: 'cosmos-rag'
+    backendName: 'cosmos-rag-pt'
+    funcName: '${functionAppBaseName}-cosmos-rag-func'
+    funcHostName: '${functionAppBaseName}-cosmos-rag-func.azurewebsites.net'
+    keyName: 'cosmos-rag-pt-key'
+  }
 ]
 
 // ============================================================================
@@ -645,6 +652,90 @@ resource clinicalTrialsGetPolicy 'Microsoft.ApiManagement/service/apis/operation
       <set-status code="502" reason="Backend Error" />
       <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
       <set-body>@(new JObject(new JProperty("error","clinical-trials-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
+    </return-response>
+  </on-error>
+</policies>
+'''
+  }
+  dependsOn: [backends, functionKeys]
+}
+
+// ----- Cosmos RAG -----
+resource cosmosRagPostOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: passthroughApi
+  name: 'cosmos-rag-post'
+  properties: {
+    displayName: 'Cosmos RAG - POST /mcp'
+    method: 'POST'
+    urlTemplate: '/cosmos-rag/mcp'
+    description: 'MCP message endpoint for Cosmos RAG & Audit server'
+  }
+}
+
+resource cosmosRagPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: cosmosRagPostOp
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: '''
+<policies>
+  <inbound>
+    <base />
+    <set-backend-service backend-id="cosmos-rag-pt" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{cosmos-rag-pt-key}}</value></set-header>
+    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
+    <trace source="mcp-passthrough-cosmos-rag" severity="information">
+      <message>@($"Cosmos RAG POST → backend: {context.Request.Url}")</message>
+    </trace>
+  </inbound>
+  <backend><base /></backend>
+  <outbound><base /></outbound>
+  <on-error>
+    <base />
+    <return-response>
+      <set-status code="502" reason="Backend Error" />
+      <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
+      <set-body>@(new JObject(new JProperty("error","cosmos-rag-backend-failure"),new JProperty("detail",context.LastError?.Message),new JProperty("source",context.LastError?.Source),new JProperty("reason",context.LastError?.Reason)).ToString())</set-body>
+    </return-response>
+  </on-error>
+</policies>
+'''
+  }
+  dependsOn: [backends, functionKeys]
+}
+
+resource cosmosRagGetOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: passthroughApi
+  name: 'cosmos-rag-get'
+  properties: {
+    displayName: 'Cosmos RAG - GET /mcp'
+    method: 'GET'
+    urlTemplate: '/cosmos-rag/mcp'
+    description: 'MCP info endpoint for Cosmos RAG & Audit server'
+  }
+}
+
+resource cosmosRagGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: cosmosRagGetOp
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: '''
+<policies>
+  <inbound>
+    <base />
+    <set-backend-service backend-id="cosmos-rag-pt" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{cosmos-rag-pt-key}}</value></set-header>
+    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
+  </inbound>
+  <backend><base /></backend>
+  <outbound><base /></outbound>
+  <on-error>
+    <base />
+    <return-response>
+      <set-status code="502" reason="Backend Error" />
+      <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
+      <set-body>@(new JObject(new JProperty("error","cosmos-rag-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
     </return-response>
   </on-error>
 </policies>

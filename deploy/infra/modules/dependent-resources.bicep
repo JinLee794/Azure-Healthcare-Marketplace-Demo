@@ -147,6 +147,12 @@ resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
       {
         name: 'EnableServerless'
       }
+      {
+        name: 'EnableNoSQLVectorSearch'
+      }
+      {
+        name: 'EnableNoSQLFullTextSearch'
+      }
     ]
     enableAutomaticFailover: false
     enableMultipleWriteLocations: false
@@ -187,6 +193,166 @@ resource mcpSessionContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases
         ]
       }
       defaultTtl: 86400 // 24 hours
+    }
+  }
+}
+
+// Container for RAG document corpus — clinical guidelines, payer policies, formularies
+// Supports hybrid search via vector (DiskANN) + full-text (BM25) with RRF fusion
+resource documentsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+  parent: cosmosDatabase
+  name: 'documents'
+  properties: {
+    resource: {
+      id: 'documents'
+      partitionKey: {
+        paths: [
+          '/category'
+        ]
+        kind: 'Hash'
+      }
+      indexingPolicy: {
+        automatic: true
+        indexingMode: 'consistent'
+        includedPaths: [
+          {
+            path: '/*'
+          }
+        ]
+        excludedPaths: [
+          {
+            path: '/embedding/*'
+          }
+        ]
+        fullTextIndexes: [
+          {
+            path: '/content'
+          }
+        ]
+        vectorIndexes: [
+          {
+            path: '/embedding'
+            type: 'diskANN'
+          }
+        ]
+      }
+      vectorEmbeddingPolicy: {
+        vectorEmbeddings: [
+          {
+            path: '/embedding'
+            dataType: 'float32'
+            dimensions: 3072
+            distanceFunction: 'cosine'
+          }
+        ]
+      }
+      fullTextPolicy: {
+        defaultLanguage: 'en-US'
+        fullTextPaths: [
+          {
+            path: '/content'
+            language: 'en-US'
+          }
+        ]
+      }
+    }
+  }
+}
+
+// Container for audit trail — immutable log of all agent actions and decisions
+// No TTL — compliance requirement for healthcare auditability
+resource auditTrailContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+  parent: cosmosDatabase
+  name: 'audit-trail'
+  properties: {
+    resource: {
+      id: 'audit-trail'
+      partitionKey: {
+        paths: [
+          '/workflowId'
+        ]
+        kind: 'Hash'
+      }
+      indexingPolicy: {
+        automatic: true
+        indexingMode: 'consistent'
+        includedPaths: [
+          {
+            path: '/*'
+          }
+        ]
+        compositeIndexes: [
+          [
+            {
+              path: '/workflowId'
+              order: 'ascending'
+            }
+            {
+              path: '/timestamp'
+              order: 'ascending'
+            }
+          ]
+          [
+            {
+              path: '/workflowType'
+              order: 'ascending'
+            }
+            {
+              path: '/timestamp'
+              order: 'descending'
+            }
+          ]
+        ]
+      }
+    }
+  }
+}
+
+// Container for agent memory — short-term session context + long-term accumulated knowledge
+// Supports semantic search over past cases via vector index
+resource agentMemoryContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+  parent: cosmosDatabase
+  name: 'agent-memory'
+  properties: {
+    resource: {
+      id: 'agent-memory'
+      partitionKey: {
+        paths: [
+          '/agentId'
+        ]
+        kind: 'Hash'
+      }
+      indexingPolicy: {
+        automatic: true
+        indexingMode: 'consistent'
+        includedPaths: [
+          {
+            path: '/*'
+          }
+        ]
+        excludedPaths: [
+          {
+            path: '/embedding/*'
+          }
+        ]
+        vectorIndexes: [
+          {
+            path: '/embedding'
+            type: 'diskANN'
+          }
+        ]
+      }
+      vectorEmbeddingPolicy: {
+        vectorEmbeddings: [
+          {
+            path: '/embedding'
+            dataType: 'float32'
+            dimensions: 3072
+            distanceFunction: 'cosine'
+          }
+        ]
+      }
+      defaultTtl: -1 // No expiry by default; individual items can set TTL
     }
   }
 }

@@ -2,12 +2,14 @@
 Prior Authorization Workflow — Hybrid Sequential / Concurrent / Synthesis
 
 Orchestration pattern (matches the article's architecture):
+  Phase 0 (RAG):         Retrieve relevant payer policies via hybrid search
   Phase 1 (Sequential):  Compliance Agent validates completeness (gate)
   Phase 2 (Concurrent):  Clinical Reviewer + Coverage Agent run in parallel
   Phase 3 (Synthesis):   Synthesis Agent aggregates into APPROVE/PEND recommendation
 
 Uses Microsoft Agent Framework's SequentialBuilder and ConcurrentBuilder
-composed into a custom hybrid workflow.
+composed into a custom hybrid workflow.  Audit events are recorded at each
+phase boundary into the Cosmos DB audit-trail container.
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -62,6 +65,9 @@ async def run_prior_auth_workflow(
     output_path = Path(output_dir or "waypoints")
     output_path.mkdir(parents=True, exist_ok=True)
 
+    # Unique workflow ID for audit trail
+    workflow_id = str(uuid.uuid4())
+
     # Build the LLM client
     credential = DefaultAzureCredential() if not local else AzureCliCredential()
     client = AzureOpenAIResponsesClient(
@@ -76,9 +82,97 @@ async def run_prior_auth_workflow(
 
     request_json = json.dumps(request_data, indent=2)
 
-    logger.info("=== Prior Authorization Workflow Started ===")
+    logger.info("=== Prior Authorization Workflow Started (id=%s) ===", workflow_id)
 
     async with toolkit:
+        # Helper: record an audit event via the cosmos-rag MCP server
+        audit_tool = toolkit.audit_tools()[0]
+
+        async def _audit(
+            phase: str,
+            action: str,
+            status: str,
+            *,
+            input_summary: str = "",
+            output_summary: str = "",
+            details: dict | None = None,
+            agent_name: str = "workflow",
+        ) -> None:
+            """Fire-and-forget audit event recording."""
+            try:
+                async with audit_tool:
+                    from agent_framework import MCPStreamableHTTPTool
+                    # Build a tools/call JSON-RPC message manually
+                    import httpx
+                    payload = {
+                        "jsonrpc": "2.0",
+                        "id": str(uuid.uuid4()),
+                        "method": "tools/call",
+                        "params": {
+                            "name": "record_audit_event",
+                            "arguments": {
+                                "workflow_id": workflow_id,
+                                "workflow_type": "prior-auth",
+                                "phase": phase,
+                                "agent_name": agent_name,
+                                "action": action,
+                                "status": status,
+                                "input_summary": input_summary,
+                                "output_summary": output_summary,
+                                "details": details or {},
+                            },
+                        },
+                    }
+                    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as hc:
+                        resp = await hc.post(audit_tool.url, json=payload)
+                        resp.raise_for_status()
+            except Exception:
+                logger.warning("Failed to record audit event (phase=%s)", phase, exc_info=True)
+
+        # ------------------------------------------------------------------
+        # Phase 0: RAG Policy Retrieval (enrich context with indexed docs)
+        # ------------------------------------------------------------------
+        logger.info("Phase 0: RAG policy retrieval")
+        rag_context = ""
+        try:
+            # Extract CPT/ICD-10 codes for targeted search
+            cpt_codes = request_data.get("service", {}).get("cpt_codes", [])
+            icd_codes = request_data.get("diagnosis", {}).get("icd10_codes", [])
+            service_desc = request_data.get("service", {}).get("description", "")
+
+            search_query = f"{service_desc} {' '.join(cpt_codes)} {' '.join(icd_codes)}"
+            if search_query.strip():
+                rag_tool = toolkit.rag_search_tools()[0]
+                async with rag_tool:
+                    import httpx
+                    payload = {
+                        "jsonrpc": "2.0",
+                        "id": str(uuid.uuid4()),
+                        "method": "tools/call",
+                        "params": {
+                            "name": "hybrid_search",
+                            "arguments": {
+                                "query": search_query.strip(),
+                                "category": "payer-policy",
+                                "top_k": 5,
+                            },
+                        },
+                    }
+                    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as hc:
+                        resp = await hc.post(rag_tool.url, json=payload)
+                        if resp.status_code == 200:
+                            rpc_result = resp.json()
+                            content = rpc_result.get("result", {}).get("content", [])
+                            if content:
+                                rag_context = content[0].get("text", "")
+                                logger.info("Phase 0: Retrieved %d chars of RAG context", len(rag_context))
+        except Exception:
+            logger.warning("Phase 0: RAG retrieval failed — continuing without RAG context", exc_info=True)
+
+        await _audit("rag-retrieval", "hybrid_search", "success" if rag_context else "warning",
+                      input_summary=f"query={search_query.strip()[:200] if 'search_query' in dir() else 'N/A'}",
+                      output_summary=f"Retrieved {len(rag_context)} chars of policy context")
+
         # ------------------------------------------------------------------
         # Phase 1: Compliance Check (Sequential gate)
         # ------------------------------------------------------------------
@@ -103,6 +197,14 @@ async def run_prior_auth_workflow(
 
         # Parse compliance result to check gate
         can_proceed = _check_compliance_gate(compliance_text)
+
+        await _audit(
+            "compliance-gate", "compliance_check",
+            "success" if can_proceed else "failure",
+            agent_name="ComplianceAgent",
+            input_summary=f"PA request with {len(request_data.get('diagnosis', {}).get('icd10_codes', []))} ICD-10 codes",
+            output_summary=f"can_proceed={can_proceed}",
+        )
 
         if not can_proceed:
             logger.info("Compliance gate FAILED — returning PEND recommendation")
@@ -137,12 +239,18 @@ async def run_prior_auth_workflow(
             f"Compliance Results:\n{compliance_text}"
         )
 
+        rag_section = ""
+        if rag_context:
+            rag_section = f"\n\n## Indexed Payer Policy Context (from RAG)\n{rag_context}"
+
         coverage_prompt = (
             f"Check coverage policies for this prior authorization request.\n"
             f"Search for applicable LCDs/NCDs, check medical necessity for the "
-            f"CPT/ICD-10 code combination.\n\n"
+            f"CPT/ICD-10 code combination. Also use hybrid_search to find relevant "
+            f"indexed payer policies.\n\n"
             f"PA Request:\n```json\n{request_json}\n```\n\n"
             f"Compliance Results:\n{compliance_text}"
+            f"{rag_section}"
         )
 
         # Run both agents concurrently
@@ -157,6 +265,7 @@ async def run_prior_auth_workflow(
             f"and compliance results. Perform YOUR specific role as described in your instructions.\n\n"
             f"PA Request:\n```json\n{request_json}\n```\n\n"
             f"Compliance Results:\n{compliance_text}"
+            f"{rag_section}"
         )
 
         async with clinical_agent, coverage_agent:
@@ -164,6 +273,14 @@ async def run_prior_auth_workflow(
 
         concurrent_text = str(concurrent_results)
         logger.info("Phase 2 complete: %d chars output", len(concurrent_text))
+
+        await _audit(
+            "clinical-and-coverage", "concurrent_review",
+            "success",
+            agent_name="ClinicalReviewer+CoverageAgent",
+            input_summary="Compliance passed; ran clinical review and coverage check concurrently",
+            output_summary=f"Phase 2 produced {len(concurrent_text)} chars",
+        )
 
         # ------------------------------------------------------------------
         # Phase 3: Synthesis (aggregate into recommendation)
@@ -185,16 +302,29 @@ async def run_prior_auth_workflow(
         synthesis_text = str(synthesis_result)
         logger.info("Phase 3 complete: recommendation generated")
 
+        # Determine recommendation for audit
+        rec = "PEND"
+        if "approve" in synthesis_text.lower():
+            rec = "APPROVE"
+        await _audit(
+            "synthesis", "recommendation_rendered",
+            "success",
+            agent_name="SynthesisAgent",
+            output_summary=f"recommendation={rec}",
+        )
+
         # ------------------------------------------------------------------
         # Build and persist the assessment
         # ------------------------------------------------------------------
         assessment = {
             "workflow": "prior_authorization",
-            "version": "1.0",
+            "version": "1.1",
+            "workflow_id": workflow_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "status": "assessment_complete",
             "request": request_data,
             "phases": {
+                "rag_retrieval": rag_context[:500] if rag_context else None,
                 "compliance": compliance_text,
                 "clinical_and_coverage": concurrent_text,
                 "synthesis": synthesis_text,
