@@ -6,16 +6,19 @@ SERVER=${1:-npi-lookup}
 PORT=${2:-7071}
 
 pick_supported_python() {
-    local candidates=("python3.11" "python3.10" "python3.9" "/usr/bin/python3")
+    local candidates=("python3.12" "python3.11" "python3.10" "python3.9" "/usr/bin/python3")
     local py
     local minor
+    local max_minor
+
+    max_minor=$(detect_func_max_python_minor)
 
     for py in "${candidates[@]}"; do
         if ! command -v "$py" >/dev/null 2>&1; then
             continue
         fi
         minor=$("$py" -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo "")
-        if [ -n "$minor" ] && [ "$minor" -lt 13 ]; then
+        if [ -n "$minor" ] && [ "$minor" -ge 9 ] && [ "$minor" -le "$max_minor" ]; then
             echo "$py"
             return 0
         fi
@@ -23,6 +26,41 @@ pick_supported_python() {
 
     echo ""
     return 1
+}
+
+detect_func_max_python_minor() {
+    local default_max=11
+    local func_path
+    local func_real
+    local worker_root
+    local dir
+    local base
+    local minor
+    local max_minor
+
+    max_minor=$default_max
+    func_path=$(command -v func 2>/dev/null || true)
+    if [ -z "$func_path" ]; then
+        echo "$max_minor"
+        return 0
+    fi
+
+    func_real=$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$func_path" 2>/dev/null || echo "$func_path")
+    worker_root="$(cd "$(dirname "$func_real")/.." && pwd)/workers/python"
+
+    if [ -d "$worker_root" ]; then
+        for dir in "$worker_root"/3.*; do
+            [ -d "$dir" ] || continue
+            base=$(basename "$dir")
+            minor=${base#3.}
+            if [[ "$minor" =~ ^[0-9]+$ ]] && [ "$minor" -gt "$max_minor" ]; then
+                max_minor=$minor
+            fi
+        done
+    fi
+
+    echo "$max_minor"
+    return 0
 }
 
 venv_is_valid() {
@@ -66,9 +104,11 @@ cd "$SERVER_DIR"
 
 PYTHON_CMD=$(pick_supported_python || true)
 if [ -z "$PYTHON_CMD" ]; then
-    echo "Error: No supported Python interpreter found (need Python 3.9-3.12 for Azure Functions Core Tools)."
+    FUNC_MAX_MINOR=$(detect_func_max_python_minor)
+    echo "Error: No supported Python interpreter found (need Python 3.9-3.$FUNC_MAX_MINOR for this Azure Functions Core Tools install)."
     exit 1
 fi
+FUNC_MAX_MINOR=$(detect_func_max_python_minor)
 
 # Create/repair venv if needed (for IDE support and direct Python execution)
 RECREATE_VENV=0
@@ -81,8 +121,8 @@ elif ! venv_is_valid; then
     RECREATE_VENV=1
 else
     VENV_MINOR=$(.venv/bin/python -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo "")
-    if [ -n "$VENV_MINOR" ] && [ "$VENV_MINOR" -ge 13 ]; then
-        echo "Detected unsupported venv Python 3.$VENV_MINOR in $SERVER_DIR/.venv (Azure Functions does not support 3.13 yet)."
+    if [ -n "$VENV_MINOR" ] && { [ "$VENV_MINOR" -lt 9 ] || [ "$VENV_MINOR" -gt "$FUNC_MAX_MINOR" ]; }; then
+        echo "Detected unsupported venv Python 3.$VENV_MINOR in $SERVER_DIR/.venv (this Azure Functions Core Tools install supports up to 3.$FUNC_MAX_MINOR)."
         echo "Recreating venv with $PYTHON_CMD ..."
         RECREATE_VENV=1
     fi

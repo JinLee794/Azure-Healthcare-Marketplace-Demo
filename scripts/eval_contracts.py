@@ -22,6 +22,7 @@ SERVER_FILES = {
     "fhir-operations": ROOT / "src/mcp-servers/fhir-operations/function_app.py",
     "pubmed": ROOT / "src/mcp-servers/pubmed/function_app.py",
     "clinical-trials": ROOT / "src/mcp-servers/clinical-trials/function_app.py",
+    "cosmos-rag": ROOT / "src/mcp-servers/cosmos-rag/function_app.py",
 }
 
 

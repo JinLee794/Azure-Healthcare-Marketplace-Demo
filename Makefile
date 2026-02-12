@@ -5,6 +5,7 @@ LOG_DIR := .local-logs
 .PHONY: local-start local-stop local-logs local-start-npi local-start-icd10 local-start-cms local-start-fhir local-start-pubmed local-start-clinical local-start-cosmos-rag setup-mcp-config eval-contracts eval-latency-local eval-native-local eval-all \
 	docker-build docker-up docker-down docker-logs docker-ps docker-test \
 	azure-deploy azure-deploy-single \
+	devui devui-local devui-framework devui-framework-local \
 	setup setup-check setup-doctor setup-guided setup-status setup-test setup-tips
 
 define START_SERVER
@@ -112,6 +113,26 @@ eval-native-local:
 	@src/agents/.venv/bin/python ./scripts/eval_native_agent_framework.py --config ./scripts/evals/native-agent-framework.local.json --wait-for-servers-seconds 30
 
 eval-all: eval-contracts eval-latency-local eval-native-local
+
+# ============================================================================
+# DevUI targets
+# ============================================================================
+
+# Gradio DevUI (cloud endpoints)
+devui:
+	@cd src && source agents/.venv/bin/activate && python -m agents --devui
+
+# Gradio DevUI (local MCP servers)
+devui-local:
+	@cd src && source agents/.venv/bin/activate && python -m agents --devui --local
+
+# Framework DevUI (cloud endpoints)
+devui-framework:
+	@cd src && source agents/.venv/bin/activate && python -m agents --framework-devui
+
+# Framework DevUI (local MCP servers)
+devui-framework-local:
+	@cd src && source agents/.venv/bin/activate && python -m agents --framework-devui --local
 
 # ============================================================================
 # Docker targets
