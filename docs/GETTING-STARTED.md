@@ -1,7 +1,8 @@
 # Getting Started
 
-> Consolidated guide covering developer setup, local testing, and MCP server reference.
-> Replaces: `DEVELOPER-GUIDE.md`, `LOCAL-TESTING.md`, `MCP-SERVERS-BEGINNER-GUIDE.md`.
+> Consolidated guide for developer setup, local testing, and MCP server reference.
+>
+> For the business case and architecture overview, see the [main README](../README.md).
 
 ---
 
