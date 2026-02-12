@@ -348,7 +348,7 @@ module privateEndpoints 'modules/private-endpoints.bicep' = {
 
 // Storage Blob Data Contributor for AI Services
 resource aiServicesStorageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, 'storage-blob-contributor', aiServicesResourceName, aiFoundry.outputs.aiServicesPrincipalId)
+  name: guid(resourceGroup().id, aiServicesResourceName, 'storage-blob-contributor-v2')
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
@@ -359,7 +359,7 @@ resource aiServicesStorageRole 'Microsoft.Authorization/roleAssignments@2022-04-
 
 // Cognitive Services OpenAI User for APIM
 resource apimOpenAIRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, 'cognitive-services-openai-user', apim.outputs.apimPrincipalId)
+  name: guid(resourceGroup().id, '${baseName}-apim-v2', 'cognitive-services-openai-user-v2')
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd') // Cognitive Services OpenAI User
@@ -377,7 +377,7 @@ resource containerRegistryResource 'Microsoft.ContainerRegistry/registries@2023-
 }
 
 resource fhirDataContributorRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for i in range(0, mcpServerCount): {
-  name: guid(resourceGroup().id, 'fhir-data-contributor', string(i), functionApps.outputs.functionAppPrincipalIds[i])
+  name: guid(resourceGroup().id, 'func-${i}-v3', 'fhir-data-contributor')
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5a1fc7df-4bf1-4951-a576-89034ee01acd') // FHIR Data Contributor
@@ -388,7 +388,7 @@ resource fhirDataContributorRoles 'Microsoft.Authorization/roleAssignments@2022-
 
 // AcrPull for Function Apps (required when MCP servers are deployed as container images)
 resource acrPullRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for i in range(0, mcpServerCount): {
-  name: guid(containerRegistryResource.id, 'acr-pull', string(i), functionApps.outputs.functionAppPrincipalIds[i])
+  name: guid(resourceGroup().id, containerRegistryName, 'func-${i}-v3', 'acr-pull')
   scope: containerRegistryResource
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d') // AcrPull
@@ -402,7 +402,7 @@ resource acrPullRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [fo
 // We use the ARM role 'DocumentDB Account Contributor' (5bd9cd88-fe45-4216-938b-f97437e15450) at RG scope
 // and additionally the Cosmos DB data-plane RBAC via SQL Role Assignment
 resource cosmosDbDataContributorRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for i in range(0, mcpServerCount): {
-  name: guid(resourceGroup().id, 'cosmos-data-contributor', string(i), functionApps.outputs.functionAppPrincipalIds[i])
+  name: guid(resourceGroup().id, 'func-${i}-v3', 'cosmos-data-contributor')
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5bd9cd88-fe45-4216-938b-f97437e15450') // DocumentDB Account Contributor
@@ -415,7 +415,7 @@ resource cosmosDbDataContributorRoles 'Microsoft.Authorization/roleAssignments@2
 
 // Storage Blob Data Contributor for AI Project principal
 resource projectStorageBlobRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, 'storage-blob-contributor', aiProjectResourceName, aiFoundry.outputs.aiProjectPrincipalId)
+  name: guid(resourceGroup().id, aiProjectResourceName, 'storage-blob-contributor-v2')
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
@@ -426,7 +426,7 @@ resource projectStorageBlobRole 'Microsoft.Authorization/roleAssignments@2022-04
 
 // Cosmos DB Account Reader for AI Project principal (required for capability host)
 resource projectCosmosReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, 'cosmos-account-reader', aiProjectResourceName, aiFoundry.outputs.aiProjectPrincipalId)
+  name: guid(resourceGroup().id, aiProjectResourceName, 'cosmos-account-reader-v2')
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'fbdf93bf-df7d-467e-a4d2-9458aa1360c8') // Cosmos DB Account Reader
@@ -437,7 +437,7 @@ resource projectCosmosReaderRole 'Microsoft.Authorization/roleAssignments@2022-0
 
 // DocumentDB Account Contributor for AI Project principal
 resource projectCosmosContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, 'cosmos-contributor', aiProjectResourceName, aiFoundry.outputs.aiProjectPrincipalId)
+  name: guid(resourceGroup().id, aiProjectResourceName, 'cosmos-contributor-v2')
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5bd9cd88-fe45-4216-938b-f97437e15450') // DocumentDB Account Contributor
@@ -448,7 +448,7 @@ resource projectCosmosContributorRole 'Microsoft.Authorization/roleAssignments@2
 
 // Search Index Data Contributor for AI Project principal (if AI Search deployed)
 resource projectSearchRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, 'search-index-contributor', aiProjectResourceName, aiFoundry.outputs.aiProjectPrincipalId)
+  name: guid(resourceGroup().id, aiProjectResourceName, 'search-index-contributor-v2')
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7') // Search Index Data Contributor
@@ -459,7 +459,7 @@ resource projectSearchRole 'Microsoft.Authorization/roleAssignments@2022-04-01' 
 
 // Search Service Contributor for AI Project principal (if AI Search deployed)
 resource projectSearchServiceRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, 'search-service-contributor', aiProjectResourceName, aiFoundry.outputs.aiProjectPrincipalId)
+  name: guid(resourceGroup().id, aiProjectResourceName, 'search-service-contributor-v2')
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0') // Search Service Contributor
