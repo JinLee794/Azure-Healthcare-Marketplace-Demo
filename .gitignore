@@ -65,6 +65,10 @@ build/
 .env.local
 .env.*.local
 
+# Azure Functions local settings (often contains secrets)
+local.settings.json
+**/local.settings.json
+
 # Bicep
 *.bicepparams.json
 deploy/infra/main.json
