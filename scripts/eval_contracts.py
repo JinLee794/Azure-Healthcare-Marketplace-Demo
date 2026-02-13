@@ -15,6 +15,24 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# Consolidated servers (v2) — each has domain tool modules + function_app.py
+CONSOLIDATED_SERVER_FILES = {
+    "mcp-reference-data": [
+        ROOT / "src/mcp-servers/mcp-reference-data/npi_tools.py",
+        ROOT / "src/mcp-servers/mcp-reference-data/icd10_tools.py",
+        ROOT / "src/mcp-servers/mcp-reference-data/cms_tools.py",
+    ],
+    "mcp-clinical-research": [
+        ROOT / "src/mcp-servers/mcp-clinical-research/fhir_tools.py",
+        ROOT / "src/mcp-servers/mcp-clinical-research/pubmed_tools.py",
+        ROOT / "src/mcp-servers/mcp-clinical-research/clinical_trials_tools.py",
+    ],
+    "cosmos-rag": [
+        ROOT / "src/mcp-servers/cosmos-rag/function_app.py",
+    ],
+}
+
+# Legacy server files (v1) — still on disk for reference
 SERVER_FILES = {
     "npi-lookup": ROOT / "src/mcp-servers/npi-lookup/function_app.py",
     "icd10-validation": ROOT / "src/mcp-servers/icd10-validation/function_app.py",
@@ -178,18 +196,52 @@ def _report_invalid(source: str, declared: set[str], canonical: set[str]) -> tup
 
 
 def main() -> int:
+    # --- Extract from consolidated servers (v2) first ---
+    consolidated_by_server: dict[str, set[str]] = {}
+    for server, file_paths in CONSOLIDATED_SERVER_FILES.items():
+        tools: set[str] = set()
+        for fp in file_paths:
+            if fp.exists():
+                tools.update(_extract_server_tools(fp))
+        consolidated_by_server[server] = tools
+
+    canonical_v2 = set().union(*consolidated_by_server.values())
+
+    print("Consolidated MCP tools (v2) from implementation:")
+    for server in sorted(consolidated_by_server):
+        names = sorted(consolidated_by_server[server])
+        print(f"  - {server}: {len(names)} tools")
+        print(f"    {', '.join(names)}")
+    print(f"Total canonical tools (v2): {len(canonical_v2)}\n")
+
+    # --- Also extract from legacy servers (v1) for backwards compat check ---
     actual_by_server: dict[str, set[str]] = {}
     for server, file_path in SERVER_FILES.items():
         actual_by_server[server] = _extract_server_tools(file_path)
 
     canonical = set().union(*actual_by_server.values())
 
-    print("Canonical MCP tools from implementation:")
+    print("Legacy MCP tools (v1) from implementation:")
     for server in sorted(actual_by_server):
         names = sorted(actual_by_server[server])
         print(f"  - {server}: {len(names)} tools")
         print(f"    {', '.join(names)}")
-    print(f"Total canonical tools: {len(canonical)}\n")
+    print(f"Total legacy tools (v1): {len(canonical)}\n")
+
+    # --- Backwards compatibility check: v2 should be superset of v1 ---
+    missing_from_v2 = canonical - canonical_v2
+    extra_in_v2 = canonical_v2 - canonical
+    if missing_from_v2:
+        print(f"WARN: {len(missing_from_v2)} legacy tools missing from consolidated servers:")
+        for t in sorted(missing_from_v2):
+            print(f"  - {t}")
+    if extra_in_v2:
+        print(f"INFO: {len(extra_in_v2)} new tools in consolidated servers (not in legacy):")
+        for t in sorted(extra_in_v2):
+            print(f"  - {t}")
+    if not missing_from_v2:
+        print("PASS: All legacy tools present in consolidated servers (backwards compatible)")
+    print()
 
     checks = [
         ("README", _extract_readme_tools(ROOT / "README.md")),

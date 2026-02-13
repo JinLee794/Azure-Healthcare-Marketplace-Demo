@@ -1,9 +1,12 @@
 """
 MCP Tool factory for Healthcare Agent Orchestration.
 
-Creates MCPStreamableHTTPTool instances for each healthcare MCP server.
-Each tool connects to the APIM passthrough endpoints and auto-discovers
-available tools at runtime via the MCP protocol.
+Creates MCPStreamableHTTPTool instances for the 3 consolidated MCP servers:
+  - reference-data:     NPI + ICD-10 + CMS (12 tools)
+  - clinical-research:  FHIR + PubMed + ClinicalTrials (20 tools)
+  - cosmos-rag:         Cosmos DB RAG & Audit (6 tools)
+
+Each agent role gets a scoped view via allowed_tools filtering.
 """
 
 from __future__ import annotations
@@ -34,10 +37,10 @@ def _build_http_client(subscription_key: str | None) -> httpx.AsyncClient | None
 
 
 # ---------------------------------------------------------------------------
-# Tool name → allowed_tools mapping
-# Restricts each agent to only its relevant tool subset from the MCP server
+# Tool name constants — used for allowed_tools scoping per agent role
 # ---------------------------------------------------------------------------
 
+# --- Reference Data server (NPI + ICD-10 + CMS) ---
 NPI_TOOLS_COMPLIANCE = ["validate_npi", "lookup_npi"]
 NPI_TOOLS_SEARCH = ["search_providers"]
 
@@ -52,6 +55,13 @@ CMS_TOOLS_ALL = [
     "get_mac_jurisdiction",
 ]
 
+REFERENCE_DATA_COMPLIANCE = NPI_TOOLS_COMPLIANCE + ICD10_TOOLS_COMPLIANCE
+REFERENCE_DATA_COVERAGE = CMS_TOOLS_ALL + ICD10_TOOLS_SEARCH
+REFERENCE_DATA_ALL = (
+    NPI_TOOLS_COMPLIANCE + NPI_TOOLS_SEARCH + ICD10_TOOLS_COMPLIANCE + ICD10_TOOLS_SEARCH + CMS_TOOLS_ALL
+)
+
+# --- Clinical Research server (FHIR + PubMed + ClinicalTrials) ---
 FHIR_TOOLS_ALL = [
     "search_patients",
     "get_patient",
@@ -73,14 +83,17 @@ PUBMED_TOOLS_ALL = [
 ]
 
 CLINICAL_TRIALS_TOOLS_ALL = [
-    "search_trials",
-    "get_trial",
+    "search_clinical_trials",
+    "get_trial_details",
     "get_trial_eligibility",
     "get_trial_locations",
     "search_by_condition",
     "get_trial_results",
 ]
 
+CLINICAL_RESEARCH_ALL = FHIR_TOOLS_ALL + PUBMED_TOOLS_ALL + CLINICAL_TRIALS_TOOLS_ALL
+
+# --- Cosmos RAG server ---
 COSMOS_RAG_TOOLS_SEARCH = [
     "hybrid_search",
     "vector_search",
@@ -100,113 +113,41 @@ COSMOS_RAG_TOOLS_ALL = COSMOS_RAG_TOOLS_SEARCH + COSMOS_RAG_TOOLS_INDEX + COSMOS
 
 
 # ---------------------------------------------------------------------------
-# Factory functions
+# Factory functions — one per consolidated server
 # ---------------------------------------------------------------------------
 
 
-def create_npi_tool(
+def create_reference_data_tool(
     url: str,
     *,
     allowed_tools: list[str] | None = None,
-    name: str = "Healthcare NPI Lookup",
+    name: str = "Reference Data (NPI + ICD-10 + CMS)",
     http_client: httpx.AsyncClient | None = None,
 ) -> MCPStreamableHTTPTool:
-    """Create an MCP tool connected to the NPI Lookup server."""
+    """Create an MCP tool connected to the consolidated Reference Data server."""
     return MCPStreamableHTTPTool(
         name=name,
         url=url,
         allowed_tools=allowed_tools,
-        description="NPI Registry — provider lookup, search, and Luhn validation",
+        description="NPI provider lookup, ICD-10-CM validation, CMS Medicare coverage policies",
         http_client=http_client,
         load_prompts=False,
     )
 
 
-def create_icd10_tool(
+def create_clinical_research_tool(
     url: str,
     *,
     allowed_tools: list[str] | None = None,
-    name: str = "Healthcare ICD-10 Validation",
+    name: str = "Clinical Research (FHIR + PubMed + Trials)",
     http_client: httpx.AsyncClient | None = None,
 ) -> MCPStreamableHTTPTool:
-    """Create an MCP tool connected to the ICD-10 Validation server."""
+    """Create an MCP tool connected to the consolidated Clinical Research server."""
     return MCPStreamableHTTPTool(
         name=name,
         url=url,
         allowed_tools=allowed_tools,
-        description="ICD-10-CM code validation, lookup, and search via NLM Clinical Tables API",
-        http_client=http_client,
-        load_prompts=False,
-    )
-
-
-def create_cms_tool(
-    url: str,
-    *,
-    allowed_tools: list[str] | None = None,
-    name: str = "Healthcare CMS Coverage",
-    http_client: httpx.AsyncClient | None = None,
-) -> MCPStreamableHTTPTool:
-    """Create an MCP tool connected to the CMS Coverage server."""
-    return MCPStreamableHTTPTool(
-        name=name,
-        url=url,
-        allowed_tools=allowed_tools,
-        description="Medicare coverage policy lookup — LCD/NCD search, CPT/ICD-10 coverage, medical necessity",
-        http_client=http_client,
-        load_prompts=False,
-    )
-
-
-def create_fhir_tool(
-    url: str,
-    *,
-    allowed_tools: list[str] | None = None,
-    name: str = "Healthcare FHIR Operations",
-    http_client: httpx.AsyncClient | None = None,
-) -> MCPStreamableHTTPTool:
-    """Create an MCP tool connected to the FHIR Operations server."""
-    return MCPStreamableHTTPTool(
-        name=name,
-        url=url,
-        allowed_tools=allowed_tools,
-        description="Azure FHIR R4 — patient search, conditions, meds, observations, encounters, practitioners",
-        http_client=http_client,
-        load_prompts=False,
-    )
-
-
-def create_pubmed_tool(
-    url: str,
-    *,
-    allowed_tools: list[str] | None = None,
-    name: str = "Healthcare PubMed",
-    http_client: httpx.AsyncClient | None = None,
-) -> MCPStreamableHTTPTool:
-    """Create an MCP tool connected to the PubMed server."""
-    return MCPStreamableHTTPTool(
-        name=name,
-        url=url,
-        allowed_tools=allowed_tools,
-        description="PubMed / NCBI E-utilities — article search, retrieval, clinical queries, related articles",
-        http_client=http_client,
-        load_prompts=False,
-    )
-
-
-def create_clinical_trials_tool(
-    url: str,
-    *,
-    allowed_tools: list[str] | None = None,
-    name: str = "Healthcare Clinical Trials",
-    http_client: httpx.AsyncClient | None = None,
-) -> MCPStreamableHTTPTool:
-    """Create an MCP tool connected to the Clinical Trials server."""
-    return MCPStreamableHTTPTool(
-        name=name,
-        url=url,
-        allowed_tools=allowed_tools,
-        description="ClinicalTrials.gov v2 — trial search, eligibility, locations, results",
+        description="FHIR patient data, PubMed literature search, ClinicalTrials.gov integration",
         http_client=http_client,
         load_prompts=False,
     )
@@ -216,7 +157,7 @@ def create_cosmos_rag_tool(
     url: str,
     *,
     allowed_tools: list[str] | None = None,
-    name: str = "Healthcare Cosmos RAG & Audit",
+    name: str = "Cosmos RAG & Audit",
     http_client: httpx.AsyncClient | None = None,
 ) -> MCPStreamableHTTPTool:
     """Create an MCP tool connected to the Cosmos DB RAG & Audit server."""
@@ -233,7 +174,7 @@ def create_cosmos_rag_tool(
 @dataclass
 class MCPToolKit:
     """
-    Convenience container that holds all MCP tool instances.
+    Convenience container that holds the 3 consolidated MCP tool instances.
 
     Usage::
 
@@ -242,12 +183,8 @@ class MCPToolKit:
             agent = Agent(..., tools=toolkit.compliance_tools())
     """
 
-    npi: MCPStreamableHTTPTool
-    icd10: MCPStreamableHTTPTool
-    cms: MCPStreamableHTTPTool
-    fhir: MCPStreamableHTTPTool
-    pubmed: MCPStreamableHTTPTool
-    clinical_trials: MCPStreamableHTTPTool
+    reference_data: MCPStreamableHTTPTool
+    clinical_research: MCPStreamableHTTPTool
     cosmos_rag: MCPStreamableHTTPTool
 
     # Keep a flat list so we can enter/exit all at once
@@ -262,22 +199,14 @@ class MCPToolKit:
         subscription_key: str | None = None,
     ) -> MCPToolKit:
         client = _build_http_client(subscription_key)
-        npi = create_npi_tool(endpoints.npi, http_client=client)
-        icd10 = create_icd10_tool(endpoints.icd10, http_client=client)
-        cms = create_cms_tool(endpoints.cms, http_client=client)
-        fhir = create_fhir_tool(endpoints.fhir, http_client=client)
-        pubmed = create_pubmed_tool(endpoints.pubmed, http_client=client)
-        clinical_trials = create_clinical_trials_tool(endpoints.clinical_trials, http_client=client)
+        reference_data = create_reference_data_tool(endpoints.reference_data, http_client=client)
+        clinical_research = create_clinical_research_tool(endpoints.clinical_research, http_client=client)
         cosmos_rag = create_cosmos_rag_tool(endpoints.cosmos_rag, http_client=client)
         return cls(
-            npi=npi,
-            icd10=icd10,
-            cms=cms,
-            fhir=fhir,
-            pubmed=pubmed,
-            clinical_trials=clinical_trials,
+            reference_data=reference_data,
+            clinical_research=clinical_research,
             cosmos_rag=cosmos_rag,
-            _all=[npi, icd10, cms, fhir, pubmed, clinical_trials, cosmos_rag],
+            _all=[reference_data, clinical_research, cosmos_rag],
             _http_client=client,
         )
 
@@ -299,18 +228,15 @@ class MCPToolKit:
             except Exception:
                 logger.warning("Error closing shared httpx client", exc_info=True)
 
-    # ----- Convenience groupings for agents -----
+    # ----- Role-based groupings (scoped via allowed_tools) -----
 
     def compliance_tools(self) -> list[MCPStreamableHTTPTool]:
-        """Tools for the Compliance Agent: NPI + ICD-10 validation."""
+        """Tools for the Compliance Agent: NPI + ICD-10 validation from reference-data."""
         return [
-            create_npi_tool(
-                self.npi.url, allowed_tools=NPI_TOOLS_COMPLIANCE, name="NPI (Compliance)", http_client=self._http_client
-            ),
-            create_icd10_tool(
-                self.icd10.url,
-                allowed_tools=ICD10_TOOLS_COMPLIANCE,
-                name="ICD-10 (Compliance)",
+            create_reference_data_tool(
+                self.reference_data.url,
+                allowed_tools=REFERENCE_DATA_COMPLIANCE,
+                name="Reference Data (Compliance)",
                 http_client=self._http_client,
             ),
         ]
@@ -318,21 +244,20 @@ class MCPToolKit:
     def clinical_reviewer_tools(self) -> list[MCPStreamableHTTPTool]:
         """Tools for the Clinical Reviewer Agent: FHIR + PubMed + Clinical Trials."""
         return [
-            create_fhir_tool(self.fhir.url, name="FHIR (Clinical)", http_client=self._http_client),
-            create_pubmed_tool(self.pubmed.url, name="PubMed (Clinical)", http_client=self._http_client),
-            create_clinical_trials_tool(
-                self.clinical_trials.url, name="Trials (Clinical)", http_client=self._http_client
+            create_clinical_research_tool(
+                self.clinical_research.url,
+                name="Clinical Research (Reviewer)",
+                http_client=self._http_client,
             ),
         ]
 
     def coverage_tools(self) -> list[MCPStreamableHTTPTool]:
         """Tools for the Coverage Agent: CMS + ICD-10 search + RAG policy search."""
         return [
-            create_cms_tool(self.cms.url, name="CMS (Coverage)", http_client=self._http_client),
-            create_icd10_tool(
-                self.icd10.url,
-                allowed_tools=ICD10_TOOLS_SEARCH,
-                name="ICD-10 (Coverage)",
+            create_reference_data_tool(
+                self.reference_data.url,
+                allowed_tools=REFERENCE_DATA_COVERAGE,
+                name="Reference Data (Coverage)",
                 http_client=self._http_client,
             ),
             create_cosmos_rag_tool(
@@ -346,28 +271,43 @@ class MCPToolKit:
     def patient_tools(self) -> list[MCPStreamableHTTPTool]:
         """Tools for Patient Data Agent: FHIR + NPI (provider search)."""
         return [
-            create_fhir_tool(self.fhir.url, name="FHIR (Patient)", http_client=self._http_client),
-            create_npi_tool(
-                self.npi.url, allowed_tools=NPI_TOOLS_SEARCH, name="NPI (Patient)", http_client=self._http_client
+            create_clinical_research_tool(
+                self.clinical_research.url,
+                allowed_tools=FHIR_TOOLS_ALL,
+                name="Clinical Research (Patient)",
+                http_client=self._http_client,
+            ),
+            create_reference_data_tool(
+                self.reference_data.url,
+                allowed_tools=NPI_TOOLS_SEARCH,
+                name="Reference Data (Patient)",
+                http_client=self._http_client,
             ),
         ]
 
     def literature_tools(self) -> list[MCPStreamableHTTPTool]:
-        """Tools for the Literature Agent: PubMed."""
+        """Tools for the Literature Agent: PubMed subset of clinical-research."""
         return [
-            create_pubmed_tool(self.pubmed.url, name="PubMed (Literature)", http_client=self._http_client),
+            create_clinical_research_tool(
+                self.clinical_research.url,
+                allowed_tools=PUBMED_TOOLS_ALL,
+                name="Clinical Research (Literature)",
+                http_client=self._http_client,
+            ),
         ]
 
     def trials_research_tools(self) -> list[MCPStreamableHTTPTool]:
         """Tools for the Trials Research Agent: Clinical Trials + PubMed."""
         return [
-            create_clinical_trials_tool(
-                self.clinical_trials.url, name="Trials (Research)", http_client=self._http_client
+            create_clinical_research_tool(
+                self.clinical_research.url,
+                allowed_tools=CLINICAL_TRIALS_TOOLS_ALL + PUBMED_TOOLS_ALL,
+                name="Clinical Research (Trials)",
+                http_client=self._http_client,
             ),
-            create_pubmed_tool(self.pubmed.url, name="PubMed (Research)", http_client=self._http_client),
         ]
 
-    # ----- Orchestrator-level groupings (skill-aligned) -----
+    # ----- Orchestrator-level groupings -----
 
     def rag_search_tools(self) -> list[MCPStreamableHTTPTool]:
         """Tools for RAG retrieval: hybrid and vector search over indexed documents."""
@@ -403,45 +343,51 @@ class MCPToolKit:
         ]
 
     def all_tools(self) -> list[MCPStreamableHTTPTool]:
-        """All 7 MCP tools — for the top-level Healthcare Orchestrator."""
+        """All 3 consolidated MCP tools — for the top-level Healthcare Orchestrator."""
         return [
-            create_npi_tool(self.npi.url, name="NPI Lookup", http_client=self._http_client),
-            create_icd10_tool(self.icd10.url, name="ICD-10 Validation", http_client=self._http_client),
-            create_cms_tool(self.cms.url, name="CMS Coverage", http_client=self._http_client),
-            create_fhir_tool(self.fhir.url, name="FHIR Operations", http_client=self._http_client),
-            create_pubmed_tool(self.pubmed.url, name="PubMed", http_client=self._http_client),
-            create_clinical_trials_tool(
-                self.clinical_trials.url, name="Clinical Trials", http_client=self._http_client
+            create_reference_data_tool(
+                self.reference_data.url, name="Reference Data", http_client=self._http_client
             ),
-            create_cosmos_rag_tool(self.cosmos_rag.url, name="Cosmos RAG & Audit", http_client=self._http_client),
+            create_clinical_research_tool(
+                self.clinical_research.url, name="Clinical Research", http_client=self._http_client
+            ),
+            create_cosmos_rag_tool(
+                self.cosmos_rag.url, name="Cosmos RAG & Audit", http_client=self._http_client
+            ),
         ]
 
     def prior_auth_tools(self) -> list[MCPStreamableHTTPTool]:
-        """All tools for the Prior Auth Orchestrator (all 7 MCP servers)."""
+        """All tools for Prior Auth Orchestrator — all 3 consolidated servers."""
         return [
-            create_npi_tool(self.npi.url, name="NPI (PA)", http_client=self._http_client),
-            create_icd10_tool(self.icd10.url, name="ICD-10 (PA)", http_client=self._http_client),
-            create_cms_tool(self.cms.url, name="CMS (PA)", http_client=self._http_client),
-            create_fhir_tool(self.fhir.url, name="FHIR (PA)", http_client=self._http_client),
-            create_pubmed_tool(self.pubmed.url, name="PubMed (PA)", http_client=self._http_client),
-            create_clinical_trials_tool(self.clinical_trials.url, name="Trials (PA)", http_client=self._http_client),
-            create_cosmos_rag_tool(self.cosmos_rag.url, name="RAG & Audit (PA)", http_client=self._http_client),
+            create_reference_data_tool(
+                self.reference_data.url, name="Reference Data (PA)", http_client=self._http_client
+            ),
+            create_clinical_research_tool(
+                self.clinical_research.url, name="Clinical Research (PA)", http_client=self._http_client
+            ),
+            create_cosmos_rag_tool(
+                self.cosmos_rag.url, name="RAG & Audit (PA)", http_client=self._http_client,
+            ),
         ]
 
     def clinical_trial_protocol_tools(self) -> list[MCPStreamableHTTPTool]:
         """Tools for the Clinical Trial Protocol Orchestrator: Trials + PubMed."""
         return [
-            create_clinical_trials_tool(
-                self.clinical_trials.url, name="Trials (Protocol)", http_client=self._http_client
+            create_clinical_research_tool(
+                self.clinical_research.url,
+                allowed_tools=CLINICAL_TRIALS_TOOLS_ALL + PUBMED_TOOLS_ALL,
+                name="Clinical Research (Protocol)",
+                http_client=self._http_client,
             ),
-            create_pubmed_tool(self.pubmed.url, name="PubMed (Protocol)", http_client=self._http_client),
         ]
 
     def literature_evidence_tools(self) -> list[MCPStreamableHTTPTool]:
         """Tools for the Literature & Evidence Orchestrator: PubMed + Trials."""
         return [
-            create_pubmed_tool(self.pubmed.url, name="PubMed (Evidence)", http_client=self._http_client),
-            create_clinical_trials_tool(
-                self.clinical_trials.url, name="Trials (Evidence)", http_client=self._http_client
+            create_clinical_research_tool(
+                self.clinical_research.url,
+                allowed_tools=PUBMED_TOOLS_ALL + CLINICAL_TRIALS_TOOLS_ALL,
+                name="Clinical Research (Evidence)",
+                http_client=self._http_client,
             ),
         ]
