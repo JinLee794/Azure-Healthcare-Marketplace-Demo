@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 LOG_DIR := .local-logs
 
-.PHONY: local-start local-stop local-logs local-start-npi local-start-icd10 local-start-cms local-start-fhir local-start-pubmed local-start-clinical local-start-cosmos-rag setup-mcp-config eval-contracts eval-latency-local eval-native-local eval-all \
+.PHONY: local-start local-stop local-logs local-start-reference-data local-start-clinical-research local-start-cosmos-rag local-start-document-reader setup-mcp-config eval-contracts eval-latency-local eval-native-local eval-all \
 	docker-build docker-up docker-down docker-logs docker-ps docker-test \
 	azure-deploy azure-deploy-single \
 	devui devui-local devui-framework devui-framework-local \
@@ -48,36 +48,24 @@ define START_SERVER
 	  tail -5 "$(LOG_DIR)/$(2).log" 2>/dev/null || true'
 endef
 
-local-start: local-stop local-start-npi local-start-icd10 local-start-cms local-start-fhir local-start-pubmed local-start-clinical local-start-cosmos-rag
+local-start: local-stop local-start-reference-data local-start-clinical-research local-start-cosmos-rag
 	@echo "All MCP servers started. Logs: $(LOG_DIR)/<server>.log"
 
-local-start-npi:
-	$(call START_SERVER,npi-lookup,npi-lookup,7071)
+local-start-reference-data:
+	$(call START_SERVER,mcp-reference-data,mcp-reference-data,7071)
 
-local-start-icd10:
-	$(call START_SERVER,icd10-validation,icd10-validation,7072)
-
-local-start-cms:
-	$(call START_SERVER,cms-coverage,cms-coverage,7073)
-
-local-start-fhir:
-	$(call START_SERVER,fhir-operations,fhir-operations,7074)
-
-local-start-pubmed:
-	$(call START_SERVER,pubmed,pubmed,7075)
-
-local-start-clinical:
-	$(call START_SERVER,clinical-trials,clinical-trials,7076)
+local-start-clinical-research:
+	$(call START_SERVER,mcp-clinical-research,mcp-clinical-research,7072)
 
 local-start-cosmos-rag: sync-local-env
-	$(call START_SERVER,cosmos-rag,cosmos-rag,7077)
+	$(call START_SERVER,cosmos-rag,cosmos-rag,7073)
 
 # -- Seed Cosmos DB with policy PDFs -----------------------------------------
 seed-data: seed-policies
 
 seed-policies: local-start-cosmos-rag
-	@echo "Seeding Cosmos DB via cosmos-rag MCP server (port 7077)..."
-	python scripts/seed_cosmos_policies.py --mcp --port 7077
+	@echo "Seeding Cosmos DB via cosmos-rag MCP server (port 7073)..."
+	python scripts/seed_cosmos_policies.py --mcp --port 7073
 
 sync-local-env:
 	@bash ./scripts/sync-local-env-from-azd.sh --quiet || true
@@ -113,7 +101,7 @@ local-stop:
 	else \
 	  echo "No $(LOG_DIR) directory found. Nothing to stop."; \
 	fi; \
-	for port in 7071 7072 7073 7074 7075 7076 7077; do \
+	for port in 7071 7072 7073; do \
 	  pids=$$(lsof -ti tcp:$$port 2>/dev/null || true); \
 	  if [ -n "$$pids" ]; then \
 	    echo "Stopping listener(s) on port $$port: $$pids"; \
@@ -191,9 +179,9 @@ docker-ps:
 docker-test:
 	@echo "Running health checks on all Docker MCP servers..."
 	@failed=0; \
-	for pair in "npi-lookup:7071" "icd10-validation:7072" "cms-coverage:7073" "fhir-operations:7074" "pubmed:7075" "clinical-trials:7076" "cosmos-rag:7077"; do \
+	for pair in "mcp-reference-data:7071" "mcp-clinical-research:7072" "cosmos-rag:7073"; do \
 	  name=$${pair%%:*}; port=$${pair##*:}; \
-	  printf "  %-22s " "$$name"; \
+	  printf "  %-26s " "$$name"; \
 	  if curl -sf "http://localhost:$$port/health?code=docker-default-key" > /dev/null 2>&1; then \
 	    echo "✓ healthy"; \
 	  else \
@@ -216,7 +204,7 @@ azure-deploy:
 azure-deploy-single:
 	@if [ -z "$(SERVER)" ]; then \
 	  echo "Usage: make azure-deploy-single SERVER=<server-name>"; \
-	  echo "Valid servers: npi-lookup icd10-validation cms-coverage fhir-operations pubmed clinical-trials cosmos-rag"; \
+	  echo "Valid servers: mcp-reference-data mcp-clinical-research cosmos-rag"; \
 	  exit 1; \
 	fi
 	./scripts/deploy-mcp-containers.sh $(SERVER)

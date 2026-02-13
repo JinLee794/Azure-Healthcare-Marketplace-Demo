@@ -1,80 +1,73 @@
 using 'main.bicep'
 
-// Healthcare MCP Infrastructure Parameters
+// ============================================================================
+// DEBUG / DEV Configuration — Public Network Access Enabled
+// Use this file for local development and debugging:
+//   azd provision --parameters deploy/infra/main.debug.bicepparam
+// ============================================================================
 
-// Required: Azure region (must support AI Services and APIM Standard v2)
+// Azure region (must support AI Services and APIM Standard v2)
 param location = 'eastus2'
 
-// Required: Base name for all resources (3-15 characters, alphanumeric and hyphens)
+// Base name for all resources (3-15 characters, alphanumeric and hyphens)
 param baseName = 'healthcaremcp'
 
-// Required: APIM publisher email (used for notifications)
+// APIM publisher email
 param apimPublisherEmail = 'jinle@microsoft.com'
 
 // APIM publisher organization name
 param apimPublisherName = 'Healthcare MCP Platform'
 
-// APIM SKU - Standard v2 for Foundry agents, Premium for advanced features
+// APIM SKU — StandardV2 is sufficient for dev/debug
 param apimSku = 'StandardV2'
 
-// VNet address space (must be /16 or larger) - must match subnet prefixes in vnet module
+// VNet address space
 param vnetAddressPrefix = '192.168.0.0/16'
 
-// Enable public network access for development (set to false for production)
-param enablePublicAccess = false
+// ============================================================================
+// PUBLIC ACCESS — all resources reachable from your local machine
+// ============================================================================
+param enablePublicAccess = true
 
-// Keep AHDS FHIR private endpoint disabled by default due intermittent Private Link provisioning failures
+// FHIR private endpoint not needed when everything is public
 param enableFhirPrivateEndpoint = false
 
-// Keep Cosmos DB reachable from local dev while private endpoints remain enabled
+// Cosmos DB public access (already implied by enablePublicAccess, kept explicit)
 param enableCosmosPublicAccess = true
 
-// Container Registry SKU for dockerized MCP server images (Basic|Standard|Premium)
+// Container Registry — Basic SKU, admin enabled for easy local docker push/pull
 param containerRegistrySku = 'Basic'
+param containerRegistryAdminUserEnabled = true
 
-// Keep disabled unless you explicitly need username/password auth for image pulls
-param containerRegistryAdminUserEnabled = false
-
-// Optional: Override Cosmos DB region if primary region has capacity issues
-// Recommended regions with good Cosmos DB availability:
-//   - 'westus2'        - West US 2 (typically best availability)
-//   - 'westeurope'     - West Europe
-//   - 'northeurope'    - North Europe
-//   - 'southeastasia'  - Southeast Asia
-//   - 'australiaeast'  - Australia East
-//   - 'canadacentral'  - Canada Central
-//   - 'uksouth'        - UK South
-//   - 'japaneast'      - Japan East
-//   - 'brazilsouth'    - Brazil South
-// Leave empty ('') to use the same region as other resources
+// Cosmos DB in separate region if primary has capacity issues
 param cosmosDbLocation = 'westus2'
 
-// AI Model deployments
+// AI Model deployments — same models, lower capacity for cost savings
 param modelDeployments = [
   {
     name: 'gpt-4o'
     model: 'gpt-4o'
     version: '2024-08-06'
-    capacity: 10
+    capacity: 5
   }
   {
     name: 'gpt-4o-mini'
     model: 'gpt-4o-mini'
     version: '2024-07-18'
-    capacity: 10
+    capacity: 5
   }
   {
     name: 'text-embedding-3-large'
     model: 'text-embedding-3-large'
     version: '1'
-    capacity: 10
+    capacity: 5
   }
 ]
 
-// Resource tags
+// Resource tags — clearly marked as dev environment
 param tags = {
   project: 'healthcare-mcp'
-  environment: 'production'
+  environment: 'dev'
   managedBy: 'bicep'
   costCenter: 'healthcare-it'
   SecurityControl: 'Ignore'

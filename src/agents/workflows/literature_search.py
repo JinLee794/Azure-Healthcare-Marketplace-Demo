@@ -26,7 +26,7 @@ from ..agents import (
     create_trials_correlation_agent,
 )
 from ..config import AgentConfig
-from ..tools import MCPToolKit, create_clinical_trials_tool
+from ..tools import MCPToolKit, CLINICAL_TRIALS_TOOLS_ALL, create_clinical_research_tool
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,11 @@ async def run_literature_search_workflow(
 
         trials_agent = create_trials_correlation_agent(
             client=client,
-            tools=[create_clinical_trials_tool(config.endpoints.clinical_trials, name="Trials (Correlation)")],
+            tools=[create_clinical_research_tool(
+                config.endpoints.clinical_research,
+                name="Clinical Research (Correlation)",
+                allowed_tools=CLINICAL_TRIALS_TOOLS_ALL,
+            )],
         )
 
         combined_prompt = (

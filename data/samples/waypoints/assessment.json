@@ -1,0 +1,194 @@
+{
+  "schema": "pa-assessment-v1",
+  "case_id": "003_a",
+  "created": "2025-02-12T23:00:00Z",
+  "beads": {
+    "bd-pa-001": {
+      "name": "Document Intake & Extraction",
+      "status": "complete",
+      "confidence": 0.92
+    },
+    "bd-pa-002": {
+      "name": "MCP Validation & Cross-reference",
+      "status": "complete",
+      "confidence": 0.65
+    },
+    "bd-pa-003": {
+      "name": "Assessment & Recommendation",
+      "status": "complete",
+      "confidence": 0.68
+    },
+    "bd-pa-004": {
+      "name": "Decision & Determination",
+      "status": "not-started",
+      "confidence": null
+    },
+    "bd-pa-005": {
+      "name": "Notification Generation",
+      "status": "not-started",
+      "confidence": null
+    }
+  },
+  "request": {
+    "id": "PA-003A-20251012",
+    "urgency": "standard",
+    "form_type": "Cigna Blincyto PA Form",
+    "date_submitted": "2024-10-15"
+  },
+  "member": {
+    "name": "Lucas Little",
+    "id": "345987",
+    "dob": "2017-07-30",
+    "age": 7,
+    "sex": "Male",
+    "address": "28 Dearborn St, Chicago, IL 60602",
+    "phone": "555-360-8746"
+  },
+  "provider": {
+    "name": "Dr. Oncoso",
+    "npi": "5467892394",
+    "specialty": "Pediatric Hematology and Oncology",
+    "verified": false,
+    "verification_note": "NPI 5467892394 fails Luhn checksum. Field on form labeled 'DEA, NPI or TIN' — value may be a TIN or DEA number. Provider search for 'Oncoso' in Illinois returned 0 results in NPI Registry.",
+    "office_contact": "Mrs. Dana Smith",
+    "phone": "555-324-7878",
+    "fax": "555-324-7877",
+    "address": "27 W State St, Chicago, IL 60601"
+  },
+  "service": {
+    "medication": "Blinatumomab (Blincyto)",
+    "cpt_hcpcs": "J9039",
+    "icd10": ["C91.00", "C91.01"],
+    "dosage": "28 mcg/day continuous IV infusion",
+    "frequency": "Days 1-28 per cycle",
+    "duration": "Up to 6 months based on clinical response",
+    "setting": "Infusion center initially, then home with home health"
+  },
+  "clinical_extraction": {
+    "confidence": 0.92,
+    "primary_diagnosis": "Philadelphia chromosome-negative B-cell precursor acute lymphoblastic leukemia (B-ALL)",
+    "current_status": "Clinical remission (< 5% blast cells) but MRD-positive (0.1% leukemic cells via flow cytometry)",
+    "mrn": "6745328",
+    "findings": [
+      "Initial bone marrow biopsy (3/29/24): 85% lymphoblasts, confirming B-ALL diagnosis",
+      "Cytogenetic analysis: Philadelphia chromosome-negative (Ph-)",
+      "Repeat bone marrow biopsy (10/4/24): < 5% blast cells, clinical remission achieved",
+      "Flow cytometry (10/4/24): MRD+ at 0.1% leukemic cells detected",
+      "Bone marrow cellularity: Hypercellular (~90%)",
+      "Patient weight: 30 kg, height: 117 cm",
+      "Mild fatigue reported, otherwise well"
+    ],
+    "prior_treatments": [
+      {
+        "phase": "Induction",
+        "duration": "4 weeks (4/1/24 – 4/29/24)",
+        "agents": "Vincristine (weekly), Dexamethasone (daily x28), L-asparaginase (alternate days), Daunorubicin (single dose wk 1)",
+        "outcome": "Completed per protocol"
+      },
+      {
+        "phase": "Consolidation",
+        "duration": "8 weeks (5/6/24 – 7/1/24)",
+        "agents": "Methotrexate (high-dose weekly), Mercaptopurine (daily PO), Vincristine (biweekly), Cyclophosphamide (wk 3), Doxorubicin (final wk)",
+        "outcome": "Completed per protocol"
+      },
+      {
+        "phase": "Maintenance (ongoing)",
+        "duration": "Started 7/8/24",
+        "agents": "Methotrexate (weekly), Mercaptopurine (daily PO), Vincristine (q4wk), Intrathecal Methotrexate (q2-3mo for CNS prophylaxis)",
+        "outcome": "Ongoing — MRD+ detected at post-consolidation assessment"
+      }
+    ],
+    "labs": {
+      "wbc": "6,000–10,000 cells/uL (normal range 4,500–10,000)",
+      "hemoglobin": "12.0–14.5 g/dL (normal range 11.5–15.5)",
+      "hematocrit": "36–44% (normal range 35–45%)",
+      "platelets": "150,000–450,000 cells/uL (normal range 150,000–450,000)"
+    }
+  },
+  "mcp_validations": {
+    "npi_registry": {
+      "status": "failed",
+      "detail": "NPI 5467892394 fails Luhn checksum validation. Search for 'Oncoso' in IL returned 0 results."
+    },
+    "icd10": {
+      "status": "not_found",
+      "detail": "C91.00 and C91.01 not found in local demo database. Database scope limited — does not include oncology codes."
+    },
+    "cms_coverage": {
+      "status": "not_found",
+      "detail": "No LCD/NCD found for blinatumomab (J9039). Medical necessity check returned 'unknown'. Demo database limited to select policies."
+    },
+    "pubmed": {
+      "status": "found",
+      "query": "blinatumomab MRD positive pediatric B-ALL",
+      "articles_found": 24,
+      "key_citations": [
+        {
+          "pmid": "38063317",
+          "title": "MRD-based treatment approach in childhood ALL (AIEOP-BFM ALL 2017)",
+          "finding": "Blinatumomab converted 77% of MRD-positive HR B-ALL patients to MRD-negative before transplant.",
+          "relevance": "Directly supports blinatumomab for pediatric MRD+ B-ALL"
+        },
+        {
+          "pmid": "40827511",
+          "title": "MRD-driven intensification of initial therapy for childhood ALL",
+          "finding": "MRD-guided intensification with blinatumomab yielded high MRD conversion rates and improved EFS.",
+          "relevance": "Supports MRD-driven use of blinatumomab in first remission"
+        },
+        {
+          "pmid": "40915860",
+          "title": "Anti-CD19 CAR T-cell therapy for pediatric and adult ALL",
+          "finding": "Reviews blinatumomab and CAR-T as standard-of-care immunotherapy options for B-ALL with persistent MRD.",
+          "relevance": "Confirms blinatumomab as established therapy for MRD+ B-ALL"
+        }
+      ]
+    }
+  },
+  "criteria_evaluation": {
+    "criteria": [
+      {"id": 1, "name": "Confirmed B-ALL diagnosis", "status": "MET", "evidence": "Bone marrow biopsy 3/29/24: 85% lymphoblasts, B-ALL confirmed"},
+      {"id": 2, "name": "Philadelphia chromosome status documented", "status": "MET", "evidence": "Cytogenetic analysis: Ph-negative"},
+      {"id": 3, "name": "Complete remission achieved", "status": "MET", "evidence": "Post-consolidation BMBx 10/4/24: < 5% blast cells"},
+      {"id": 4, "name": "MRD-positive status confirmed", "status": "MET", "evidence": "Flow cytometry 10/4/24: 0.1% leukemic cells detected"},
+      {"id": 5, "name": "Prior standard chemotherapy completed", "status": "MET", "evidence": "Induction + Consolidation completed per protocol (4/1/24 – 7/1/24)"},
+      {"id": 6, "name": "FDA-approved indication", "status": "MET", "evidence": "Blinatumomab FDA-approved for MRD+ B-ALL in first or second complete remission"},
+      {"id": 7, "name": "Appropriate dosing and schedule", "status": "MET", "evidence": "28 mcg/day for 28 days — standard for pediatric patients >= 10 kg (pt is 30 kg)"},
+      {"id": 8, "name": "Appropriate treatment setting", "status": "MET", "evidence": "Infusion center initially (per labeling for cycle 1 days 1–9), then home health"}
+    ],
+    "criteria_met": "8/8",
+    "criteria_percentage": 100
+  },
+  "recommendation": {
+    "decision": "PEND",
+    "confidence_score": 68,
+    "confidence_level": "MEDIUM",
+    "rationale": "All 8 clinical criteria are met at 100%, and strong PubMed evidence supports blinatumomab for pediatric MRD+ B-ALL. However, the NPI provided (5467892394) fails checksum validation and is not found in the NPI Registry. Because provider identity verification is a mandatory prerequisite per rubric guidelines, the request must be pended to obtain a valid NPI before a final determination can be made.",
+    "confidence_weights": {
+      "provider_verification": {"weight": 0.20, "score": 0, "note": "NPI invalid — 0% on this component"},
+      "code_validation": {"weight": 0.15, "score": 50, "note": "ICD-10 codes valid but not in local demo DB"},
+      "coverage_policy": {"weight": 0.20, "score": 50, "note": "No LCD/NCD found in limited demo DB"},
+      "clinical_criteria": {"weight": 0.35, "score": 100, "note": "8/8 criteria met"},
+      "documentation_quality": {"weight": 0.10, "score": 90, "note": "Comprehensive clinical documentation"}
+    }
+  },
+  "gaps": [
+    {
+      "id": 1,
+      "description": "NPI 5467892394 fails Luhn checksum — likely a TIN or DEA number, not an NPI",
+      "critical": true,
+      "action": "Request valid NPI from provider office"
+    },
+    {
+      "id": 2,
+      "description": "ICD-10 codes C91.00/C91.01 not in local demo database",
+      "critical": false,
+      "action": "Non-blocking — codes are valid per WHO ICD-10-CM standard"
+    },
+    {
+      "id": 3,
+      "description": "No LCD/NCD found for blinatumomab (J9039) in demo CMS database",
+      "critical": false,
+      "action": "Non-blocking — expected for specialty oncology biologics; commercial plan criteria apply"
+    }
+  ]
+}

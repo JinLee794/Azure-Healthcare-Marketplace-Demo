@@ -1,21 +1,17 @@
 # ============================================================================
-# Healthcare MCP Servers — Docker Compose
+# Healthcare MCP Servers — Docker Compose (Consolidated)
 # ============================================================================
-# Spins up all 6 MCP servers as containers using the shared Dockerfile.
+# Spins up the 3 consolidated MCP servers as containers using the shared Dockerfile.
 #
 # Quick start:
 #   docker compose up --build          # foreground
 #   docker compose up --build -d       # detached
 #   docker compose down                # stop & remove
 #
-# Each server exposes the same port inside the container (80) and is
-# mapped to the same port the Makefile uses locally:
-#   npi-lookup        → 7071
-#   icd10-validation  → 7072
-#   cms-coverage      → 7073
-#   fhir-operations   → 7074
-#   pubmed            → 7075
-#   clinical-trials   → 7076
+# Consolidated server mapping:
+#   mcp-reference-data    → 7071  (NPI + ICD-10 + CMS)
+#   mcp-clinical-research → 7072  (FHIR + PubMed + ClinicalTrials)
+#   cosmos-rag            → 7073  (Cosmos DB RAG & Audit)
 # ============================================================================
 
 x-mcp-server: &mcp-server-defaults
@@ -35,91 +31,41 @@ x-mcp-server: &mcp-server-defaults
 
 services:
   # --------------------------------------------------------------------------
-  npi-lookup:
+  # Reference Data: NPI Lookup + ICD-10 Validation + CMS Coverage (12 tools)
+  # --------------------------------------------------------------------------
+  mcp-reference-data:
     <<: *mcp-server-defaults
-    container_name: mcp-npi-lookup
+    container_name: mcp-reference-data
     build:
       context: ./src/mcp-servers
       dockerfile: Dockerfile
       args:
-        SERVER_NAME: npi-lookup
+        SERVER_NAME: mcp-reference-data
     ports:
       - "7071:80"
     environment:
-      - MCP_SERVER_NAME=npi-lookup
+      - MCP_SERVER_NAME=mcp-reference-data
 
   # --------------------------------------------------------------------------
-  icd10-validation:
+  # Clinical Research: FHIR + PubMed + Clinical Trials (20 tools)
+  # --------------------------------------------------------------------------
+  mcp-clinical-research:
     <<: *mcp-server-defaults
-    container_name: mcp-icd10-validation
+    container_name: mcp-clinical-research
     build:
       context: ./src/mcp-servers
       dockerfile: Dockerfile
       args:
-        SERVER_NAME: icd10-validation
+        SERVER_NAME: mcp-clinical-research
     ports:
       - "7072:80"
     environment:
-      - MCP_SERVER_NAME=icd10-validation
-
-  # --------------------------------------------------------------------------
-  cms-coverage:
-    <<: *mcp-server-defaults
-    container_name: mcp-cms-coverage
-    build:
-      context: ./src/mcp-servers
-      dockerfile: Dockerfile
-      args:
-        SERVER_NAME: cms-coverage
-    ports:
-      - "7073:80"
-    environment:
-      - MCP_SERVER_NAME=cms-coverage
-
-  # --------------------------------------------------------------------------
-  fhir-operations:
-    <<: *mcp-server-defaults
-    container_name: mcp-fhir-operations
-    build:
-      context: ./src/mcp-servers
-      dockerfile: Dockerfile
-      args:
-        SERVER_NAME: fhir-operations
-    ports:
-      - "7074:80"
-    environment:
-      - MCP_SERVER_NAME=fhir-operations
+      - MCP_SERVER_NAME=mcp-clinical-research
       - FHIR_SERVER_URL=${FHIR_SERVER_URL:-}
-
-  # --------------------------------------------------------------------------
-  pubmed:
-    <<: *mcp-server-defaults
-    container_name: mcp-pubmed
-    build:
-      context: ./src/mcp-servers
-      dockerfile: Dockerfile
-      args:
-        SERVER_NAME: pubmed
-    ports:
-      - "7075:80"
-    environment:
-      - MCP_SERVER_NAME=pubmed
       - NCBI_API_KEY=${NCBI_API_KEY:-}
 
   # --------------------------------------------------------------------------
-  clinical-trials:
-    <<: *mcp-server-defaults
-    container_name: mcp-clinical-trials
-    build:
-      context: ./src/mcp-servers
-      dockerfile: Dockerfile
-      args:
-        SERVER_NAME: clinical-trials
-    ports:
-      - "7076:80"
-    environment:
-      - MCP_SERVER_NAME=clinical-trials
-
+  # Cosmos DB RAG & Audit (6 tools)
   # --------------------------------------------------------------------------
   cosmos-rag:
     <<: *mcp-server-defaults
@@ -130,7 +76,7 @@ services:
       args:
         SERVER_NAME: cosmos-rag
     ports:
-      - "7077:80"
+      - "7073:80"
     environment:
       - MCP_SERVER_NAME=cosmos-rag
       - COSMOS_DB_ENDPOINT=${COSMOS_DB_ENDPOINT:-}

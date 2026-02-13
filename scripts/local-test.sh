@@ -11,25 +11,17 @@
 # ============================================================================
 set -e
 
-SERVER=${1:-npi-lookup}
+SERVER=${1:-mcp-reference-data}
 PORT=${2:-}
 
 # -- Port mapping (auto-detect if not provided) ------------------------------
 if [ -z "$PORT" ]; then
     case "$SERVER" in
-        # Consolidated servers (v2)
         mcp-reference-data)    PORT=7071 ;;
         mcp-clinical-research) PORT=7072 ;;
         cosmos-rag)            PORT=7073 ;;
         document-reader)       PORT=7078 ;;
-        # Legacy server names (v1) — kept for backwards compatibility
-        npi-lookup)       PORT=7071 ;;
-        icd10-validation) PORT=7072 ;;
-        cms-coverage)     PORT=7073 ;;
-        fhir-operations)  PORT=7074 ;;
-        pubmed)           PORT=7075 ;;
-        clinical-trials)  PORT=7076 ;;
-        *)                PORT=7071 ;;
+        *)                     PORT=7071 ;;
     esac
 fi
 
@@ -301,7 +293,7 @@ PY
             echo "    Use a full URL, e.g. https://<resource>.services.ai.azure.com"
         fi
         ;;
-    fhir-operations)
+    mcp-clinical-research)
         python -c "import azure.identity; print(f'  azure-identity ✓')" 2>/dev/null || echo "  ⚠ azure-identity not importable"
         ;;
 esac

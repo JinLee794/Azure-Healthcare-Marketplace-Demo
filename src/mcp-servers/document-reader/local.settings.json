@@ -1,0 +1,10 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "MCP_SERVER_NAME": "document-reader",
+    "MCP_PROTOCOL_VERSION": "2025-06-18"
+  }
+}
+

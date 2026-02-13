@@ -26,9 +26,16 @@ Build and maintain an Azure-native healthcare marketplace across:
 
 ## Project Map
 - `.github/skills/`: domain guidance and templates for healthcare workflows.
-- `src/mcp-servers/`: Python Azure Function MCP servers:
-  - `npi-lookup`, `icd10-validation`, `cms-coverage`, `fhir-operations`, `pubmed`, `clinical-trials`, `cosmos-rag`
+- `src/mcp-servers/`: Python Azure Function MCP servers (consolidated):
+  - `mcp-reference-data` (NPI + ICD-10 + CMS, 12 tools)
+  - `mcp-clinical-research` (FHIR + PubMed + ClinicalTrials, 20 tools)
+  - `cosmos-rag` (Cosmos DB RAG & Audit, 6 tools)
+  - `document-reader`, `shared/`
 - `src/agents/`: orchestration CLI and workflows (`prior-auth`, `clinical-trial`, `patient-data`, `literature-search`).
+- `.runs/`: timestamped workflow run outputs (gitignored). Each run has `waypoints/`, `outputs/`, `eval/`.
+- `data/`: case data, ground truth, sample outputs, and policy documents.
+  - `data/cases/`: PA evaluation cases with ground truth.
+  - `data/samples/`: committed reference output examples.
 - `scripts/`: local launchers, APIM tests, post-deploy config scripts.
   - `scripts/setup-cli/`: interactive setup wizard (`make setup` / `make setup-guided`).
 - `deploy/`: Azure Bicep infrastructure and deployment assets.
@@ -52,7 +59,7 @@ make local-stop
 
 ### Run one MCP server
 ```bash
-./scripts/local-test.sh npi-lookup 7071
+./scripts/local-test.sh mcp-reference-data 7071
 ```
 
 ### MCP smoke test

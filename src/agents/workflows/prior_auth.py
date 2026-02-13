@@ -20,12 +20,17 @@ replicable across agentic platforms (Copilot Chat, Foundry, DevUI, CLI).
 Uses Microsoft Agent Framework's SequentialBuilder and ConcurrentBuilder
 composed into a custom hybrid workflow.  Audit events and bead state are
 recorded at each phase boundary.
+
+Run outputs are stored in .runs/<timestamp>_<request-id>/ with waypoints/
+and outputs/ subdirs. A 'latest' symlink in .runs/ points to the most
+recent run.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -46,6 +51,76 @@ from ..config import AgentConfig
 from ..tools import MCPToolKit
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Run directory helpers — .runs/<timestamp>_<request-id>/
+# ---------------------------------------------------------------------------
+
+def _find_project_root() -> Path:
+    """Walk up from CWD to find the project root (contains .runs/ or pyproject.toml)."""
+    candidate = Path.cwd()
+    for _ in range(10):
+        if (candidate / "pyproject.toml").exists() or (candidate / ".runs").exists():
+            return candidate
+        parent = candidate.parent
+        if parent == candidate:
+            break
+        candidate = parent
+    return Path.cwd()
+
+
+def _create_run_dir(request_id: str, *, base_dir: str | None = None) -> Path:
+    """Create a timestamped run directory under .runs/.
+
+    Returns the run directory path. Creates waypoints/ and outputs/ subdirs.
+    Updates the 'latest' symlink.
+    """
+    root = Path(base_dir) if base_dir else _find_project_root()
+    runs_root = root / ".runs"
+
+    # Sanitize request_id for filesystem safety
+    safe_id = re.sub(r"[^\w\-]", "_", request_id)
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M")
+    run_name = f"{timestamp}_{safe_id}"
+
+    run_dir = runs_root / run_name
+    (run_dir / "waypoints").mkdir(parents=True, exist_ok=True)
+    (run_dir / "outputs").mkdir(parents=True, exist_ok=True)
+    (run_dir / "eval").mkdir(parents=True, exist_ok=True)
+
+    # Update latest symlink
+    latest = runs_root / "latest"
+    try:
+        if latest.is_symlink() or latest.exists():
+            latest.unlink()
+        latest.symlink_to(run_name)
+    except OSError:
+        logger.warning("Could not create 'latest' symlink in .runs/")
+
+    logger.info("Run directory created: %s", run_dir)
+    return run_dir
+
+
+def _resolve_run_dir(output_dir: str | None) -> Path:
+    """Resolve an explicit output_dir or find the latest run.
+
+    If output_dir is given, use it as the run directory.
+    Otherwise, look for .runs/latest symlink.
+    """
+    if output_dir:
+        p = Path(output_dir)
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    root = _find_project_root()
+    latest = root / ".runs" / "latest"
+    if latest.is_symlink() and latest.resolve().exists():
+        return latest.resolve()
+
+    raise ValueError(
+        "No run directory found. Run Subskill 1 first, or pass output_dir."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -300,7 +375,7 @@ async def run_prior_auth_workflow(
     Args:
         request_data: PA request (member, service, provider, clinical docs).
         config: Optional AgentConfig override; loads from env if None.
-        output_dir: Directory for waypoint/output files. Defaults to ./waypoints/.
+        output_dir: Directory for run files. Defaults to .runs/<timestamp>_<id>/.
         local: If True, use localhost MCP endpoints.
 
     Returns:
@@ -309,18 +384,31 @@ async def run_prior_auth_workflow(
     if config is None:
         config = AgentConfig.load(local=local)
 
-    waypoint_dir = Path(output_dir or "waypoints")
-    output_path = Path("outputs")
-    waypoint_dir.mkdir(parents=True, exist_ok=True)
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    assessment_path = waypoint_dir / "assessment.json"
+    # ── Resolve run directory ──────────────────────────────────────
+    # If output_dir is explicit, use it (backwards compat). Otherwise
+    # create a new timestamped run dir under .runs/.
+    if output_dir:
+        run_dir = Path(output_dir)
+        waypoint_dir = run_dir / "waypoints" if (run_dir / "waypoints").exists() else run_dir
+        output_path = run_dir / "outputs" if (run_dir / "outputs").exists() else run_dir
+        waypoint_dir.mkdir(parents=True, exist_ok=True)
+        output_path.mkdir(parents=True, exist_ok=True)
+    else:
+        # Will be created after we have a request_id — see below
+        run_dir = None
+        waypoint_dir = None
+        output_path = None
 
     # ── Resume detection (SKILL.md § Resume via Beads) ─────────────
-    existing = _read_waypoint(assessment_path)
     beads = _make_beads()
     workflow_id = str(uuid.uuid4())
     request_id = f"PA-{datetime.now(timezone.utc).strftime('%Y%m%d')}-" f"{uuid.uuid4().hex[:5].upper()}"
+
+    # Try to resume from existing waypoint if run_dir was provided
+    existing = None
+    if waypoint_dir:
+        assessment_path = waypoint_dir / "assessment.json"
+        existing = _read_waypoint(assessment_path)
 
     if existing and "beads" in existing:
         beads = existing["beads"]
@@ -332,6 +420,14 @@ async def run_prior_auth_workflow(
         else:
             logger.info("All beads completed — returning existing assessment")
             return existing
+
+    # ── Create run directory if not yet resolved ───────────────────
+    if run_dir is None:
+        run_dir = _create_run_dir(request_id)
+        waypoint_dir = run_dir / "waypoints"
+        output_path = run_dir / "outputs"
+
+    assessment_path = waypoint_dir / "assessment.json"
 
     # ── Build LLM client ───────────────────────────────────────────
     credential = DefaultAzureCredential() if not local else AzureCliCredential()
@@ -814,6 +910,7 @@ async def run_prior_auth_workflow(
             logger.info("Bead 003: COMPLETED — assessment_complete")
 
     logger.info("=== Subskill 1 Complete — Assessment ready for human review ===")
+    logger.info("Run directory: %s", run_dir)
     return assessment
 
 
@@ -845,13 +942,14 @@ async def run_prior_auth_decision(
                 "limitations": [str],
             }
 
-        output_dir: Directory for waypoints. Defaults to ./waypoints/.
+        output_dir: Directory for run files. Defaults to latest .runs/ dir.
 
     Returns:
         Decision dict (also written to waypoints/decision.json).
     """
-    waypoint_dir = Path(output_dir or "waypoints")
-    output_path = Path("outputs")
+    run_dir = _resolve_run_dir(output_dir)
+    waypoint_dir = run_dir / "waypoints" if (run_dir / "waypoints").exists() else run_dir
+    output_path = run_dir / "outputs" if (run_dir / "outputs").exists() else run_dir
 
     assessment_path = waypoint_dir / "assessment.json"
     decision_path = waypoint_dir / "decision.json"

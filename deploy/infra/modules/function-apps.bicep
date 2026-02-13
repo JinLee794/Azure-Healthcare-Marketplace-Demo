@@ -66,36 +66,53 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   }
 }
 
-// MCP Server configurations
-// MCP Server configurations - routes are exposed at root level (/.well-known/mcp and /mcp)
+// MCP Server configurations (consolidated)
+// 3 servers: reference-data (NPI+ICD10+CMS), clinical-research (FHIR+PubMed+Trials), cosmos-rag
 var mcpServers = [
   {
-    name: 'npi-lookup'
-    displayName: 'NPI Lookup MCP Server'
+    name: 'mcp-reference-data'
+    displayName: 'Reference Data MCP Server (NPI + ICD-10 + CMS)'
+    extraSettings: []
   }
   {
-    name: 'icd10-validation'
-    displayName: 'ICD-10 Validation MCP Server'
-  }
-  {
-    name: 'cms-coverage'
-    displayName: 'CMS Coverage MCP Server'
-  }
-  {
-    name: 'fhir-operations'
-    displayName: 'FHIR Operations MCP Server'
-  }
-  {
-    name: 'pubmed'
-    displayName: 'PubMed MCP Server'
-  }
-  {
-    name: 'clinical-trials'
-    displayName: 'Clinical Trials MCP Server'
+    name: 'mcp-clinical-research'
+    displayName: 'Clinical Research MCP Server (FHIR + PubMed + Trials)'
+    extraSettings: [
+      {
+        name: 'FHIR_SERVER_URL'
+        value: fhirServerUrl
+      }
+      {
+        name: 'NCBI_API_KEY'
+        value: ''
+      }
+    ]
   }
   {
     name: 'cosmos-rag'
     displayName: 'Cosmos DB RAG & Audit MCP Server'
+    extraSettings: [
+      {
+        name: 'COSMOS_DB_ENDPOINT'
+        value: cosmosDbEndpoint
+      }
+      {
+        name: 'COSMOS_DB_DATABASE'
+        value: 'healthcare-mcp'
+      }
+      {
+        name: 'AZURE_AI_SERVICES_ENDPOINT'
+        value: aiServicesEndpoint
+      }
+      {
+        name: 'EMBEDDING_DEPLOYMENT_NAME'
+        value: 'text-embedding-3-large'
+      }
+      {
+        name: 'EMBEDDING_DIMENSIONS'
+        value: '3072'
+      }
+    ]
   }
 ]
 
@@ -155,7 +172,7 @@ resource functionApps 'Microsoft.Web/sites@2023-12-01' = [for server in mcpServe
           ipAddress: 'Any'
         }
       ]
-      appSettings: [
+      appSettings: union([
         {
           name: 'FUNCTIONS_EXTENSION_VERSION'
           value: '~4'
@@ -200,31 +217,7 @@ resource functionApps 'Microsoft.Web/sites@2023-12-01' = [for server in mcpServe
           name: 'WEBSITE_DNS_SERVER'
           value: '168.63.129.16'
         }
-        {
-          name: 'FHIR_SERVER_URL'
-          value: fhirServerUrl
-        }
-        {
-          name: 'COSMOS_DB_ENDPOINT'
-          value: cosmosDbEndpoint
-        }
-        {
-          name: 'COSMOS_DB_DATABASE'
-          value: 'healthcare-mcp'
-        }
-        {
-          name: 'AZURE_AI_SERVICES_ENDPOINT'
-          value: aiServicesEndpoint
-        }
-        {
-          name: 'EMBEDDING_DEPLOYMENT_NAME'
-          value: 'text-embedding-3-large'
-        }
-        {
-          name: 'EMBEDDING_DIMENSIONS'
-          value: '3072'
-        }
-      ]
+      ], server.extraSettings)
       cors: {
         allowedOrigins: [
           'https://portal.azure.com'

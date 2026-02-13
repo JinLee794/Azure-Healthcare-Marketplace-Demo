@@ -73,16 +73,16 @@ def _create_entities(local: bool = False) -> list:
     )
     from .config import AgentConfig
     from .tools import (
+        CLINICAL_TRIALS_TOOLS_ALL,
+        FHIR_TOOLS_ALL,
         ICD10_TOOLS_COMPLIANCE,
         ICD10_TOOLS_SEARCH,
         NPI_TOOLS_COMPLIANCE,
         NPI_TOOLS_SEARCH,
-        create_clinical_trials_tool,
-        create_cms_tool,
-        create_fhir_tool,
-        create_icd10_tool,
-        create_npi_tool,
-        create_pubmed_tool,
+        PUBMED_TOOLS_ALL,
+        REFERENCE_DATA_COMPLIANCE,
+        create_clinical_research_tool,
+        create_reference_data_tool,
     )
 
     # ── Resolve endpoints ──────────────────────────────────────────
@@ -90,9 +90,9 @@ def _create_entities(local: bool = False) -> list:
     endpoints = config.endpoints
     subscription_key = config.apim_subscription_key
     logger.info(
-        "MCP mode: %s  NPI→%s  APIM key: %s",
+        "MCP mode: %s  reference-data→%s  APIM key: %s",
         "local" if local else "APIM passthrough",
-        endpoints.npi,
+        endpoints.reference_data,
         "set" if subscription_key else "NOT SET",
     )
 
@@ -140,24 +140,12 @@ def _create_entities(local: bool = False) -> list:
             timeout=httpx.Timeout(60.0, connect=30.0),
         )
 
-    # ── Tool factory helpers ───────────────────────────────────────
-    def npi(name: str = "NPI Lookup", allowed: list[str] | None = None):
-        return create_npi_tool(endpoints.npi, name=name, allowed_tools=allowed, http_client=_shared_http)
+    # ── Tool factory helpers (3 consolidated servers) ────────────
+    def ref_data(name: str = "Reference Data", allowed: list[str] | None = None):
+        return create_reference_data_tool(endpoints.reference_data, name=name, allowed_tools=allowed, http_client=_shared_http)
 
-    def icd10(name: str = "ICD-10 Validation", allowed: list[str] | None = None):
-        return create_icd10_tool(endpoints.icd10, name=name, allowed_tools=allowed, http_client=_shared_http)
-
-    def cms(name: str = "CMS Coverage"):
-        return create_cms_tool(endpoints.cms, name=name, http_client=_shared_http)
-
-    def fhir(name: str = "FHIR Operations"):
-        return create_fhir_tool(endpoints.fhir, name=name, http_client=_shared_http)
-
-    def pubmed(name: str = "PubMed"):
-        return create_pubmed_tool(endpoints.pubmed, name=name, http_client=_shared_http)
-
-    def trials(name: str = "Clinical Trials"):
-        return create_clinical_trials_tool(endpoints.clinical_trials, name=name, http_client=_shared_http)
+    def clinical(name: str = "Clinical Research", allowed: list[str] | None = None):
+        return create_clinical_research_tool(endpoints.clinical_research, name=name, allowed_tools=allowed, http_client=_shared_http)
 
     entities: list = []
 
@@ -165,7 +153,7 @@ def _create_entities(local: bool = False) -> list:
     entities.append(
         create_healthcare_triage_orchestrator(
             client=client,
-            tools=[npi(), icd10(), cms(), fhir(), pubmed(), trials()],
+            tools=[ref_data(), clinical()],
         )
     )
 
@@ -177,23 +165,19 @@ def _create_entities(local: bool = False) -> list:
     compliance_agent = create_compliance_agent(
         client=client,
         tools=[
-            npi("NPI (Compliance)", NPI_TOOLS_COMPLIANCE),
-            icd10("ICD-10 (Compliance)", ICD10_TOOLS_COMPLIANCE),
+            ref_data("Reference Data (Compliance)", REFERENCE_DATA_COMPLIANCE),
         ],
     )
     clinical_reviewer_agent = create_clinical_reviewer_agent(
         client=client,
         tools=[
-            fhir("FHIR (Clinical)"),
-            pubmed("PubMed (Clinical)"),
-            trials("Trials (Clinical)"),
+            clinical("Clinical Research (Reviewer)"),
         ],
     )
     coverage_agent = create_coverage_agent(
         client=client,
         tools=[
-            cms("CMS (Coverage)"),
-            icd10("ICD-10 (Coverage)", ICD10_TOOLS_SEARCH),
+            ref_data("Reference Data (Coverage)", ICD10_TOOLS_SEARCH + ["search_coverage", "get_coverage_by_cpt", "get_coverage_by_icd10", "check_medical_necessity", "get_mac_jurisdiction"]),
         ],
     )
     synthesis_agent = create_synthesis_agent(client=client)
@@ -216,8 +200,7 @@ def _create_entities(local: bool = False) -> list:
     research_agent = create_trials_research_agent(
         client=client,
         tools=[
-            trials("Trials (Research)"),
-            pubmed("PubMed (Research)"),
+            clinical("Clinical Research (Trials+PubMed)", CLINICAL_TRIALS_TOOLS_ALL + PUBMED_TOOLS_ALL),
         ],
     )
     draft_agent = create_protocol_draft_agent(client=client)
@@ -234,8 +217,8 @@ def _create_entities(local: bool = False) -> list:
         create_patient_summary_agent(
             client=client,
             tools=[
-                fhir("FHIR (Patient)"),
-                npi("NPI (Patient)", NPI_TOOLS_SEARCH),
+                clinical("Clinical Research (Patient)", FHIR_TOOLS_ALL),
+                ref_data("Reference Data (Patient)", NPI_TOOLS_SEARCH),
             ],
         )
     )
@@ -245,11 +228,11 @@ def _create_entities(local: bool = False) -> list:
     #   Concurrent: Literature Agent (PubMed) ‖ Trials Correlation (ClinicalTrials.gov)
     lit_agent = create_literature_search_agent(
         client=client,
-        tools=[pubmed("PubMed (Literature)")],
+        tools=[clinical("Clinical Research (Literature)", PUBMED_TOOLS_ALL)],
     )
     trials_corr_agent = create_trials_correlation_agent(
         client=client,
-        tools=[trials("Trials (Correlation)")],
+        tools=[clinical("Clinical Research (Trials)", CLINICAL_TRIALS_TOOLS_ALL)],
     )
 
     lit_workflow = ConcurrentBuilder(
@@ -293,8 +276,7 @@ def launch(
     print("  Healthcare Agent Orchestration — Framework DevUI")
     print(f"  Mode: {'local' if local else 'APIM passthrough'}")
     print(f"  Workflow entities: {len(entities)}")
-    print("  MCP servers: npi-lookup · icd10-validation · cms-coverage")
-    print("               fhir-operations · pubmed · clinical-trials")
+    print("  MCP servers: mcp-reference-data · mcp-clinical-research · cosmos-rag")
     print(f"  URL: http://127.0.0.1:{port}")
     print(f"{'='*64}\n")
 

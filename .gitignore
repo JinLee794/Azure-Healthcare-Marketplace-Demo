@@ -71,4 +71,6 @@ build/
 voicetree*
 mcp.json
 scripts/**/*.json
-outputs
+# Workflow run outputs (timestamped dirs under .runs/)
+.runs/*
+!.runs/README.md

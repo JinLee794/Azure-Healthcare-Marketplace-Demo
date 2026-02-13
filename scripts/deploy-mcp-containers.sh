@@ -11,8 +11,8 @@
 #   - azd environment variables set (via `azd env` or exported)
 #
 # Usage:
-#   ./scripts/deploy-mcp-containers.sh              # Deploy all servers
-#   ./scripts/deploy-mcp-containers.sh npi-lookup    # Deploy single server
+#   ./scripts/deploy-mcp-containers.sh                        # Deploy all servers
+#   ./scripts/deploy-mcp-containers.sh mcp-reference-data     # Deploy single server
 #
 # Environment variables (auto-resolved from azd env if not set):
 #   AZURE_CONTAINER_REGISTRY_ENDPOINT  - ACR login server (e.g., myacr.azurecr.io)
@@ -28,20 +28,16 @@ DOCKERFILE="$REPO_ROOT/src/mcp-servers/Dockerfile"
 BUILD_CONTEXT="$REPO_ROOT/src/mcp-servers"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 
-# All MCP servers (bash 3.2-compatible — no associative arrays)
-ALL_SERVERS=(npi-lookup icd10-validation cms-coverage fhir-operations pubmed clinical-trials cosmos-rag)
+# Consolidated MCP servers (v2)
+ALL_SERVERS=(mcp-reference-data mcp-clinical-research cosmos-rag)
 
 # Map server name → azd env variable name
 get_resource_var() {
   case "$1" in
-    npi-lookup)         echo "SERVICE_NPI_LOOKUP_RESOURCE_NAME" ;;
-    icd10-validation)   echo "SERVICE_ICD10_VALIDATION_RESOURCE_NAME" ;;
-    cms-coverage)       echo "SERVICE_CMS_COVERAGE_RESOURCE_NAME" ;;
-    fhir-operations)    echo "SERVICE_FHIR_OPERATIONS_RESOURCE_NAME" ;;
-    pubmed)             echo "SERVICE_PUBMED_RESOURCE_NAME" ;;
-    clinical-trials)    echo "SERVICE_CLINICAL_TRIALS_RESOURCE_NAME" ;;
-    cosmos-rag)         echo "SERVICE_COSMOS_RAG_RESOURCE_NAME" ;;
-    *)                  return 1 ;;
+    mcp-reference-data)    echo "SERVICE_MCP_REFERENCE_DATA_RESOURCE_NAME" ;;
+    mcp-clinical-research) echo "SERVICE_MCP_CLINICAL_RESEARCH_RESOURCE_NAME" ;;
+    cosmos-rag)            echo "SERVICE_COSMOS_RAG_RESOURCE_NAME" ;;
+    *)                     return 1 ;;
   esac
 }
 

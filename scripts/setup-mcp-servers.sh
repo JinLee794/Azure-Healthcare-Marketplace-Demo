@@ -31,14 +31,11 @@ RESOURCE_GROUP="${1:-}"
 APIM_NAME="${2:-}"
 FUNCTION_BASE_NAME="${3:-}"
 
-# MCP Servers to configure
+# Consolidated MCP Servers (v2)
 MCP_SERVERS=(
-    "npi-lookup:NPI Lookup:National Provider Identifier lookup and validation"
-    "icd10-validation:ICD-10 Validation:ICD-10-CM diagnosis code validation and search"
-    "cms-coverage:CMS Coverage:CMS coverage policy lookup and determination"
-    "fhir-operations:FHIR Operations:FHIR R4 resource operations"
-    "pubmed:PubMed:PubMed medical literature search"
-    "clinical-trials:Clinical Trials:ClinicalTrials.gov data access"
+    "mcp-reference-data:Reference Data:NPI lookup, ICD-10 validation, and CMS coverage (12 tools)"
+    "mcp-clinical-research:Clinical Research:FHIR operations, PubMed search, and clinical trials (20 tools)"
+    "cosmos-rag:Cosmos RAG:Cosmos DB RAG search and audit logging (6 tools)"
 )
 
 # ============================================================================
@@ -109,7 +106,7 @@ get_resource_info() {
         FUNC_APP=$(az functionapp list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || echo "")
         if [ -n "$FUNC_APP" ]; then
             # Extract base name (e.g., "hcmcp" from "hcmcp-npi-lookup-func")
-            FUNCTION_BASE_NAME=$(echo "$FUNC_APP" | sed 's/-[^-]*-func$//' | sed 's/-npi-lookup$//' | sed 's/-icd10-validation$//' | sed 's/-cms-coverage$//' | sed 's/-fhir-operations$//' | sed 's/-pubmed$//' | sed 's/-clinical-trials$//')
+            FUNCTION_BASE_NAME=$(echo "$FUNC_APP" | sed 's/-[^-]*-func$//' | sed 's/-mcp-reference-data$//' | sed 's/-mcp-clinical-research$//' | sed 's/-cosmos-rag$//')
         fi
     fi
 

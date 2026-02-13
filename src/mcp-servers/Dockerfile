@@ -27,10 +27,8 @@ RUN mkdir -p /azure-functions-host/Secrets && \
 # Copy shared base (mcp_base.py) into the function app root
 COPY shared/mcp_base.py /home/site/wwwroot/mcp_base.py
 
-# Copy the target server code
-COPY ${SERVER_NAME}/host.json       /home/site/wwwroot/host.json
-COPY ${SERVER_NAME}/requirements.txt /home/site/wwwroot/requirements.txt
-COPY ${SERVER_NAME}/function_app.py /home/site/wwwroot/function_app.py
+# Copy the entire server directory (supports multi-module consolidated servers)
+COPY ${SERVER_NAME}/ /home/site/wwwroot/
 
 # Install dependencies
 RUN pip install --no-cache-dir -r /home/site/wwwroot/requirements.txt

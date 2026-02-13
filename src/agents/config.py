@@ -3,6 +3,11 @@ Centralized configuration for Healthcare Agent Orchestration.
 
 MCP server URLs sourced from APIM passthrough endpoints.
 Supports environment variable overrides for local development.
+
+Consolidated MCP servers (v2):
+  - reference-data:     NPI + ICD-10 + CMS (12 tools)
+  - clinical-research:  FHIR + PubMed + ClinicalTrials (20 tools)
+  - cosmos-rag:         Cosmos DB RAG & Audit (6 tools)
 """
 
 import os
@@ -18,28 +23,20 @@ DEFAULT_APIM_BASE_URL = "https://healthcaremcp-apim-v4nrndu5paa6o.azure-api.net/
 # APIM subscription key header name
 APIM_SUBSCRIPTION_KEY_HEADER = "Ocp-Apim-Subscription-Key"
 
-# Local development ports (match docs/LOCAL-TESTING.md)
+# Local development ports (consolidated servers)
 LOCAL_PORTS = {
-    "npi": 7071,
-    "icd10": 7072,
-    "cms": 7073,
-    "fhir": 7074,
-    "pubmed": 7075,
-    "clinical-trials": 7076,
-    "cosmos-rag": 7077,
+    "reference-data": 7071,
+    "clinical-research": 7072,
+    "cosmos-rag": 7073,
 }
 
 
 @dataclass(frozen=True)
 class MCPEndpoints:
-    """MCP server endpoint URLs."""
+    """MCP server endpoint URLs (3 consolidated servers)."""
 
-    npi: str
-    icd10: str
-    cms: str
-    fhir: str
-    pubmed: str
-    clinical_trials: str
+    reference_data: str
+    clinical_research: str
     cosmos_rag: str
 
     @classmethod
@@ -47,25 +44,24 @@ class MCPEndpoints:
         """Build endpoints from environment, with optional local override."""
         if local:
             return cls(
-                npi=os.getenv("MCP_NPI_URL", f"http://localhost:{LOCAL_PORTS['npi']}/mcp"),
-                icd10=os.getenv("MCP_ICD10_URL", f"http://localhost:{LOCAL_PORTS['icd10']}/mcp"),
-                cms=os.getenv("MCP_CMS_URL", f"http://localhost:{LOCAL_PORTS['cms']}/mcp"),
-                fhir=os.getenv("MCP_FHIR_URL", f"http://localhost:{LOCAL_PORTS['fhir']}/mcp"),
-                pubmed=os.getenv("MCP_PUBMED_URL", f"http://localhost:{LOCAL_PORTS['pubmed']}/mcp"),
-                clinical_trials=os.getenv(
-                    "MCP_CLINICAL_TRIALS_URL", f"http://localhost:{LOCAL_PORTS['clinical-trials']}/mcp"
+                reference_data=os.getenv(
+                    "MCP_REFERENCE_DATA_URL",
+                    f"http://localhost:{LOCAL_PORTS['reference-data']}/mcp",
                 ),
-                cosmos_rag=os.getenv("MCP_COSMOS_RAG_URL", f"http://localhost:{LOCAL_PORTS['cosmos-rag']}/mcp"),
+                clinical_research=os.getenv(
+                    "MCP_CLINICAL_RESEARCH_URL",
+                    f"http://localhost:{LOCAL_PORTS['clinical-research']}/mcp",
+                ),
+                cosmos_rag=os.getenv(
+                    "MCP_COSMOS_RAG_URL",
+                    f"http://localhost:{LOCAL_PORTS['cosmos-rag']}/mcp",
+                ),
             )
 
         base = os.getenv("APIM_BASE_URL", DEFAULT_APIM_BASE_URL).rstrip("/")
         return cls(
-            npi=os.getenv("MCP_NPI_URL", f"{base}/npi/mcp"),
-            icd10=os.getenv("MCP_ICD10_URL", f"{base}/icd10/mcp"),
-            cms=os.getenv("MCP_CMS_URL", f"{base}/cms/mcp"),
-            fhir=os.getenv("MCP_FHIR_URL", f"{base}/fhir/mcp"),
-            pubmed=os.getenv("MCP_PUBMED_URL", f"{base}/pubmed/mcp"),
-            clinical_trials=os.getenv("MCP_CLINICAL_TRIALS_URL", f"{base}/clinical-trials/mcp"),
+            reference_data=os.getenv("MCP_REFERENCE_DATA_URL", f"{base}/reference-data/mcp"),
+            clinical_research=os.getenv("MCP_CLINICAL_RESEARCH_URL", f"{base}/clinical-research/mcp"),
             cosmos_rag=os.getenv("MCP_COSMOS_RAG_URL", f"{base}/cosmos-rag/mcp"),
         )
 
