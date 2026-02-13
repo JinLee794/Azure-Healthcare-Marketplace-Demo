@@ -49,40 +49,16 @@ param modelDeployments array = [
 @description('Tags to apply to resources')
 param tags object = {}
 
-// --- Connection dependencies ---
+// --- Connection dependency names (used for output only) ---
 
-@description('Cosmos DB account name (for project connection)')
+@description('Cosmos DB account name')
 param cosmosDbName string
 
-@description('Cosmos DB document endpoint')
-param cosmosDbEndpoint string
-
-@description('Cosmos DB resource ID')
-param cosmosDbResourceId string
-
-@description('Cosmos DB location')
-param cosmosDbResourceLocation string
-
-@description('Storage account name (for project connection)')
+@description('Storage account name')
 param storageAccountName string
 
-@description('Storage account blob endpoint')
-param storageBlobEndpoint string
-
-@description('Storage account resource ID')
-param storageAccountResourceId string
-
-@description('Storage account location')
-param storageAccountLocation string
-
-@description('AI Search service name (for project connection, optional)')
+@description('AI Search service name (optional)')
 param aiSearchName string = ''
-
-@description('AI Search service resource ID (optional)')
-param aiSearchResourceId string = ''
-
-@description('AI Search service location (optional)')
-param aiSearchLocation string = ''
 
 @description('Name for the project capability host')
 param capabilityHostName string = 'caphost-agents'
@@ -113,13 +89,15 @@ resource aiServices 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' = 
       bypass: 'AzureServices'
     }
     publicNetworkAccess: publicNetworkAccess
-    networkInjections: enableNetworkInjection ? [
-      {
-        scenario: 'agent'
-        subnetArmId: agentSubnetId
-        useMicrosoftManagedNetwork: false
-      }
-    ] : null
+    networkInjections: enableNetworkInjection
+      ? [
+          {
+            scenario: 'agent'
+            subnetArmId: agentSubnetId
+            useMicrosoftManagedNetwork: false
+          }
+        ]
+      : null
     disableLocalAuth: false
   }
 }
@@ -127,23 +105,25 @@ resource aiServices 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' = 
 // Model Deployments — deployed sequentially to avoid conflicts
 @batchSize(1)
 #disable-next-line BCP081
-resource deployments 'Microsoft.CognitiveServices/accounts/deployments@2025-04-01-preview' = [for deployment in modelDeployments: {
-  parent: aiServices
-  name: deployment.name
-  sku: {
-    name: 'Standard'
-    capacity: deployment.capacity
-  }
-  properties: {
-    model: {
-      format: 'OpenAI'
-      name: deployment.model
-      version: deployment.version
+resource deployments 'Microsoft.CognitiveServices/accounts/deployments@2025-04-01-preview' = [
+  for deployment in modelDeployments: {
+    parent: aiServices
+    name: deployment.name
+    sku: {
+      name: 'Standard'
+      capacity: deployment.capacity
     }
-    versionUpgradeOption: 'OnceNewDefaultVersionAvailable'
-    raiPolicyName: 'Microsoft.DefaultV2'
+    properties: {
+      model: {
+        format: 'OpenAI'
+        name: deployment.model
+        version: deployment.version
+      }
+      versionUpgradeOption: 'OnceNewDefaultVersionAvailable'
+      raiPolicyName: 'Microsoft.DefaultV2'
+    }
   }
-}]
+]
 
 // ============================================================================
 // AI Foundry Project — child of the AI Services account
@@ -161,59 +141,12 @@ resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-04-01-pre
     description: 'Healthcare MCP AI Project for agents and workflows'
     displayName: 'Healthcare MCP AI Project'
   }
-
-  // Cosmos DB connection — thread storage for agents
-  #disable-next-line BCP081
-  resource cosmosConnection 'connections@2025-04-01-preview' = {
-    name: cosmosDbName
-    properties: {
-      category: 'CosmosDB'
-      target: cosmosDbEndpoint
-      authType: 'AAD'
-      metadata: {
-        ApiType: 'Azure'
-        ResourceId: cosmosDbResourceId
-        location: cosmosDbResourceLocation
-      }
-    }
-  }
-
-  // Azure Storage connection — file storage for agents
-  #disable-next-line BCP081
-  resource storageConnection 'connections@2025-04-01-preview' = {
-    name: storageAccountName
-    properties: {
-      category: 'AzureStorageAccount'
-      target: storageBlobEndpoint
-      authType: 'AAD'
-      metadata: {
-        ApiType: 'Azure'
-        ResourceId: storageAccountResourceId
-        location: storageAccountLocation
-      }
-    }
-  }
-
-  // AI Search connection — vector store for agents (optional)
-  #disable-next-line BCP081
-  resource searchConnection 'connections@2025-04-01-preview' = if (!empty(aiSearchName)) {
-    name: aiSearchName
-    properties: {
-      category: 'CognitiveSearch'
-      target: 'https://${aiSearchName}.search.windows.net'
-      authType: 'AAD'
-      metadata: {
-        ApiType: 'Azure'
-        ResourceId: aiSearchResourceId
-        location: aiSearchLocation
-      }
-    }
-  }
 }
 
-// NOTE: Capability Host is deployed in main.bicep AFTER role assignments
-// complete, because the host initialization requires the project principal
-// to have RBAC access to Storage, Cosmos DB, and AI Search.
+
+// NOTE: Connections and capability host are deployed in main.bicep AFTER role
+// assignments are created, since they require the project's managed identity
+// to already have RBAC permissions.
 
 // ============================================================================
 // Outputs

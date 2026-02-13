@@ -82,7 +82,7 @@ seed-policies: local-start-cosmos-rag
 sync-local-env:
 	@bash ./scripts/sync-local-env-from-azd.sh --quiet || true
 
-seed-policies-direct:
+seed-policies-direct: sync-local-env
 	@echo "Seeding Cosmos DB directly via SDK..."
 	python scripts/seed_cosmos_policies.py --direct
 

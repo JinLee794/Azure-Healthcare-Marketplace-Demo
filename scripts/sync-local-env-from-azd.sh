@@ -20,6 +20,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUTPUT_FILE="$REPO_ROOT/.env.local"
+AZURE_DIR="$REPO_ROOT/.azure"
 
 log() {
   if ! $QUIET; then
@@ -40,11 +41,48 @@ resolve_value() {
   local value="${!var_name:-}"
 
   if [[ -z "$value" ]] && command -v azd >/dev/null 2>&1; then
-    value="$(azd env get-value "$var_name" 2>/dev/null || true)"
+    value="$(azd env get-value "$var_name" --no-prompt 2>/dev/null || true)"
   fi
 
   trim_quotes "$value"
 }
+
+detect_azd_env_name() {
+  local env_name="${AZURE_ENV_NAME:-}"
+
+  if [[ -n "$env_name" ]]; then
+    printf '%s' "$env_name"
+    return 0
+  fi
+
+  local config_file="$AZURE_DIR/config.json"
+  if [[ -f "$config_file" ]]; then
+    env_name="$(sed -n 's/.*"defaultEnvironment":"\([^"]*\)".*/\1/p' "$config_file" | head -n1)"
+    if [[ -n "$env_name" ]]; then
+      printf '%s' "$env_name"
+      return 0
+    fi
+  fi
+
+  if [[ -d "$AZURE_DIR" ]]; then
+    env_name="$(find "$AZURE_DIR" -mindepth 2 -maxdepth 2 -name '.env' -print 2>/dev/null | head -n1 | sed -E 's|.*/.azure/([^/]+)/.env$|\1|')"
+  fi
+  printf '%s' "$env_name"
+}
+
+AZD_ENV_NAME="$(detect_azd_env_name)"
+AZD_ENV_FILE=""
+if [[ -n "$AZD_ENV_NAME" ]]; then
+  AZD_ENV_FILE="$AZURE_DIR/$AZD_ENV_NAME/.env"
+fi
+
+if [[ -f "$AZD_ENV_FILE" ]]; then
+  # Load azd output values from local file to avoid interactive CLI prompts.
+  set -a
+  # shellcheck disable=SC1090
+  source "$AZD_ENV_FILE"
+  set +a
+fi
 
 AI_ENDPOINT="$(resolve_value SERVICE_AI_SERVICES_ENDPOINT)"
 if [[ -z "$AI_ENDPOINT" ]]; then

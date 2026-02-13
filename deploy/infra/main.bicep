@@ -51,7 +51,7 @@ param enablePublicAccess bool = false
 param enableFhirPrivateEndpoint bool = false
 
 @description('Enable Cosmos DB public network access in addition to private endpoint access (recommended for local development only)')
-param enableCosmosPublicAccess bool = false
+param enableCosmosPublicAccess bool = true
 
 @description('Azure Container Registry SKU for dockerized MCP server images')
 @allowed([
@@ -192,18 +192,10 @@ module aiFoundry 'modules/ai-foundry.bicep' = {
     enableNetworkInjection: true
     publicNetworkAccess: publicNetworkAccess
     modelDeployments: modelDeployments
-    // Connection dependencies
+    // Connection dependency names (for outputs only — connections created in main.bicep)
     cosmosDbName: dependentResources.outputs.cosmosDbName
-    cosmosDbEndpoint: dependentResources.outputs.cosmosDbEndpoint
-    cosmosDbResourceId: dependentResources.outputs.cosmosDbId
-    cosmosDbResourceLocation: dependentResources.outputs.cosmosDbLocation
     storageAccountName: dependentResources.outputs.storageAccountName
-    storageBlobEndpoint: dependentResources.outputs.storageBlobEndpoint
-    storageAccountResourceId: dependentResources.outputs.storageAccountId
-    storageAccountLocation: location
     aiSearchName: dependentResources.outputs.aiSearchName
-    aiSearchResourceId: dependentResources.outputs.aiSearchId
-    aiSearchLocation: location
     tags: tags
   }
 }
@@ -265,7 +257,7 @@ module apim 'modules/apim.bicep' = {
     publicNetworkAccess: enablePublicAccess ? 'Enabled' : 'Enabled' // APIM needs external access for gateway
     tags: tags
   }
-  dependsOn: [functionApps]  // Ensure Function Apps exist before configuring backends
+  dependsOn: [functionApps] // Ensure Function Apps exist before configuring backends
 }
 
 // 8. User-Assigned Managed Identity for MCP OAuth
@@ -298,7 +290,7 @@ module apimMcpOAuth 'modules/apim-mcp-oauth.bicep' = {
     mcpAppTenantId: mcpEntraApp.outputs.mcpAppTenantId
     functionAppBaseName: baseName
   }
-  dependsOn: [functionApps]  // Ensure Function Apps exist for host key retrieval
+  dependsOn: [functionApps] // Ensure Function Apps exist for host key retrieval
 }
 
 // 10b. APIM MCP Passthrough (Lightweight debug - no OAuth, subscription key only)
@@ -351,7 +343,10 @@ resource aiServicesStorageRole 'Microsoft.Authorization/roleAssignments@2022-04-
   name: guid(resourceGroup().id, aiServicesResourceName, 'storage-blob-contributor-v2')
   scope: resourceGroup()
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+    ) // Storage Blob Data Contributor
     principalId: aiFoundry.outputs.aiServicesPrincipalId
     principalType: 'ServicePrincipal'
   }
@@ -362,7 +357,10 @@ resource apimOpenAIRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, '${baseName}-apim-v2', 'cognitive-services-openai-user-v2')
   scope: resourceGroup()
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd') // Cognitive Services OpenAI User
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
+    ) // Cognitive Services OpenAI User
     principalId: apim.outputs.apimPrincipalId
     principalType: 'ServicePrincipal'
   }
@@ -376,49 +374,67 @@ resource containerRegistryResource 'Microsoft.ContainerRegistry/registries@2023-
   name: containerRegistryName
 }
 
-resource fhirDataContributorRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for i in range(0, mcpServerCount): {
-  name: guid(resourceGroup().id, 'func-${i}-v3', 'fhir-data-contributor')
-  scope: resourceGroup()
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5a1fc7df-4bf1-4951-a576-89034ee01acd') // FHIR Data Contributor
-    principalId: functionApps.outputs.functionAppPrincipalIds[i]
-    principalType: 'ServicePrincipal'
+resource fhirDataContributorRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for i in range(0, mcpServerCount): {
+    name: guid(resourceGroup().id, 'func-${i}-v3', 'fhir-data-contributor')
+    scope: resourceGroup()
+    properties: {
+      roleDefinitionId: subscriptionResourceId(
+        'Microsoft.Authorization/roleDefinitions',
+        '5a1fc7df-4bf1-4951-a576-89034ee01acd'
+      ) // FHIR Data Contributor
+      principalId: functionApps.outputs.functionAppPrincipalIds[i]
+      principalType: 'ServicePrincipal'
+    }
   }
-}]
+]
 
 // AcrPull for Function Apps (required when MCP servers are deployed as container images)
-resource acrPullRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for i in range(0, mcpServerCount): {
-  name: guid(resourceGroup().id, containerRegistryName, 'func-${i}-v3', 'acr-pull')
-  scope: containerRegistryResource
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d') // AcrPull
-    principalId: functionApps.outputs.functionAppPrincipalIds[i]
-    principalType: 'ServicePrincipal'
+resource acrPullRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for i in range(0, mcpServerCount): {
+    name: guid(resourceGroup().id, containerRegistryName, 'func-${i}-v3', 'acr-pull')
+    scope: containerRegistryResource
+    properties: {
+      roleDefinitionId: subscriptionResourceId(
+        'Microsoft.Authorization/roleDefinitions',
+        '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+      ) // AcrPull
+      principalId: functionApps.outputs.functionAppPrincipalIds[i]
+      principalType: 'ServicePrincipal'
+    }
   }
-}]
+]
 
 // Cosmos DB Built-in Data Contributor for Function Apps (allows MCP servers to read/write Cosmos DB)
 // Role ID: 00000000-0000-0000-0000-000000000002 is the Cosmos DB Built-in Data Contributor
 // We use the ARM role 'DocumentDB Account Contributor' (5bd9cd88-fe45-4216-938b-f97437e15450) at RG scope
 // and additionally the Cosmos DB data-plane RBAC via SQL Role Assignment
-resource cosmosDbDataContributorRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for i in range(0, mcpServerCount): {
-  name: guid(resourceGroup().id, 'func-${i}-v3', 'cosmos-data-contributor')
-  scope: resourceGroup()
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5bd9cd88-fe45-4216-938b-f97437e15450') // DocumentDB Account Contributor
-    principalId: functionApps.outputs.functionAppPrincipalIds[i]
-    principalType: 'ServicePrincipal'
+resource cosmosDbDataContributorRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for i in range(0, mcpServerCount): {
+    name: guid(resourceGroup().id, 'func-${i}-v3', 'cosmos-data-contributor')
+    scope: resourceGroup()
+    properties: {
+      roleDefinitionId: subscriptionResourceId(
+        'Microsoft.Authorization/roleDefinitions',
+        '5bd9cd88-fe45-4216-938b-f97437e15450'
+      ) // DocumentDB Account Contributor
+      principalId: functionApps.outputs.functionAppPrincipalIds[i]
+      principalType: 'ServicePrincipal'
+    }
   }
-}]
+]
 
-// --- AI Foundry Project Role Assignments (required before/for capability host) ---
+// --- AI Foundry Project Role Assignments ---
 
 // Storage Blob Data Contributor for AI Project principal
 resource projectStorageBlobRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, aiProjectResourceName, 'storage-blob-contributor-v2')
   scope: resourceGroup()
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+    ) // Storage Blob Data Contributor
     principalId: aiFoundry.outputs.aiProjectPrincipalId
     principalType: 'ServicePrincipal'
   }
@@ -429,7 +445,10 @@ resource projectCosmosReaderRole 'Microsoft.Authorization/roleAssignments@2022-0
   name: guid(resourceGroup().id, aiProjectResourceName, 'cosmos-account-reader-v2')
   scope: resourceGroup()
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'fbdf93bf-df7d-467e-a4d2-9458aa1360c8') // Cosmos DB Account Reader
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      'fbdf93bf-df7d-467e-a4d2-9458aa1360c8'
+    ) // Cosmos DB Account Reader
     principalId: aiFoundry.outputs.aiProjectPrincipalId
     principalType: 'ServicePrincipal'
   }
@@ -440,7 +459,10 @@ resource projectCosmosContributorRole 'Microsoft.Authorization/roleAssignments@2
   name: guid(resourceGroup().id, aiProjectResourceName, 'cosmos-contributor-v2')
   scope: resourceGroup()
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5bd9cd88-fe45-4216-938b-f97437e15450') // DocumentDB Account Contributor
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '5bd9cd88-fe45-4216-938b-f97437e15450'
+    ) // DocumentDB Account Contributor
     principalId: aiFoundry.outputs.aiProjectPrincipalId
     principalType: 'ServicePrincipal'
   }
@@ -451,7 +473,10 @@ resource projectSearchRole 'Microsoft.Authorization/roleAssignments@2022-04-01' 
   name: guid(resourceGroup().id, aiProjectResourceName, 'search-index-contributor-v2')
   scope: resourceGroup()
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7') // Search Index Data Contributor
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '8ebe5a00-799e-43f5-93ac-243d3dce84a7'
+    ) // Search Index Data Contributor
     principalId: aiFoundry.outputs.aiProjectPrincipalId
     principalType: 'ServicePrincipal'
   }
@@ -462,40 +487,133 @@ resource projectSearchServiceRole 'Microsoft.Authorization/roleAssignments@2022-
   name: guid(resourceGroup().id, aiProjectResourceName, 'search-service-contributor-v2')
   scope: resourceGroup()
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0') // Search Service Contributor
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '7ca78c08-252a-4471-8644-bb5ff32d4ba0'
+    ) // Search Service Contributor
     principalId: aiFoundry.outputs.aiProjectPrincipalId
     principalType: 'ServicePrincipal'
   }
 }
-
-// ============================================================================
-// CAPABILITY HOST — deployed AFTER role assignments
-// The capability host initialization requires the project principal to have
-// Storage, Cosmos DB, and Search RBAC permissions already in place.
-// ============================================================================
 
 // Compile-time resource names (must not use module outputs for the 'name' property)
 var aiServicesResourceName = '${baseName}-aiservices-${uniqueSuffix}'
 var aiProjectResourceName = '${baseName}-project-${uniqueSuffix}'
 var capabilityHostResourceName = 'caphost-agents'
 
+// Connection resource names — must match the names used in dependent-resources.bicep
+var cosmosDbResourceName = '${baseName}-cosmos-${uniqueSuffix}'
+var storageBaseName = replace(baseName, '-', '')
+var storageSuffix = 'st${uniqueString(resourceGroup().id)}'
+var storageResourceName = take('${storageBaseName}${storageSuffix}', 24)
+var aiSearchResourceName = toLower('${replace(baseName, '-', '')}search${uniqueSuffix}')
+
+// ============================================================================
+// PROJECT CONNECTIONS — created AFTER role assignments, BEFORE capability host
+// Following foundry-samples/15-private-network-standard-agent-setup pattern:
+// connections are child resources of the project. The capability host references
+// them by name, so they must exist first.
+// ============================================================================
+
+// Cosmos DB connection — thread storage for agents
+#disable-next-line BCP081
+resource cosmosConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = {
+  name: '${aiServicesResourceName}/${aiProjectResourceName}/${cosmosDbResourceName}'
+  properties: {
+    category: 'CosmosDB'
+    target: dependentResources.outputs.cosmosDbEndpoint
+    authType: 'AAD'
+    metadata: {
+      ApiType: 'Azure'
+      ResourceId: dependentResources.outputs.cosmosDbId
+      location: dependentResources.outputs.cosmosDbLocation
+    }
+  }
+  dependsOn: [
+    aiFoundry
+    projectCosmosReaderRole
+    projectCosmosContributorRole
+  ]
+}
+
+// Azure Storage connection — file storage for agents
+#disable-next-line BCP081
+resource storageConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = {
+  name: '${aiServicesResourceName}/${aiProjectResourceName}/${storageResourceName}'
+  properties: {
+    category: 'AzureStorageAccount'
+    target: dependentResources.outputs.storageBlobEndpoint
+    authType: 'AAD'
+    metadata: {
+      ApiType: 'Azure'
+      ResourceId: dependentResources.outputs.storageAccountId
+      location: location
+    }
+  }
+  dependsOn: [
+    aiFoundry
+    projectStorageBlobRole
+    aiServicesStorageRole
+  ]
+}
+
+// AI Search connection — vector store for agents
+#disable-next-line BCP081
+resource searchConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = {
+  name: '${aiServicesResourceName}/${aiProjectResourceName}/${aiSearchResourceName}'
+  properties: {
+    category: 'CognitiveSearch'
+    target: 'https://${aiSearchResourceName}.search.windows.net'
+    authType: 'AAD'
+    metadata: {
+      ApiType: 'Azure'
+      ResourceId: dependentResources.outputs.aiSearchId
+      location: location
+    }
+  }
+  dependsOn: [
+    aiFoundry
+    projectSearchRole
+    projectSearchServiceRole
+  ]
+}
+
+// ============================================================================
+// CAPABILITY HOSTS — deployed AFTER connections and role assignments
+// Account-level capability host must exist before the project-level one.
+// The project capability host references connections by name and requires the
+// project principal to have Storage, Cosmos DB, and Search RBAC permissions.
+// ============================================================================
+
+// Account-level capability host (required before project-level)
+#disable-next-line BCP081
+resource accountCapabilityHost 'Microsoft.CognitiveServices/accounts/capabilityHosts@2025-04-01-preview' = {
+  name: '${aiServicesResourceName}/caphost-account'
+  properties: {
+    #disable-next-line BCP037
+    capabilityHostKind: 'Agents'
+  }
+  dependsOn: [
+    aiFoundry
+    cosmosConnection
+    storageConnection
+    searchConnection
+  ]
+}
+
+// Project-level capability host
 #disable-next-line BCP081
 resource projectCapabilityHost 'Microsoft.CognitiveServices/accounts/projects/capabilityHosts@2025-04-01-preview' = {
   name: '${aiServicesResourceName}/${aiProjectResourceName}/${capabilityHostResourceName}'
   properties: {
     #disable-next-line BCP037
     capabilityHostKind: 'Agents'
-    vectorStoreConnections: [dependentResources.outputs.aiSearchName]
-    storageConnections: [dependentResources.outputs.storageAccountName]
-    threadStorageConnections: [dependentResources.outputs.cosmosDbName]
+    vectorStoreConnections: [aiSearchResourceName]
+    storageConnections: [storageResourceName]
+    threadStorageConnections: [cosmosDbResourceName]
   }
   dependsOn: [
-    aiFoundry
-    projectStorageBlobRole
-    projectCosmosReaderRole
-    projectCosmosContributorRole
-    projectSearchRole
-    projectSearchServiceRole
+    accountCapabilityHost
   ]
 }
 
@@ -543,7 +661,7 @@ output aiServicesEndpoint string = aiFoundry.outputs.aiServicesEndpoint
 output aiProjectId string = aiFoundry.outputs.aiProjectId
 output aiProjectName string = aiFoundry.outputs.aiProjectName
 output aiProjectWorkspaceId string = aiFoundry.outputs.aiProjectWorkspaceId
-output capabilityHostName string = capabilityHostResourceName
+output capabilityHostName string = aiFoundry.outputs.capabilityHostName
 
 // Function Apps
 output functionAppNames array = functionApps.outputs.functionAppNames

@@ -80,6 +80,14 @@ Edit `src/agents/.env` with your Azure OpenAI values. Key modes:
 - **Local MCP**: use `--local` flag and `localhost` MCP URLs.
 - **APIM passthrough**: set `APIM_BASE_URL` and `APIM_SUBSCRIPTION_KEY`.
 
+If you already deployed with `azd`, hydrate local runtime values from the active azd environment:
+
+```bash
+make sync-local-env
+```
+
+This writes `.env.local` (gitignored) with endpoints such as `AZURE_AI_SERVICES_ENDPOINT` and `COSMOS_DB_ENDPOINT` for local MCP workflows.
+
 ---
 
 ## 4) MCP Server Reference
@@ -211,6 +219,14 @@ curl -X POST http://localhost:7071/mcp \
     "params":{"name":"lookup_npi","arguments":{"npi":"1234567890"}}
   }' | jq
 ```
+
+### 5f. Seed sample payer policies into Cosmos DB
+
+```bash
+make seed-data
+```
+
+`make seed-data` now auto-syncs `.env.local` from azd outputs, starts `cosmos-rag` on port `7077` if needed, then indexes `data/policies/*.pdf`.
 
 ---
 
@@ -399,7 +415,7 @@ curl http://localhost:7071/health
 | 401 from APIM | Token audience mismatch | Verify `McpClientId` |
 | 502 from APIM | Cold start or VNet routing | Wait/retry or check VNet config |
 | FHIR returns demo data | `FHIR_SERVER_URL` not set | Set in `local.settings.json` |
-| `httpx.UnsupportedProtocol` in `cosmos-rag` | Missing/invalid `AZURE_AI_SERVICES_ENDPOINT` (or `AZURE_OPENAI_ENDPOINT`) | Set a full URL, e.g. `https://<resource>.services.ai.azure.com` |
+| `httpx.UnsupportedProtocol` in `cosmos-rag` | Missing/invalid `AZURE_AI_SERVICES_ENDPOINT` (or `AZURE_OPENAI_ENDPOINT`) | Run `make sync-local-env`, then restart `cosmos-rag` |
 | Port mismatch | Wrong port in `func start` | Match port to server table above |
 
 ---

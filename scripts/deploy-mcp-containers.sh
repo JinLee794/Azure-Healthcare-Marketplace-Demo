@@ -28,16 +28,22 @@ DOCKERFILE="$REPO_ROOT/src/mcp-servers/Dockerfile"
 BUILD_CONTEXT="$REPO_ROOT/src/mcp-servers"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 
-# All MCP servers and their azure.yaml service names (used for Bicep output lookup)
-declare -A SERVER_RESOURCE_VARS=(
-  [npi-lookup]="SERVICE_NPI_LOOKUP_RESOURCE_NAME"
-  [icd10-validation]="SERVICE_ICD10_VALIDATION_RESOURCE_NAME"
-  [cms-coverage]="SERVICE_CMS_COVERAGE_RESOURCE_NAME"
-  [fhir-operations]="SERVICE_FHIR_OPERATIONS_RESOURCE_NAME"
-  [pubmed]="SERVICE_PUBMED_RESOURCE_NAME"
-  [clinical-trials]="SERVICE_CLINICAL_TRIALS_RESOURCE_NAME"
-  [cosmos-rag]="SERVICE_COSMOS_RAG_RESOURCE_NAME"
-)
+# All MCP servers (bash 3.2-compatible — no associative arrays)
+ALL_SERVERS=(npi-lookup icd10-validation cms-coverage fhir-operations pubmed clinical-trials cosmos-rag)
+
+# Map server name → azd env variable name
+get_resource_var() {
+  case "$1" in
+    npi-lookup)         echo "SERVICE_NPI_LOOKUP_RESOURCE_NAME" ;;
+    icd10-validation)   echo "SERVICE_ICD10_VALIDATION_RESOURCE_NAME" ;;
+    cms-coverage)       echo "SERVICE_CMS_COVERAGE_RESOURCE_NAME" ;;
+    fhir-operations)    echo "SERVICE_FHIR_OPERATIONS_RESOURCE_NAME" ;;
+    pubmed)             echo "SERVICE_PUBMED_RESOURCE_NAME" ;;
+    clinical-trials)    echo "SERVICE_CLINICAL_TRIALS_RESOURCE_NAME" ;;
+    cosmos-rag)         echo "SERVICE_COSMOS_RAG_RESOURCE_NAME" ;;
+    *)                  return 1 ;;
+  esac
+}
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -103,14 +109,14 @@ echo "  Dockerfile:      $DOCKERFILE"
 if [ $# -gt 0 ]; then
   SERVERS=("$@")
   for s in "${SERVERS[@]}"; do
-    if [ -z "${SERVER_RESOURCE_VARS[$s]+x}" ]; then
+    if ! get_resource_var "$s" >/dev/null 2>&1; then
       log_err "Unknown server: $s"
-      echo "  Valid servers: ${!SERVER_RESOURCE_VARS[*]}"
+      echo "  Valid servers: ${ALL_SERVERS[*]}"
       exit 1
     fi
   done
 else
-  SERVERS=("${!SERVER_RESOURCE_VARS[@]}")
+  SERVERS=("${ALL_SERVERS[@]}")
 fi
 
 echo "  Servers:         ${SERVERS[*]}"
@@ -138,7 +144,7 @@ for SERVER_NAME in "${SERVERS[@]}"; do
   FULL_IMAGE="${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG}"
 
   # Resolve Function App resource name from Bicep output
-  RESOURCE_VAR="${SERVER_RESOURCE_VARS[$SERVER_NAME]}"
+  RESOURCE_VAR="$(get_resource_var "$SERVER_NAME")"
   FUNC_APP_NAME="$(resolve_azd_value "$RESOURCE_VAR")"
 
   if [ -z "$FUNC_APP_NAME" ]; then

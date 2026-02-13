@@ -186,12 +186,18 @@ Each step produces auditable waypoint artifacts. The workflow supports resume-fr
 # Start all six MCP servers
 make local-start
 
+# If you deployed with azd, sync local runtime endpoints from azd outputs
+make sync-local-env
+
 # Smoke test
 curl http://localhost:7071/.well-known/mcp | jq
 
 # Run the prior-auth workflow with sample data
 cd src && source agents/.venv/bin/activate
 python -m agents --workflow prior-auth --demo --local
+
+# Seed sample payer policies into cosmos-rag (auto-syncs env + starts cosmos-rag)
+make seed-data
 ```
 
 ### Deploy to Azure
