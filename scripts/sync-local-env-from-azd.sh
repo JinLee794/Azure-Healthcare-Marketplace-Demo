@@ -41,7 +41,9 @@ resolve_value() {
   local value="${!var_name:-}"
 
   if [[ -z "$value" ]] && command -v azd >/dev/null 2>&1; then
-    value="$(azd env get-value "$var_name" --no-prompt 2>/dev/null || true)"
+    # azd may output blank lines + "ERROR: ..." to stdout for missing keys;
+    # grab only the first non-empty, non-error line.
+    value="$(azd env get-value "$var_name" --no-prompt 2>/dev/null | grep -v '^ERROR:' | grep -v '^$' | head -n1 || true)"
   fi
 
   trim_quotes "$value"
@@ -98,7 +100,7 @@ FHIR_SERVER_URL="$(resolve_value fhirServerUrl)"
 APIM_GATEWAY_URL="$(resolve_value SERVICE_APIM_GATEWAY_URL)"
 AZURE_RESOURCE_GROUP="$(resolve_value AZURE_RESOURCE_GROUP)"
 
-if [[ -z "$AI_ENDPOINT" && -z "$COSMOS_ENDPOINT" && -z "$FHIR_SERVER_URL" && -z "$APIM_GATEWAY_URL" ]]; then
+if [[ -z "$AI_ENDPOINT" && -z "$COSMOS_ENDPOINT" && -z "$FHIR_SERVER_URL" && -z "$APIM_GATEWAY_URL" && -z "$AZURE_RESOURCE_GROUP" ]]; then
   log "No azd outputs found for local env sync. Skipping .env.local update."
   exit 0
 fi
@@ -139,8 +141,11 @@ trap - EXIT
 
 log "Updated $OUTPUT_FILE from azd environment outputs."
 if [[ -n "$AI_ENDPOINT" ]]; then
-  log "  AZURE_AI_SERVICES_ENDPOINT: $AI_ENDPOINT"
+  log "  AZURE_AI_SERVICES_ENDPOINT: ${AI_ENDPOINT:-(not set)}"
 fi
 if [[ -n "$COSMOS_ENDPOINT" ]]; then
-  log "  COSMOS_DB_ENDPOINT: $COSMOS_ENDPOINT"
+  log "  COSMOS_DB_ENDPOINT: ${COSMOS_ENDPOINT:-(not set)}"
+fi
+if [[ -z "$AI_ENDPOINT" && -z "$COSMOS_ENDPOINT" ]]; then
+  log "  (Some endpoints are empty — run 'azd provision' to populate them.)"
 fi

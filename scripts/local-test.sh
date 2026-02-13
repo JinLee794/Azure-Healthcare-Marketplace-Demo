@@ -34,10 +34,15 @@ load_env_file() {
     local env_file="$1"
     if [ -f "$env_file" ]; then
         echo "Loading env: $(basename "$env_file")"
+        # Filter out non-assignment lines (e.g. ERROR: messages) before sourcing
+        local tmp_env
+        tmp_env=$(mktemp)
+        grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$env_file" 2>/dev/null > "$tmp_env" || true
         set -a
         # shellcheck disable=SC1090
-        source "$env_file"
+        source "$tmp_env" || true
         set +a
+        rm -f "$tmp_env"
     fi
 }
 
