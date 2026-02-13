@@ -35,9 +35,6 @@ param apimSubnetId string
 @description('Enable public network access')
 param publicNetworkAccess string = 'Enabled'
 
-@description('Base name for Function App backends')
-param functionAppBaseName string = ''
-
 @description('Application Insights resource ID')
 param appInsightsId string = ''
 
@@ -102,103 +99,8 @@ resource namedValueMcpVersion 'Microsoft.ApiManagement/service/namedValues@2023-
 }
 
 // ============================================================================
-// Backend Configuration - Route to Function Apps
-// ============================================================================
-
-// Named value for function host keys (will be populated per function app)
-resource npiBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
-  parent: apim
-  name: 'npi-lookup-backend'
-  properties: {
-    title: 'NPI Lookup Function App'
-    description: 'Backend for NPI Lookup MCP Server'
-    url: 'https://${functionAppBaseName}-npi-lookup-func.azurewebsites.net'
-    protocol: 'http'
-    tls: {
-      validateCertificateChain: true
-      validateCertificateName: true
-    }
-  }
-}
-
-resource icd10Backend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
-  parent: apim
-  name: 'icd10-validation-backend'
-  properties: {
-    title: 'ICD-10 Validation Function App'
-    description: 'Backend for ICD-10 Validation MCP Server'
-    url: 'https://${functionAppBaseName}-icd10-validation-func.azurewebsites.net'
-    protocol: 'http'
-    tls: {
-      validateCertificateChain: true
-      validateCertificateName: true
-    }
-  }
-}
-
-resource cmsBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
-  parent: apim
-  name: 'cms-coverage-backend'
-  properties: {
-    title: 'CMS Coverage Function App'
-    description: 'Backend for CMS Coverage MCP Server'
-    url: 'https://${functionAppBaseName}-cms-coverage-func.azurewebsites.net'
-    protocol: 'http'
-    tls: {
-      validateCertificateChain: true
-      validateCertificateName: true
-    }
-  }
-}
-
-resource fhirBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
-  parent: apim
-  name: 'fhir-operations-backend'
-  properties: {
-    title: 'FHIR Operations Function App'
-    description: 'Backend for FHIR Operations MCP Server'
-    url: 'https://${functionAppBaseName}-fhir-operations-func.azurewebsites.net'
-    protocol: 'http'
-    tls: {
-      validateCertificateChain: true
-      validateCertificateName: true
-    }
-  }
-}
-
-resource pubmedBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
-  parent: apim
-  name: 'pubmed-backend'
-  properties: {
-    title: 'PubMed Function App'
-    description: 'Backend for PubMed MCP Server'
-    url: 'https://${functionAppBaseName}-pubmed-func.azurewebsites.net'
-    protocol: 'http'
-    tls: {
-      validateCertificateChain: true
-      validateCertificateName: true
-    }
-  }
-}
-
-resource clinicalTrialsBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
-  parent: apim
-  name: 'clinical-trials-backend'
-  properties: {
-    title: 'Clinical Trials Function App'
-    description: 'Backend for Clinical Trials MCP Server'
-    url: 'https://${functionAppBaseName}-clinical-trials-func.azurewebsites.net'
-    protocol: 'http'
-    tls: {
-      validateCertificateChain: true
-      validateCertificateName: true
-    }
-  }
-}
-
-// ============================================================================
 // NOTE: API definitions, operations, and policies are managed in apim-mcp-oauth.bicep
-// This module only creates APIM service, backends, and base product configuration
+// This module only creates the APIM service and base product configuration.
 // The OAuth module adds proper token validation and function key authentication
 // ============================================================================
 

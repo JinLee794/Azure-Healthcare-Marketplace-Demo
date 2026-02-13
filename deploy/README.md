@@ -23,7 +23,7 @@ This guide walks through deploying the production-grade Azure infrastructure for
 |-----------|-------------|
 | **VNet** | Private network with 4 subnets for network isolation |
 | **APIM Standard v2** | API gateway for secure MCP server exposure |
-| **Function Apps (6x)** | Hosts MCP servers (NPI, ICD-10, CMS, FHIR, PubMed, Clinical Trials) |
+| **Function Apps (3x)** | Hosts consolidated MCP servers (Reference Data, Clinical Research, Cosmos RAG) |
 | **Azure Container Registry** | Stores docker images for azd-deployed containerized MCP servers |
 | **AI Foundry** | AI Services account with GPT-4o model deployments |
 | **Private Endpoints** | Secure connectivity for all Azure services |
@@ -152,14 +152,11 @@ az apim subscription keys list \
 
 After deployment, MCP servers are available at:
 
-| Server | Endpoint |
+| Server | Endpoint (Passthrough) |
 |--------|----------|
-| NPI Lookup | `{apimGatewayUrl}/mcp/npi` |
-| ICD-10 Validation | `{apimGatewayUrl}/mcp/icd10` |
-| CMS Coverage | `{apimGatewayUrl}/mcp/cms` |
-| FHIR Operations | `{apimGatewayUrl}/mcp/fhir` |
-| PubMed | `{apimGatewayUrl}/mcp/pubmed` |
-| Clinical Trials | `{apimGatewayUrl}/mcp/clinical-trials` |
+| Reference Data | `{apimGatewayUrl}/mcp-pt/reference-data/mcp` |
+| Clinical Research | `{apimGatewayUrl}/mcp-pt/clinical-research/mcp` |
+| Cosmos RAG | `{apimGatewayUrl}/mcp-pt/cosmos-rag/mcp` |
 | Azure OpenAI v1 | `{apimGatewayUrl}/ai/openai/v1` |
 
 For the Azure OpenAI v1 API, send the APIM subscription key in the `api-key` header.
@@ -172,7 +169,7 @@ For the Azure OpenAI v1 API, send the APIM subscription key in the `api-key` hea
 APIM_URL="https://healthcaremcp-apim.azure-api.net"
 SUBSCRIPTION_KEY="<your-subscription-key>"
 
-curl -X POST "${APIM_URL}/mcp/npi" \
+curl -X POST "${APIM_URL}/mcp-pt/reference-data/mcp" \
   -H "Content-Type: application/json" \
   -H "Ocp-Apim-Subscription-Key: ${SUBSCRIPTION_KEY}" \
   -d '{
@@ -186,7 +183,7 @@ curl -X POST "${APIM_URL}/mcp/npi" \
 ### Test Tool Call (NPI Lookup)
 
 ```bash
-curl -X POST "${APIM_URL}/mcp/npi" \
+curl -X POST "${APIM_URL}/mcp-pt/reference-data/mcp" \
   -H "Content-Type: application/json" \
   -H "Ocp-Apim-Subscription-Key: ${SUBSCRIPTION_KEY}" \
   -d '{
@@ -207,44 +204,23 @@ Add to your MCP client settings (Claude Desktop, VS Code, etc.):
 ```json
 {
   "mcpServers": {
-    "azure-npi-lookup": {
-      "url": "https://healthcaremcp-apim.azure-api.net/mcp/npi",
-      "transport": "sse",
+    "azure-reference-data": {
+      "url": "https://healthcaremcp-apim.azure-api.net/mcp-pt/reference-data/mcp",
+      "transport": "http",
       "headers": {
         "Ocp-Apim-Subscription-Key": "${AZURE_MCP_SUBSCRIPTION_KEY}"
       }
     },
-    "azure-icd10-validation": {
-      "url": "https://healthcaremcp-apim.azure-api.net/mcp/icd10",
-      "transport": "sse",
+    "azure-clinical-research": {
+      "url": "https://healthcaremcp-apim.azure-api.net/mcp-pt/clinical-research/mcp",
+      "transport": "http",
       "headers": {
         "Ocp-Apim-Subscription-Key": "${AZURE_MCP_SUBSCRIPTION_KEY}"
       }
     },
-    "azure-cms-coverage": {
-      "url": "https://healthcaremcp-apim.azure-api.net/mcp/cms",
-      "transport": "sse",
-      "headers": {
-        "Ocp-Apim-Subscription-Key": "${AZURE_MCP_SUBSCRIPTION_KEY}"
-      }
-    },
-    "azure-fhir-operations": {
-      "url": "https://healthcaremcp-apim.azure-api.net/mcp/fhir",
-      "transport": "sse",
-      "headers": {
-        "Ocp-Apim-Subscription-Key": "${AZURE_MCP_SUBSCRIPTION_KEY}"
-      }
-    },
-    "azure-pubmed": {
-      "url": "https://healthcaremcp-apim.azure-api.net/mcp/pubmed",
-      "transport": "sse",
-      "headers": {
-        "Ocp-Apim-Subscription-Key": "${AZURE_MCP_SUBSCRIPTION_KEY}"
-      }
-    },
-    "azure-clinical-trials": {
-      "url": "https://healthcaremcp-apim.azure-api.net/mcp/clinical-trials",
-      "transport": "sse",
+    "azure-cosmos-rag": {
+      "url": "https://healthcaremcp-apim.azure-api.net/mcp-pt/cosmos-rag/mcp",
+      "transport": "http",
       "headers": {
         "Ocp-Apim-Subscription-Key": "${AZURE_MCP_SUBSCRIPTION_KEY}"
       }
@@ -264,7 +240,7 @@ export AZURE_MCP_SUBSCRIPTION_KEY="<your-subscription-key>"
 |--------|-------------|
 | `modules/vnet.bicep` | VNet with agent, PE, APIM, and function subnets |
 | `modules/apim.bicep` | APIM Standard v2 with Healthcare MCP product and APIs |
-| `modules/function-apps.bicep` | 6 Function Apps on Elastic Premium plan |
+| `modules/function-apps.bicep` | 3 Function Apps on Elastic Premium plan |
 | `modules/ai-foundry.bicep` | AI Services with GPT-4o, GPT-4o-mini, text-embedding-3-large |
 | `modules/private-endpoints.bicep` | Private endpoints and DNS zones for all services |
 | `modules/dependent-resources.bicep` | Storage, AI Search, Cosmos DB, App Insights |
@@ -306,7 +282,7 @@ az deployment group show \
 ### Function App Not Responding
 1. Check Function App is running:
    ```bash
-   az functionapp show --name healthcaremcp-npi-lookup-func \
+   az functionapp show --name healthcaremcp-mcp-reference-data-func \
      --resource-group rg-healthcare-mcp --query state
    ```
 2. Check Application Insights for errors

@@ -1,7 +1,6 @@
 // ============================================================================
 // APIM MCP OAuth Configuration Module
 // Configures a unified MCP API with OAuth protection and routing to Function Apps
-// Based on: https://github.com/Azure-Samples/remote-mcp-apim-functions-python
 // ============================================================================
 
 @description('Name of the API Management service')
@@ -24,30 +23,30 @@ resource apimService 'Microsoft.ApiManagement/service@2023-09-01-preview' existi
   name: apimServiceName
 }
 
-// Reference Function Apps to get host keys
-resource npiFunctionApp 'Microsoft.Web/sites@2023-12-01' existing = {
-  name: '${functionAppBaseName}-npi-lookup-func'
-}
+var mcpServers = [
+  {
+    name: 'reference-data'
+    backendId: 'reference-data-backend'
+    funcAppName: '${functionAppBaseName}-mcp-reference-data-func'
+    functionKeyName: 'reference-data-function-key'
+  }
+  {
+    name: 'clinical-research'
+    backendId: 'clinical-research-backend'
+    funcAppName: '${functionAppBaseName}-mcp-clinical-research-func'
+    functionKeyName: 'clinical-research-function-key'
+  }
+  {
+    name: 'cosmos-rag'
+    backendId: 'cosmos-rag-backend'
+    funcAppName: '${functionAppBaseName}-cosmos-rag-func'
+    functionKeyName: 'cosmos-rag-function-key'
+  }
+]
 
-resource icd10FunctionApp 'Microsoft.Web/sites@2023-12-01' existing = {
-  name: '${functionAppBaseName}-icd10-validation-func'
-}
-
-resource cmsFunctionApp 'Microsoft.Web/sites@2023-12-01' existing = {
-  name: '${functionAppBaseName}-cms-coverage-func'
-}
-
-resource fhirFunctionApp 'Microsoft.Web/sites@2023-12-01' existing = {
-  name: '${functionAppBaseName}-fhir-operations-func'
-}
-
-resource pubmedFunctionApp 'Microsoft.Web/sites@2023-12-01' existing = {
-  name: '${functionAppBaseName}-pubmed-func'
-}
-
-resource clinicalTrialsFunctionApp 'Microsoft.Web/sites@2023-12-01' existing = {
-  name: '${functionAppBaseName}-clinical-trials-func'
-}
+resource functionApps 'Microsoft.Web/sites@2023-12-01' existing = [for server in mcpServers: {
+  name: server.funcAppName
+}]
 
 // ============================================================================
 // Named Values for OAuth Configuration
@@ -84,1138 +83,10 @@ resource apimGatewayUrlNamedValue 'Microsoft.ApiManagement/service/namedValues@2
 }
 
 // ============================================================================
-// Function Host Keys - Stored as APIM Named Values (Secret)
-// ============================================================================
-
-resource npiFunctionKeyNamedValue 'Microsoft.ApiManagement/service/namedValues@2023-09-01-preview' = {
-  parent: apimService
-  name: 'npi-function-key'
-  properties: {
-    displayName: 'npi-function-key'
-    secret: true
-    value: listKeys('${npiFunctionApp.id}/host/default', npiFunctionApp.apiVersion).functionKeys.default
-  }
-}
-
-resource icd10FunctionKeyNamedValue 'Microsoft.ApiManagement/service/namedValues@2023-09-01-preview' = {
-  parent: apimService
-  name: 'icd10-function-key'
-  properties: {
-    displayName: 'icd10-function-key'
-    secret: true
-    value: listKeys('${icd10FunctionApp.id}/host/default', icd10FunctionApp.apiVersion).functionKeys.default
-  }
-}
-
-resource cmsFunctionKeyNamedValue 'Microsoft.ApiManagement/service/namedValues@2023-09-01-preview' = {
-  parent: apimService
-  name: 'cms-function-key'
-  properties: {
-    displayName: 'cms-function-key'
-    secret: true
-    value: listKeys('${cmsFunctionApp.id}/host/default', cmsFunctionApp.apiVersion).functionKeys.default
-  }
-}
-
-resource fhirFunctionKeyNamedValue 'Microsoft.ApiManagement/service/namedValues@2023-09-01-preview' = {
-  parent: apimService
-  name: 'fhir-function-key'
-  properties: {
-    displayName: 'fhir-function-key'
-    secret: true
-    value: listKeys('${fhirFunctionApp.id}/host/default', fhirFunctionApp.apiVersion).functionKeys.default
-  }
-}
-
-resource pubmedFunctionKeyNamedValue 'Microsoft.ApiManagement/service/namedValues@2023-09-01-preview' = {
-  parent: apimService
-  name: 'pubmed-function-key'
-  properties: {
-    displayName: 'pubmed-function-key'
-    secret: true
-    value: listKeys('${pubmedFunctionApp.id}/host/default', pubmedFunctionApp.apiVersion).functionKeys.default
-  }
-}
-
-resource clinicalTrialsFunctionKeyNamedValue 'Microsoft.ApiManagement/service/namedValues@2023-09-01-preview' = {
-  parent: apimService
-  name: 'clinical-trials-function-key'
-  properties: {
-    displayName: 'clinical-trials-function-key'
-    secret: true
-    value: listKeys('${clinicalTrialsFunctionApp.id}/host/default', clinicalTrialsFunctionApp.apiVersion).functionKeys.default
-  }
-}
-
-// ============================================================================
-// Backend Definitions - One per MCP Server (no /api suffix - routePrefix is "")
-// ============================================================================
-
-resource npiBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
-  parent: apimService
-  name: 'npi-backend'
-  properties: {
-    title: 'NPI Lookup Backend'
-    description: 'Backend for NPI Lookup MCP Server'
-    url: 'https://${npiFunctionApp.properties.defaultHostName}'
-    protocol: 'http'
-    tls: {
-      validateCertificateChain: true
-      validateCertificateName: true
-    }
-  }
-}
-
-resource icd10Backend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
-  parent: apimService
-  name: 'icd10-backend'
-  properties: {
-    title: 'ICD-10 Validation Backend'
-    description: 'Backend for ICD-10 Validation MCP Server'
-    url: 'https://${icd10FunctionApp.properties.defaultHostName}'
-    protocol: 'http'
-    tls: {
-      validateCertificateChain: true
-      validateCertificateName: true
-    }
-  }
-}
-
-resource cmsBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
-  parent: apimService
-  name: 'cms-backend'
-  properties: {
-    title: 'CMS Coverage Backend'
-    description: 'Backend for CMS Coverage MCP Server'
-    url: 'https://${cmsFunctionApp.properties.defaultHostName}'
-    protocol: 'http'
-    tls: {
-      validateCertificateChain: true
-      validateCertificateName: true
-    }
-  }
-}
-
-resource fhirBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
-  parent: apimService
-  name: 'fhir-backend'
-  properties: {
-    title: 'FHIR Operations Backend'
-    description: 'Backend for FHIR Operations MCP Server'
-    url: 'https://${fhirFunctionApp.properties.defaultHostName}'
-    protocol: 'http'
-    tls: {
-      validateCertificateChain: true
-      validateCertificateName: true
-    }
-  }
-}
-
-resource pubmedBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
-  parent: apimService
-  name: 'pubmed-backend'
-  properties: {
-    title: 'PubMed Backend'
-    description: 'Backend for PubMed MCP Server'
-    url: 'https://${pubmedFunctionApp.properties.defaultHostName}'
-    protocol: 'http'
-    tls: {
-      validateCertificateChain: true
-      validateCertificateName: true
-    }
-  }
-}
-
-resource clinicalTrialsBackend 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = {
-  parent: apimService
-  name: 'clinical-trials-backend'
-  properties: {
-    title: 'Clinical Trials Backend'
-    description: 'Backend for Clinical Trials MCP Server'
-    url: 'https://${clinicalTrialsFunctionApp.properties.defaultHostName}'
-    protocol: 'http'
-    tls: {
-      validateCertificateChain: true
-      validateCertificateName: true
-    }
-  }
-}
-
-// ============================================================================
-// Unified MCP API with wildcard routing
-// All MCP servers accessible under /mcp/{server-name}/*
-// Uses name 'mcp-oauth' to match existing API and enable updates
-// ============================================================================
-
-resource mcpApi 'Microsoft.ApiManagement/service/apis@2023-09-01-preview' = {
-  parent: apimService
-  name: 'mcp-oauth'
-  properties: {
-    displayName: 'Healthcare MCP Servers'
-    description: 'Unified API for all Healthcare MCP servers with OAuth protection'
-    path: 'mcp'
-    protocols: ['https']
-    subscriptionRequired: false
-  }
-}
-
-// ----- Global PRM Endpoint -----
-resource mcpPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'prm-discovery'
-  properties: {
-    displayName: 'Protected Resource Metadata'
-    method: 'GET'
-    urlTemplate: '/.well-known/oauth-protected-resource'
-    description: 'OAuth discovery endpoint (RFC 9728)'
-  }
-}
-
-resource mcpPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: mcpPrmOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: loadTextContent('../policies/mcp-prm.policy.xml')
-  }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
-
-// ============================================================================
-// Per-Server PRM Endpoints (RFC 9728 compliance)
-// Each MCP server needs its own PRM endpoint that returns the correct resource URL
-// ============================================================================
-
-// ----- NPI PRM -----
-resource npiPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'npi-prm'
-  properties: {
-    displayName: 'NPI - Protected Resource Metadata'
-    method: 'GET'
-    urlTemplate: '/npi/.well-known/oauth-protected-resource'
-    description: 'OAuth discovery endpoint for NPI server (RFC 9728)'
-  }
-}
-
-resource npiPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: npiPrmOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: loadTextContent('../policies/mcp-server-prm.policy.xml')
-  }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
-
-// ----- ICD-10 PRM -----
-resource icd10PrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'icd10-prm'
-  properties: {
-    displayName: 'ICD-10 - Protected Resource Metadata'
-    method: 'GET'
-    urlTemplate: '/icd10/.well-known/oauth-protected-resource'
-    description: 'OAuth discovery endpoint for ICD-10 server (RFC 9728)'
-  }
-}
-
-resource icd10PrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: icd10PrmOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: loadTextContent('../policies/mcp-server-prm.policy.xml')
-  }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
-
-// ----- CMS PRM -----
-resource cmsPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'cms-prm'
-  properties: {
-    displayName: 'CMS - Protected Resource Metadata'
-    method: 'GET'
-    urlTemplate: '/cms/.well-known/oauth-protected-resource'
-    description: 'OAuth discovery endpoint for CMS server (RFC 9728)'
-  }
-}
-
-resource cmsPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: cmsPrmOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: loadTextContent('../policies/mcp-server-prm.policy.xml')
-  }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
-
-// ----- FHIR PRM -----
-resource fhirPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'fhir-prm'
-  properties: {
-    displayName: 'FHIR - Protected Resource Metadata'
-    method: 'GET'
-    urlTemplate: '/fhir/.well-known/oauth-protected-resource'
-    description: 'OAuth discovery endpoint for FHIR server (RFC 9728)'
-  }
-}
-
-resource fhirPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: fhirPrmOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: loadTextContent('../policies/mcp-server-prm.policy.xml')
-  }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
-
-// ----- PubMed PRM -----
-resource pubmedPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'pubmed-prm'
-  properties: {
-    displayName: 'PubMed - Protected Resource Metadata'
-    method: 'GET'
-    urlTemplate: '/pubmed/.well-known/oauth-protected-resource'
-    description: 'OAuth discovery endpoint for PubMed server (RFC 9728)'
-  }
-}
-
-resource pubmedPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: pubmedPrmOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: loadTextContent('../policies/mcp-server-prm.policy.xml')
-  }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
-
-// ----- Clinical Trials PRM -----
-resource clinicalTrialsPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'clinical-trials-prm'
-  properties: {
-    displayName: 'Clinical Trials - Protected Resource Metadata'
-    method: 'GET'
-    urlTemplate: '/clinical-trials/.well-known/oauth-protected-resource'
-    description: 'OAuth discovery endpoint for Clinical Trials server (RFC 9728)'
-  }
-}
-
-resource clinicalTrialsPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: clinicalTrialsPrmOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: loadTextContent('../policies/mcp-server-prm.policy.xml')
-  }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
-
-// ============================================================================
-// Per-MCP-Endpoint PRM (RFC 9728 compliant - at the exact resource path)
-// These endpoints allow VS Code MCP client to discover OAuth info at the
-// path relative to the MCP endpoint: /mcp/{server}/mcp/.well-known/...
-// ============================================================================
-
-// ----- NPI MCP Endpoint PRM -----
-resource npiMcpPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'npi-mcp-prm'
-  properties: {
-    displayName: 'NPI MCP - Protected Resource Metadata'
-    method: 'GET'
-    urlTemplate: '/npi/mcp/.well-known/oauth-protected-resource'
-    description: 'OAuth discovery at MCP endpoint path (RFC 9728)'
-  }
-}
-
-resource npiMcpPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: npiMcpPrmOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: loadTextContent('../policies/mcp-endpoint-prm.policy.xml')
-  }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
-
-// ----- ICD-10 MCP Endpoint PRM -----
-resource icd10McpPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'icd10-mcp-prm'
-  properties: {
-    displayName: 'ICD-10 MCP - Protected Resource Metadata'
-    method: 'GET'
-    urlTemplate: '/icd10/mcp/.well-known/oauth-protected-resource'
-    description: 'OAuth discovery at MCP endpoint path (RFC 9728)'
-  }
-}
-
-resource icd10McpPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: icd10McpPrmOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: loadTextContent('../policies/mcp-endpoint-prm.policy.xml')
-  }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
-
-// ----- CMS MCP Endpoint PRM -----
-resource cmsMcpPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'cms-mcp-prm'
-  properties: {
-    displayName: 'CMS MCP - Protected Resource Metadata'
-    method: 'GET'
-    urlTemplate: '/cms/mcp/.well-known/oauth-protected-resource'
-    description: 'OAuth discovery at MCP endpoint path (RFC 9728)'
-  }
-}
-
-resource cmsMcpPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: cmsMcpPrmOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: loadTextContent('../policies/mcp-endpoint-prm.policy.xml')
-  }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
-
-// ----- FHIR MCP Endpoint PRM -----
-resource fhirMcpPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'fhir-mcp-prm'
-  properties: {
-    displayName: 'FHIR MCP - Protected Resource Metadata'
-    method: 'GET'
-    urlTemplate: '/fhir/mcp/.well-known/oauth-protected-resource'
-    description: 'OAuth discovery at MCP endpoint path (RFC 9728)'
-  }
-}
-
-resource fhirMcpPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: fhirMcpPrmOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: loadTextContent('../policies/mcp-endpoint-prm.policy.xml')
-  }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
-
-// ----- PubMed MCP Endpoint PRM -----
-resource pubmedMcpPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'pubmed-mcp-prm'
-  properties: {
-    displayName: 'PubMed MCP - Protected Resource Metadata'
-    method: 'GET'
-    urlTemplate: '/pubmed/mcp/.well-known/oauth-protected-resource'
-    description: 'OAuth discovery at MCP endpoint path (RFC 9728)'
-  }
-}
-
-resource pubmedMcpPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: pubmedMcpPrmOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: loadTextContent('../policies/mcp-endpoint-prm.policy.xml')
-  }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
-
-// ----- Clinical Trials MCP Endpoint PRM -----
-resource clinicalTrialsMcpPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'clinical-trials-mcp-prm'
-  properties: {
-    displayName: 'Clinical Trials MCP - Protected Resource Metadata'
-    method: 'GET'
-    urlTemplate: '/clinical-trials/mcp/.well-known/oauth-protected-resource'
-    description: 'OAuth discovery at MCP endpoint path (RFC 9728)'
-  }
-}
-
-resource clinicalTrialsMcpPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: clinicalTrialsMcpPrmOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: loadTextContent('../policies/mcp-endpoint-prm.policy.xml')
-  }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
-
-// ============================================================================
-// MCP Server Operations
-// ============================================================================
-
-// ----- NPI Lookup Operations -----
-resource npiGetOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'npi-get'
-  properties: {
-    displayName: 'NPI Lookup - GET'
-    method: 'GET'
-    urlTemplate: '/npi/*'
-    description: 'MCP GET endpoint for NPI Lookup server'
-  }
-}
-
-resource npiPostOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'npi-post'
-  properties: {
-    displayName: 'NPI Lookup - POST'
-    method: 'POST'
-    urlTemplate: '/npi/*'
-    description: 'MCP POST endpoint for NPI Lookup server'
-  }
-}
-
-resource npiGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: npiGetOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
-      <audiences><audience>{{McpClientId}}</audience></audiences>
-    </validate-azure-ad-token>
-    <set-backend-service backend-id="npi-backend" />
-    <set-header name="x-functions-key" exists-action="override">
-      <value>{{npi-function-key}}</value>
-    </set-header>
-    <rewrite-uri template="@{
-      var path = context.Request.Url.Path;
-      var prefix = "/mcp/npi";
-      return path.StartsWith(prefix) ? path.Substring(prefix.Length) : path;
-    }" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <choose>
-      <when condition="@(context.LastError != null)">
-        <return-response>
-          <set-status code="401" reason="Unauthorized" />
-          <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/npi/mcp"</value>
-          </set-header>
-          <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
-        </return-response>
-      </when>
-    </choose>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [npiFunctionKeyNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue, npiBackend]
-}
-
-resource npiPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: npiPostOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
-      <audiences><audience>{{McpClientId}}</audience></audiences>
-    </validate-azure-ad-token>
-    <set-backend-service backend-id="npi-backend" />
-    <set-header name="x-functions-key" exists-action="override">
-      <value>{{npi-function-key}}</value>
-    </set-header>
-    <rewrite-uri template="@{
-      var path = context.Request.Url.Path;
-      var prefix = "/mcp/npi";
-      return path.StartsWith(prefix) ? path.Substring(prefix.Length) : path;
-    }" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <choose>
-      <when condition="@(context.LastError != null)">
-        <return-response>
-          <set-status code="401" reason="Unauthorized" />
-          <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/npi/mcp"</value>
-          </set-header>
-          <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
-        </return-response>
-      </when>
-    </choose>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [npiFunctionKeyNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue, npiBackend]
-}
-
-// ----- ICD-10 Validation Operations -----
-resource icd10GetOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'icd10-get'
-  properties: {
-    displayName: 'ICD-10 Validation - GET'
-    method: 'GET'
-    urlTemplate: '/icd10/*'
-    description: 'MCP GET endpoint for ICD-10 Validation server'
-  }
-}
-
-resource icd10PostOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'icd10-post'
-  properties: {
-    displayName: 'ICD-10 Validation - POST'
-    method: 'POST'
-    urlTemplate: '/icd10/*'
-    description: 'MCP POST endpoint for ICD-10 Validation server'
-  }
-}
-
-resource icd10GetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: icd10GetOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
-      <audiences><audience>{{McpClientId}}</audience></audiences>
-    </validate-azure-ad-token>
-    <set-backend-service backend-id="icd10-backend" />
-    <set-header name="x-functions-key" exists-action="override">
-      <value>{{icd10-function-key}}</value>
-    </set-header>
-    <rewrite-uri template="@{
-      var path = context.Request.Url.Path;
-      var prefix = "/mcp/icd10";
-      return path.StartsWith(prefix) ? path.Substring(prefix.Length) : path;
-    }" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <choose>
-      <when condition="@(context.LastError != null)">
-        <return-response>
-          <set-status code="401" reason="Unauthorized" />
-          <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/icd10/mcp"</value>
-          </set-header>
-          <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
-        </return-response>
-      </when>
-    </choose>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [icd10FunctionKeyNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue, icd10Backend]
-}
-
-resource icd10PostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: icd10PostOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
-      <audiences><audience>{{McpClientId}}</audience></audiences>
-    </validate-azure-ad-token>
-    <set-backend-service backend-id="icd10-backend" />
-    <set-header name="x-functions-key" exists-action="override">
-      <value>{{icd10-function-key}}</value>
-    </set-header>
-    <rewrite-uri template="@{
-      var path = context.Request.Url.Path;
-      var prefix = "/mcp/icd10";
-      return path.StartsWith(prefix) ? path.Substring(prefix.Length) : path;
-    }" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <choose>
-      <when condition="@(context.LastError != null)">
-        <return-response>
-          <set-status code="401" reason="Unauthorized" />
-          <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/icd10/mcp"</value>
-          </set-header>
-          <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
-        </return-response>
-      </when>
-    </choose>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [icd10FunctionKeyNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue, icd10Backend]
-}
-
-// ----- CMS Coverage Operations -----
-resource cmsGetOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'cms-get'
-  properties: {
-    displayName: 'CMS Coverage - GET'
-    method: 'GET'
-    urlTemplate: '/cms/*'
-    description: 'MCP GET endpoint for CMS Coverage server'
-  }
-}
-
-resource cmsPostOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'cms-post'
-  properties: {
-    displayName: 'CMS Coverage - POST'
-    method: 'POST'
-    urlTemplate: '/cms/*'
-    description: 'MCP POST endpoint for CMS Coverage server'
-  }
-}
-
-resource cmsGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: cmsGetOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
-      <audiences><audience>{{McpClientId}}</audience></audiences>
-    </validate-azure-ad-token>
-    <set-backend-service backend-id="cms-backend" />
-    <set-header name="x-functions-key" exists-action="override">
-      <value>{{cms-function-key}}</value>
-    </set-header>
-    <rewrite-uri template="@{
-      var path = context.Request.Url.Path;
-      var prefix = "/mcp/cms";
-      return path.StartsWith(prefix) ? path.Substring(prefix.Length) : path;
-    }" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <choose>
-      <when condition="@(context.LastError != null)">
-        <return-response>
-          <set-status code="401" reason="Unauthorized" />
-          <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/cms/mcp"</value>
-          </set-header>
-          <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
-        </return-response>
-      </when>
-    </choose>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [cmsFunctionKeyNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue, cmsBackend]
-}
-
-resource cmsPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: cmsPostOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
-      <audiences><audience>{{McpClientId}}</audience></audiences>
-    </validate-azure-ad-token>
-    <set-backend-service backend-id="cms-backend" />
-    <set-header name="x-functions-key" exists-action="override">
-      <value>{{cms-function-key}}</value>
-    </set-header>
-    <rewrite-uri template="@{
-      var path = context.Request.Url.Path;
-      var prefix = "/mcp/cms";
-      return path.StartsWith(prefix) ? path.Substring(prefix.Length) : path;
-    }" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <choose>
-      <when condition="@(context.LastError != null)">
-        <return-response>
-          <set-status code="401" reason="Unauthorized" />
-          <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/cms/mcp"</value>
-          </set-header>
-          <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
-        </return-response>
-      </when>
-    </choose>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [cmsFunctionKeyNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue, cmsBackend]
-}
-
-// ----- FHIR Operations -----
-resource fhirGetOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'fhir-get'
-  properties: {
-    displayName: 'FHIR Operations - GET'
-    method: 'GET'
-    urlTemplate: '/fhir/*'
-    description: 'MCP GET endpoint for FHIR Operations server'
-  }
-}
-
-resource fhirPostOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'fhir-post'
-  properties: {
-    displayName: 'FHIR Operations - POST'
-    method: 'POST'
-    urlTemplate: '/fhir/*'
-    description: 'MCP POST endpoint for FHIR Operations server'
-  }
-}
-
-resource fhirGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: fhirGetOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
-      <audiences><audience>{{McpClientId}}</audience></audiences>
-    </validate-azure-ad-token>
-    <set-backend-service backend-id="fhir-backend" />
-    <set-header name="x-functions-key" exists-action="override">
-      <value>{{fhir-function-key}}</value>
-    </set-header>
-    <rewrite-uri template="@{
-      var path = context.Request.Url.Path;
-      var prefix = "/mcp/fhir";
-      return path.StartsWith(prefix) ? path.Substring(prefix.Length) : path;
-    }" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <choose>
-      <when condition="@(context.LastError != null)">
-        <return-response>
-          <set-status code="401" reason="Unauthorized" />
-          <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/fhir/mcp"</value>
-          </set-header>
-          <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
-        </return-response>
-      </when>
-    </choose>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [fhirFunctionKeyNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue, fhirBackend]
-}
-
-resource fhirPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: fhirPostOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
-      <audiences><audience>{{McpClientId}}</audience></audiences>
-    </validate-azure-ad-token>
-    <set-backend-service backend-id="fhir-backend" />
-    <set-header name="x-functions-key" exists-action="override">
-      <value>{{fhir-function-key}}</value>
-    </set-header>
-    <rewrite-uri template="@{
-      var path = context.Request.Url.Path;
-      var prefix = "/mcp/fhir";
-      return path.StartsWith(prefix) ? path.Substring(prefix.Length) : path;
-    }" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <choose>
-      <when condition="@(context.LastError != null)">
-        <return-response>
-          <set-status code="401" reason="Unauthorized" />
-          <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/fhir/mcp"</value>
-          </set-header>
-          <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
-        </return-response>
-      </when>
-    </choose>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [fhirFunctionKeyNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue, fhirBackend]
-}
-
-// ----- PubMed Operations -----
-resource pubmedGetOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'pubmed-get'
-  properties: {
-    displayName: 'PubMed - GET'
-    method: 'GET'
-    urlTemplate: '/pubmed/*'
-    description: 'MCP GET endpoint for PubMed server'
-  }
-}
-
-resource pubmedPostOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'pubmed-post'
-  properties: {
-    displayName: 'PubMed - POST'
-    method: 'POST'
-    urlTemplate: '/pubmed/*'
-    description: 'MCP POST endpoint for PubMed server'
-  }
-}
-
-resource pubmedGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: pubmedGetOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
-      <audiences><audience>{{McpClientId}}</audience></audiences>
-    </validate-azure-ad-token>
-    <set-backend-service backend-id="pubmed-backend" />
-    <set-header name="x-functions-key" exists-action="override">
-      <value>{{pubmed-function-key}}</value>
-    </set-header>
-    <rewrite-uri template="@{
-      var path = context.Request.Url.Path;
-      var prefix = "/mcp/pubmed";
-      return path.StartsWith(prefix) ? path.Substring(prefix.Length) : path;
-    }" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <choose>
-      <when condition="@(context.LastError != null)">
-        <return-response>
-          <set-status code="401" reason="Unauthorized" />
-          <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/pubmed/mcp"</value>
-          </set-header>
-          <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
-        </return-response>
-      </when>
-    </choose>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [pubmedFunctionKeyNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue, pubmedBackend]
-}
-
-resource pubmedPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: pubmedPostOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
-      <audiences><audience>{{McpClientId}}</audience></audiences>
-    </validate-azure-ad-token>
-    <set-backend-service backend-id="pubmed-backend" />
-    <set-header name="x-functions-key" exists-action="override">
-      <value>{{pubmed-function-key}}</value>
-    </set-header>
-    <rewrite-uri template="@{
-      var path = context.Request.Url.Path;
-      var prefix = "/mcp/pubmed";
-      return path.StartsWith(prefix) ? path.Substring(prefix.Length) : path;
-    }" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <choose>
-      <when condition="@(context.LastError != null)">
-        <return-response>
-          <set-status code="401" reason="Unauthorized" />
-          <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/pubmed/mcp"</value>
-          </set-header>
-          <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
-        </return-response>
-      </when>
-    </choose>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [pubmedFunctionKeyNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue, pubmedBackend]
-}
-
-// ----- Clinical Trials Operations -----
-resource clinicalTrialsGetOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'clinical-trials-get'
-  properties: {
-    displayName: 'Clinical Trials - GET'
-    method: 'GET'
-    urlTemplate: '/clinical-trials/*'
-    description: 'MCP GET endpoint for Clinical Trials server'
-  }
-}
-
-resource clinicalTrialsPostOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: mcpApi
-  name: 'clinical-trials-post'
-  properties: {
-    displayName: 'Clinical Trials - POST'
-    method: 'POST'
-    urlTemplate: '/clinical-trials/*'
-    description: 'MCP POST endpoint for Clinical Trials server'
-  }
-}
-
-resource clinicalTrialsGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: clinicalTrialsGetOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
-      <audiences><audience>{{McpClientId}}</audience></audiences>
-    </validate-azure-ad-token>
-    <set-backend-service backend-id="clinical-trials-backend" />
-    <set-header name="x-functions-key" exists-action="override">
-      <value>{{clinical-trials-function-key}}</value>
-    </set-header>
-    <rewrite-uri template="@{
-      var path = context.Request.Url.Path;
-      var prefix = "/mcp/clinical-trials";
-      return path.StartsWith(prefix) ? path.Substring(prefix.Length) : path;
-    }" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <choose>
-      <when condition="@(context.LastError != null)">
-        <return-response>
-          <set-status code="401" reason="Unauthorized" />
-          <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/clinical-trials/mcp"</value>
-          </set-header>
-          <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
-        </return-response>
-      </when>
-    </choose>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [clinicalTrialsFunctionKeyNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue, clinicalTrialsBackend]
-}
-
-resource clinicalTrialsPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: clinicalTrialsPostOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
-      <audiences><audience>{{McpClientId}}</audience></audiences>
-    </validate-azure-ad-token>
-    <set-backend-service backend-id="clinical-trials-backend" />
-    <set-header name="x-functions-key" exists-action="override">
-      <value>{{clinical-trials-function-key}}</value>
-    </set-header>
-    <rewrite-uri template="@{
-      var path = context.Request.Url.Path;
-      var prefix = "/mcp/clinical-trials";
-      return path.StartsWith(prefix) ? path.Substring(prefix.Length) : path;
-    }" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <choose>
-      <when condition="@(context.LastError != null)">
-        <return-response>
-          <set-status code="401" reason="Unauthorized" />
-          <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/clinical-trials/mcp"</value>
-          </set-header>
-          <set-body>{"jsonrpc": "2.0", "error": {"code": -32001, "message": "Authentication required. Please authenticate using OAuth 2.0."}, "id": null}</set-body>
-        </return-response>
-      </when>
-    </choose>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [clinicalTrialsFunctionKeyNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue, clinicalTrialsBackend]
-}
-
-// ============================================================================
-// Global PRM Endpoint API (for OAuth discovery at root)
+// Protected Resource Metadata API (RFC 9728)
+// Exposes:
+// - /.well-known/oauth-protected-resource
+// - /.well-known/oauth-protected-resource/{resource-path}
 // ============================================================================
 
 resource prmApi 'Microsoft.ApiManagement/service/apis@2023-09-01-preview' = {
@@ -1223,26 +94,26 @@ resource prmApi 'Microsoft.ApiManagement/service/apis@2023-09-01-preview' = {
   name: 'mcp-prm'
   properties: {
     displayName: 'MCP Protected Resource Metadata'
-    description: 'OAuth discovery endpoint for MCP clients (RFC 9728)'
-    path: ''
+    description: 'OAuth discovery endpoints per RFC 9728'
+    path: '.well-known'
     protocols: ['https']
     subscriptionRequired: false
   }
 }
 
-resource prmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+resource prmRootOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
   parent: prmApi
-  name: 'prm-discovery'
+  name: 'oauth-protected-resource'
   properties: {
     displayName: 'Protected Resource Metadata'
     method: 'GET'
-    urlTemplate: '/.well-known/oauth-protected-resource'
-    description: 'Returns OAuth configuration for MCP clients'
+    urlTemplate: '/oauth-protected-resource'
+    description: 'OAuth discovery endpoint (RFC 9728)'
   }
 }
 
-resource prmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: prmOperation
+resource prmRootPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: prmRootOperation
   name: 'policy'
   properties: {
     format: 'rawxml'
@@ -1251,142 +122,299 @@ resource prmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@202
   dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
 }
 
+resource prmPathOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+  parent: prmApi
+  name: 'oauth-protected-resource-path'
+  properties: {
+    displayName: 'Protected Resource Metadata (Path)'
+    method: 'GET'
+    urlTemplate: '/oauth-protected-resource/*'
+    description: 'Path-based OAuth discovery endpoint (RFC 9728 Section 3.1)'
+  }
+}
+
+resource prmPathPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
+  parent: prmPathOperation
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: loadTextContent('../policies/mcp-path-prm.policy.xml')
+  }
+  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}
+
 // ============================================================================
-// Path-Based PRM Endpoints (RFC 9728 Section 3.1)
-// For resource at /mcp/{server}/mcp, PRM is at /.well-known/oauth-protected-resource/mcp/{server}/mcp
+// Function Host Keys - Stored as APIM Named Values (Secret)
 // ============================================================================
 
-// ----- NPI Path-Based PRM -----
-resource npiPathPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: prmApi
-  name: 'npi-path-prm'
+resource functionKeyNamedValues 'Microsoft.ApiManagement/service/namedValues@2023-09-01-preview' = [for (server, i) in mcpServers: {
+  parent: apimService
+  name: server.functionKeyName
   properties: {
-    displayName: 'NPI - Path-Based PRM'
-    method: 'GET'
-    urlTemplate: '/.well-known/oauth-protected-resource/mcp/npi/mcp'
-    description: 'RFC 9728 path-based PRM for NPI MCP server'
+    displayName: server.functionKeyName
+    secret: true
+    value: listKeys('${functionApps[i].id}/host/default', functionApps[i].apiVersion).functionKeys.default
+  }
+}]
+
+// ============================================================================
+// Backend Definitions - One per MCP server
+// (routePrefix is "" so Function endpoints are at /mcp, /.well-known/mcp, /health)
+// ============================================================================
+
+resource mcpBackends 'Microsoft.ApiManagement/service/backends@2023-09-01-preview' = [for (server, i) in mcpServers: {
+  parent: apimService
+  name: server.backendId
+  properties: {
+    title: '${server.name} MCP Backend'
+    description: 'Backend for MCP server: ${server.name}'
+    url: 'https://${functionApps[i].properties.defaultHostName}'
+    protocol: 'http'
+    tls: {
+      validateCertificateChain: true
+      validateCertificateName: true
+    }
+  }
+}]
+
+// ============================================================================
+// Unified MCP API
+// All MCP servers accessible under /mcp/{server}/...
+// Uses name 'mcp-oauth' to match existing API and enable updates
+// ============================================================================
+
+resource mcpApi 'Microsoft.ApiManagement/service/apis@2023-09-01-preview' = {
+  parent: apimService
+  name: 'mcp-oauth'
+  properties: {
+    displayName: 'Healthcare MCP Servers (OAuth)'
+    description: 'Unified API for Healthcare MCP servers with OAuth protection'
+    path: 'mcp'
+    protocols: ['https']
+    subscriptionRequired: false
   }
 }
 
-resource npiPathPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: npiPathPrmOperation
+// ============================================================================
+// PRM Discovery Endpoints (RFC 9728)
+// ============================================================================
+
+resource prmServerOperations 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = [for server in mcpServers: {
+  parent: mcpApi
+  name: '${server.name}-prm'
+  properties: {
+    displayName: '${server.name} - Protected Resource Metadata'
+    method: 'GET'
+    urlTemplate: '/${server.name}/.well-known/oauth-protected-resource'
+    description: 'OAuth discovery endpoint for MCP server (RFC 9728)'
+  }
+}]
+
+resource prmServerPolicies 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = [for (server, i) in mcpServers: {
+  parent: prmServerOperations[i]
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: loadTextContent('../policies/mcp-path-prm.policy.xml')
+    value: loadTextContent('../policies/mcp-server-prm.policy.xml')
   }
   dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
+}]
 
-// ----- ICD-10 Path-Based PRM -----
-resource icd10PathPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: prmApi
-  name: 'icd10-path-prm'
+resource prmEndpointOperations 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = [for server in mcpServers: {
+  parent: mcpApi
+  name: '${server.name}-endpoint-prm'
   properties: {
-    displayName: 'ICD-10 - Path-Based PRM'
+    displayName: '${server.name} MCP - Protected Resource Metadata'
     method: 'GET'
-    urlTemplate: '/.well-known/oauth-protected-resource/mcp/icd10/mcp'
-    description: 'RFC 9728 path-based PRM for ICD-10 MCP server'
+    urlTemplate: '/${server.name}/mcp/.well-known/oauth-protected-resource'
+    description: 'OAuth discovery at MCP endpoint path (RFC 9728)'
   }
-}
+}]
 
-resource icd10PathPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: icd10PathPrmOperation
+resource prmEndpointPolicies 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = [for (server, i) in mcpServers: {
+  parent: prmEndpointOperations[i]
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: loadTextContent('../policies/mcp-path-prm.policy.xml')
+    value: loadTextContent('../policies/mcp-endpoint-prm.policy.xml')
   }
   dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
+}]
 
-// ----- CMS Path-Based PRM -----
-resource cmsPathPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: prmApi
-  name: 'cms-path-prm'
+// ============================================================================
+// MCP Operations
+// ============================================================================
+
+resource mcpPostOperations 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = [for server in mcpServers: {
+  parent: mcpApi
+  name: '${server.name}-mcp-post'
   properties: {
-    displayName: 'CMS - Path-Based PRM'
-    method: 'GET'
-    urlTemplate: '/.well-known/oauth-protected-resource/mcp/cms/mcp'
-    description: 'RFC 9728 path-based PRM for CMS MCP server'
+    displayName: '${server.name} - POST /mcp'
+    method: 'POST'
+    urlTemplate: '/${server.name}/mcp'
+    description: 'MCP message endpoint'
   }
-}
+}]
 
-resource cmsPathPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: cmsPathPrmOperation
+resource mcpGetOperations 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = [for server in mcpServers: {
+  parent: mcpApi
+  name: '${server.name}-mcp-get'
+  properties: {
+    displayName: '${server.name} - GET /mcp'
+    method: 'GET'
+    urlTemplate: '/${server.name}/mcp'
+    description: 'MCP info endpoint'
+  }
+}]
+
+resource wellKnownOperations 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = [for server in mcpServers: {
+  parent: mcpApi
+  name: '${server.name}-wellknown-get'
+  properties: {
+    displayName: '${server.name} - GET /.well-known/mcp'
+    method: 'GET'
+    urlTemplate: '/${server.name}/.well-known/mcp'
+    description: 'MCP discovery endpoint'
+  }
+}]
+
+resource healthOperations 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = [for server in mcpServers: {
+  parent: mcpApi
+  name: '${server.name}-health'
+  properties: {
+    displayName: '${server.name} - Health Check'
+    method: 'GET'
+    urlTemplate: '/${server.name}/health'
+    description: 'Health check endpoint'
+  }
+}]
+
+// Policies (OAuth + backend routing + function key)
+resource mcpPostPolicies 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = [for (server, i) in mcpServers: {
+  parent: mcpPostOperations[i]
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: loadTextContent('../policies/mcp-path-prm.policy.xml')
+    value: '''
+<policies>
+  <inbound>
+    <base />
+    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
+      <audiences><audience>{{McpClientId}}</audience></audiences>
+    </validate-azure-ad-token>
+    <set-backend-service backend-id="${server.backendId}" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{${server.functionKeyName}}}</value></set-header>
+    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
+  </inbound>
+  <backend><base /></backend>
+  <outbound><base /></outbound>
+  <on-error>
+    <choose>
+      <when condition="@(context.LastError != null)">
+        <return-response>
+          <set-status code="401" reason="Unauthorized" />
+          <set-header name="WWW-Authenticate" exists-action="override">
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/${server.name}/mcp"</value>
+          </set-header>
+          <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
+          <set-body>{"jsonrpc":"2.0","error":{"code":-32001,"message":"Authentication required. Please authenticate using OAuth 2.0."},"id":null}</set-body>
+        </return-response>
+      </when>
+    </choose>
+  </on-error>
+</policies>
+'''
   }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
+  dependsOn: [functionKeyNamedValues, mcpBackends, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue]
+}]
 
-// ----- FHIR Path-Based PRM -----
-resource fhirPathPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: prmApi
-  name: 'fhir-path-prm'
-  properties: {
-    displayName: 'FHIR - Path-Based PRM'
-    method: 'GET'
-    urlTemplate: '/.well-known/oauth-protected-resource/mcp/fhir/mcp'
-    description: 'RFC 9728 path-based PRM for FHIR MCP server'
-  }
-}
-
-resource fhirPathPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: fhirPathPrmOperation
+resource mcpGetPolicies 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = [for (server, i) in mcpServers: {
+  parent: mcpGetOperations[i]
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: loadTextContent('../policies/mcp-path-prm.policy.xml')
+    value: '''
+<policies>
+  <inbound>
+    <base />
+    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
+      <audiences><audience>{{McpClientId}}</audience></audiences>
+    </validate-azure-ad-token>
+    <set-backend-service backend-id="${server.backendId}" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{${server.functionKeyName}}}</value></set-header>
+    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
+  </inbound>
+  <backend><base /></backend>
+  <outbound><base /></outbound>
+  <on-error>
+    <choose>
+      <when condition="@(context.LastError != null)">
+        <return-response>
+          <set-status code="401" reason="Unauthorized" />
+          <set-header name="WWW-Authenticate" exists-action="override">
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/${server.name}/mcp"</value>
+          </set-header>
+          <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
+          <set-body>{"jsonrpc":"2.0","error":{"code":-32001,"message":"Authentication required. Please authenticate using OAuth 2.0."},"id":null}</set-body>
+        </return-response>
+      </when>
+    </choose>
+  </on-error>
+</policies>
+'''
   }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
+  dependsOn: [functionKeyNamedValues, mcpBackends, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue]
+}]
 
-// ----- PubMed Path-Based PRM -----
-resource pubmedPathPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: prmApi
-  name: 'pubmed-path-prm'
-  properties: {
-    displayName: 'PubMed - Path-Based PRM'
-    method: 'GET'
-    urlTemplate: '/.well-known/oauth-protected-resource/mcp/pubmed/mcp'
-    description: 'RFC 9728 path-based PRM for PubMed MCP server'
-  }
-}
-
-resource pubmedPathPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: pubmedPathPrmOperation
+resource wellKnownPolicies 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = [for (server, i) in mcpServers: {
+  parent: wellKnownOperations[i]
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: loadTextContent('../policies/mcp-path-prm.policy.xml')
+    value: '''
+<policies>
+  <inbound>
+    <base />
+    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
+      <audiences><audience>{{McpClientId}}</audience></audiences>
+    </validate-azure-ad-token>
+    <set-backend-service backend-id="${server.backendId}" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{${server.functionKeyName}}}</value></set-header>
+    <rewrite-uri template="/.well-known/mcp" copy-unmatched-params="false" />
+  </inbound>
+  <backend><base /></backend>
+  <outbound><base /></outbound>
+  <on-error><base /></on-error>
+</policies>
+'''
   }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
+  dependsOn: [functionKeyNamedValues, mcpBackends, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}]
 
-// ----- Clinical Trials Path-Based PRM -----
-resource clinicalTrialsPathPrmOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: prmApi
-  name: 'clinical-trials-path-prm'
-  properties: {
-    displayName: 'Clinical Trials - Path-Based PRM'
-    method: 'GET'
-    urlTemplate: '/.well-known/oauth-protected-resource/mcp/clinical-trials/mcp'
-    description: 'RFC 9728 path-based PRM for Clinical Trials MCP server'
-  }
-}
-
-resource clinicalTrialsPathPrmPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: clinicalTrialsPathPrmOperation
+resource healthPolicies 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = [for (server, i) in mcpServers: {
+  parent: healthOperations[i]
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: loadTextContent('../policies/mcp-path-prm.policy.xml')
+    value: '''
+<policies>
+  <inbound>
+    <base />
+    <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
+      <audiences><audience>{{McpClientId}}</audience></audiences>
+    </validate-azure-ad-token>
+    <set-backend-service backend-id="${server.backendId}" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{${server.functionKeyName}}}</value></set-header>
+    <rewrite-uri template="/health" copy-unmatched-params="false" />
+  </inbound>
+  <backend><base /></backend>
+  <outbound><base /></outbound>
+  <on-error><base /></on-error>
+</policies>
+'''
   }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
+  dependsOn: [functionKeyNamedValues, mcpBackends, mcpTenantIdNamedValue, mcpClientIdNamedValue]
+}]
 
 // ============================================================================
 // Outputs

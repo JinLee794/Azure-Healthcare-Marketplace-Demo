@@ -250,7 +250,6 @@ module apim 'modules/apim.bicep' = {
     skuName: apimSku
     vnetId: vnet.outputs.vnetId
     apimSubnetId: vnet.outputs.apimSubnetId
-    functionAppBaseName: baseName
     appInsightsId: dependentResources.outputs.appInsightsId
     appInsightsInstrumentationKey: dependentResources.outputs.appInsightsInstrumentationKey
     logAnalyticsId: dependentResources.outputs.logAnalyticsId
@@ -367,8 +366,13 @@ resource apimOpenAIRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 }
 
 // FHIR Data Contributor for Function Apps (allows MCP servers to access FHIR data)
-// Index 3 = fhir-operations server; assigning to all for flexibility
-var mcpServerCount = 7 // Must match mcpServers array length in function-apps.bicep
+// Assign to all MCP Function Apps for flexibility.
+var mcpServerNames = [
+  'mcp-reference-data'
+  'mcp-clinical-research'
+  'cosmos-rag'
+]
+var mcpServerCount = length(mcpServerNames)
 
 resource containerRegistryResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
   name: containerRegistryName
@@ -699,13 +703,8 @@ output AZURE_RESOURCE_GROUP string = resourceGroup().name
 output AZURE_CONTAINER_REGISTRY_NAME string = containerRegistry.outputs.registryName
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.outputs.registryLoginServer
 
-// Function App resource names for azd service mapping
-// Note: azd uses these to find the target resources for deployment
+// Function App resource names for azd-based container deployment
 // Output names must match: SERVICE_<service-name-with-underscores>_RESOURCE_NAME
-output SERVICE_NPI_LOOKUP_RESOURCE_NAME string = functionApps.outputs.functionAppNames[0]
-output SERVICE_ICD10_VALIDATION_RESOURCE_NAME string = functionApps.outputs.functionAppNames[1]
-output SERVICE_CMS_COVERAGE_RESOURCE_NAME string = functionApps.outputs.functionAppNames[2]
-output SERVICE_FHIR_OPERATIONS_RESOURCE_NAME string = functionApps.outputs.functionAppNames[3]
-output SERVICE_PUBMED_RESOURCE_NAME string = functionApps.outputs.functionAppNames[4]
-output SERVICE_CLINICAL_TRIALS_RESOURCE_NAME string = functionApps.outputs.functionAppNames[5]
-output SERVICE_COSMOS_RAG_RESOURCE_NAME string = functionApps.outputs.functionAppNames[6]
+output SERVICE_MCP_REFERENCE_DATA_RESOURCE_NAME string = functionApps.outputs.functionAppNames[0]
+output SERVICE_MCP_CLINICAL_RESEARCH_RESOURCE_NAME string = functionApps.outputs.functionAppNames[1]
+output SERVICE_COSMOS_RAG_RESOURCE_NAME string = functionApps.outputs.functionAppNames[2]

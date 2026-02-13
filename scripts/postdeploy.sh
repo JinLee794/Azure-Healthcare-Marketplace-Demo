@@ -1,19 +1,19 @@
 #!/bin/bash
 # postdeploy hook for azd
 #
-# This script:
-# 1. Generates .vscode/mcp.json from the parameterized template
-# 2. Uses azd environment outputs (Bicep outputs) to fill in URLs
+# This script generates `.vscode/mcp.json` using azd environment outputs
+# (Bicep outputs) to fill in URLs.
 #
 # Bicep outputs available as env vars via azd:
-#   SERVICE_APIM_GATEWAY_URL       - APIM gateway base URL
-#   SERVICE_NPI_LOOKUP_RESOURCE_NAME - NPI function app resource name
+#   SERVICE_APIM_GATEWAY_URL                    - APIM gateway base URL
+#   SERVICE_MCP_REFERENCE_DATA_RESOURCE_NAME    - Function App name
+#   SERVICE_MCP_CLINICAL_RESEARCH_RESOURCE_NAME - Function App name
+#   SERVICE_COSMOS_RAG_RESOURCE_NAME            - Function App name
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-TEMPLATE="$SCRIPT_DIR/mcp.json.template"
 OUTPUT="$REPO_ROOT/.vscode/mcp.json"
 
 echo "=============================================="
@@ -42,7 +42,7 @@ resolve_value() {
 }
 
 APIM_GATEWAY_URL="$(resolve_value SERVICE_APIM_GATEWAY_URL)"
-NPI_FUNCTION_APP_NAME="$(resolve_value SERVICE_NPI_LOOKUP_RESOURCE_NAME)"
+REFERENCE_DATA_FUNCTION_APP_NAME="$(resolve_value SERVICE_MCP_REFERENCE_DATA_RESOURCE_NAME)"
 
 # ---------------------------------------------------------------------------
 # Validate required values
@@ -56,29 +56,49 @@ if [ -z "$APIM_GATEWAY_URL" ]; then
   exit 0
 fi
 
-if [ -z "$NPI_FUNCTION_APP_NAME" ]; then
-  echo "⚠️  WARNING: SERVICE_NPI_LOOKUP_RESOURCE_NAME not found. Direct function endpoint will be incomplete."
-  NPI_FUNCTION_APP_NAME="<FUNCTION_APP_NAME>"
-fi
-
 echo "  APIM Gateway URL:     $APIM_GATEWAY_URL"
-echo "  NPI Function App:     $NPI_FUNCTION_APP_NAME"
+echo "  Ref Data Function App:${REFERENCE_DATA_FUNCTION_APP_NAME:-<unknown>}"
 echo ""
 
 # ---------------------------------------------------------------------------
-# Generate .vscode/mcp.json from template
+# Generate .vscode/mcp.json
 # ---------------------------------------------------------------------------
-if [ ! -f "$TEMPLATE" ]; then
-  echo "❌ Template not found: $TEMPLATE"
-  exit 1
-fi
-
 mkdir -p "$REPO_ROOT/.vscode"
 
-sed \
-  -e "s|\${APIM_GATEWAY_URL}|${APIM_GATEWAY_URL}|g" \
-  -e "s|\${NPI_FUNCTION_APP_NAME}|${NPI_FUNCTION_APP_NAME}|g" \
-  "$TEMPLATE" > "$OUTPUT"
+cat > "$OUTPUT" <<EOF
+{
+  "inputs": [
+    {
+      "id": "apimSubscriptionKey",
+      "type": "promptString",
+      "description": "APIM subscription key for MCP passthrough (/mcp-pt)",
+      "password": true
+    }
+  ],
+  "servers": {
+    "local-reference-data": { "type": "http", "url": "http://localhost:7071/mcp" },
+    "local-clinical-research": { "type": "http", "url": "http://localhost:7072/mcp" },
+    "local-cosmos-rag": { "type": "http", "url": "http://localhost:7073/mcp" },
+    "local-document-reader": { "type": "http", "url": "http://localhost:7078/mcp" },
+
+    "healthcare-reference-data": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp-pt/reference-data/mcp",
+      "headers": { "Ocp-Apim-Subscription-Key": "\${input:apimSubscriptionKey}" }
+    },
+    "healthcare-clinical-research": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp-pt/clinical-research/mcp",
+      "headers": { "Ocp-Apim-Subscription-Key": "\${input:apimSubscriptionKey}" }
+    },
+    "healthcare-cosmos-rag": {
+      "type": "http",
+      "url": "${APIM_GATEWAY_URL}/mcp-pt/cosmos-rag/mcp",
+      "headers": { "Ocp-Apim-Subscription-Key": "\${input:apimSubscriptionKey}" }
+    }
+  }
+}
+EOF
 
 echo "✅ Generated $OUTPUT"
 echo ""
@@ -94,19 +114,13 @@ echo "APIM APIs configured via Bicep deployment."
 echo "MCP server config written to .vscode/mcp.json"
 echo ""
 echo "MCP Endpoints (Passthrough - subscription key):"
-echo "  - NPI Lookup:        ${APIM_GATEWAY_URL}/mcp-pt/npi/mcp"
-echo "  - ICD-10 Validation: ${APIM_GATEWAY_URL}/mcp-pt/icd10/mcp"
-echo "  - CMS Coverage:      ${APIM_GATEWAY_URL}/mcp-pt/cms/mcp"
-echo "  - FHIR Operations:   ${APIM_GATEWAY_URL}/mcp-pt/fhir/mcp"
-echo "  - PubMed:            ${APIM_GATEWAY_URL}/mcp-pt/pubmed/mcp"
-echo "  - Clinical Trials:   ${APIM_GATEWAY_URL}/mcp-pt/clinical-trials/mcp"
+echo "  - Reference Data:     ${APIM_GATEWAY_URL}/mcp-pt/reference-data/mcp"
+echo "  - Clinical Research:  ${APIM_GATEWAY_URL}/mcp-pt/clinical-research/mcp"
+echo "  - Cosmos RAG:         ${APIM_GATEWAY_URL}/mcp-pt/cosmos-rag/mcp"
 echo ""
 echo "MCP Endpoints (OAuth):"
-echo "  - NPI Lookup:        ${APIM_GATEWAY_URL}/mcp/npi/mcp"
-echo "  - ICD-10 Validation: ${APIM_GATEWAY_URL}/mcp/icd10/mcp"
-echo "  - CMS Coverage:      ${APIM_GATEWAY_URL}/mcp/cms/mcp"
-echo "  - FHIR Operations:   ${APIM_GATEWAY_URL}/mcp/fhir/mcp"
-echo "  - PubMed:            ${APIM_GATEWAY_URL}/mcp/pubmed/mcp"
-echo "  - Clinical Trials:   ${APIM_GATEWAY_URL}/mcp/clinical-trials/mcp"
+echo "  - Reference Data:     ${APIM_GATEWAY_URL}/mcp/reference-data/mcp"
+echo "  - Clinical Research:  ${APIM_GATEWAY_URL}/mcp/clinical-research/mcp"
+echo "  - Cosmos RAG:         ${APIM_GATEWAY_URL}/mcp/cosmos-rag/mcp"
 echo ""
 echo "✅ Deployment finished!"

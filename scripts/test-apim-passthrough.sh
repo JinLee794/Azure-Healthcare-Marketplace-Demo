@@ -7,7 +7,7 @@
 #
 # Usage:
 #   ./scripts/test-apim-passthrough.sh
-#   ./scripts/test-apim-passthrough.sh --server npi
+#   ./scripts/test-apim-passthrough.sh --server reference-data
 #   ./scripts/test-apim-passthrough.sh --all
 #
 # Prerequisites:
@@ -23,7 +23,7 @@ APIM_NAME="${APIM_NAME:-}"
 SUBSCRIPTION_KEY="${APIM_SUBSCRIPTION_KEY:-}"
 SERVER="${1:---all}"
 
-SERVERS=(npi icd10 cms fhir pubmed clinical-trials)
+SERVERS=(reference-data clinical-research cosmos-rag)
 
 # Colors
 RED='\033[0;31m'

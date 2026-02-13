@@ -105,8 +105,8 @@ get_resource_info() {
         # Get any function app and extract base name
         FUNC_APP=$(az functionapp list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || echo "")
         if [ -n "$FUNC_APP" ]; then
-            # Extract base name (e.g., "hcmcp" from "hcmcp-npi-lookup-func")
-            FUNCTION_BASE_NAME=$(echo "$FUNC_APP" | sed 's/-[^-]*-func$//' | sed 's/-mcp-reference-data$//' | sed 's/-mcp-clinical-research$//' | sed 's/-cosmos-rag$//')
+            # Extract base name (e.g., "hcmcp" from "hcmcp-mcp-reference-data-func")
+            FUNCTION_BASE_NAME=$(echo "$FUNC_APP" | sed -E 's/-(mcp-reference-data|mcp-clinical-research|cosmos-rag)-func$//')
         fi
     fi
 
@@ -136,7 +136,8 @@ get_function_url() {
         return 1
     fi
 
-    echo "https://${hostname}/api"
+    # MCP Function Apps set http.routePrefix="" so endpoints are NOT under /api
+    echo "https://${hostname}"
 }
 
 get_function_key() {

@@ -67,6 +67,7 @@ build/
 
 # Bicep
 *.bicepparams.json
+deploy/infra/main.json
 .local-logs
 voicetree*
 mcp.json

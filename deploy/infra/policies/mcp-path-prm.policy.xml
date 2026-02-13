@@ -26,16 +26,14 @@
             <set-body>@{
                 var gatewayUrl = "{{APIMGatewayURL}}".TrimEnd('/');
 
-                // Get the operation's URL template which contains the full path
-                // Format: /.well-known/oauth-protected-resource/mcp/{server}/mcp
-                var urlTemplate = context.Operation.UrlTemplate;
-
-                // Extract resource path by removing the well-known prefix
                 var wellKnownPrefix = "/.well-known/oauth-protected-resource";
                 var resourcePath = "";
 
-                if (urlTemplate.StartsWith(wellKnownPrefix)) {
-                    resourcePath = urlTemplate.Substring(wellKnownPrefix.Length);
+                // Extract resource path from the request URL:
+                // /.well-known/oauth-protected-resource{resource-path}
+                var requestPath = context.Request.Url.Path;
+                if (requestPath.StartsWith(wellKnownPrefix)) {
+                    resourcePath = requestPath.Substring(wellKnownPrefix.Length);
                 }
 
                 // Construct the full resource URL

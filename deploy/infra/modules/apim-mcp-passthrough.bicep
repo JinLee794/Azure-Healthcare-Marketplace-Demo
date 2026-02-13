@@ -15,7 +15,7 @@ param apimServiceName string
 param functionAppBaseName string
 
 // ============================================================================
-// Reference existing APIM service and Function Apps
+// Reference existing APIM service
 // ============================================================================
 
 resource apimService 'Microsoft.ApiManagement/service@2023-09-01-preview' existing = {
@@ -23,53 +23,25 @@ resource apimService 'Microsoft.ApiManagement/service@2023-09-01-preview' existi
 }
 
 // ============================================================================
-// Server configuration array for DRY iteration
+// Server configuration array (consolidated)
 // ============================================================================
 
 var funcAppApiVersion = '2023-12-01'
 
 var mcpServers = [
   {
-    name: 'npi'
-    backendName: 'npi-pt'
-    funcName: '${functionAppBaseName}-npi-lookup-func'
-    funcHostName: '${functionAppBaseName}-npi-lookup-func.azurewebsites.net'
-    keyName: 'npi-pt-key'
+    name: 'reference-data'
+    backendName: 'reference-data-pt'
+    funcName: '${functionAppBaseName}-mcp-reference-data-func'
+    funcHostName: '${functionAppBaseName}-mcp-reference-data-func.azurewebsites.net'
+    keyName: 'reference-data-pt-key'
   }
   {
-    name: 'icd10'
-    backendName: 'icd10-pt'
-    funcName: '${functionAppBaseName}-icd10-validation-func'
-    funcHostName: '${functionAppBaseName}-icd10-validation-func.azurewebsites.net'
-    keyName: 'icd10-pt-key'
-  }
-  {
-    name: 'cms'
-    backendName: 'cms-pt'
-    funcName: '${functionAppBaseName}-cms-coverage-func'
-    funcHostName: '${functionAppBaseName}-cms-coverage-func.azurewebsites.net'
-    keyName: 'cms-pt-key'
-  }
-  {
-    name: 'fhir'
-    backendName: 'fhir-pt'
-    funcName: '${functionAppBaseName}-fhir-operations-func'
-    funcHostName: '${functionAppBaseName}-fhir-operations-func.azurewebsites.net'
-    keyName: 'fhir-pt-key'
-  }
-  {
-    name: 'pubmed'
-    backendName: 'pubmed-pt'
-    funcName: '${functionAppBaseName}-pubmed-func'
-    funcHostName: '${functionAppBaseName}-pubmed-func.azurewebsites.net'
-    keyName: 'pubmed-pt-key'
-  }
-  {
-    name: 'clinical-trials'
-    backendName: 'clinical-trials-pt'
-    funcName: '${functionAppBaseName}-clinical-trials-func'
-    funcHostName: '${functionAppBaseName}-clinical-trials-func.azurewebsites.net'
-    keyName: 'clinical-trials-pt-key'
+    name: 'clinical-research'
+    backendName: 'clinical-research-pt'
+    funcName: '${functionAppBaseName}-mcp-clinical-research-func'
+    funcHostName: '${functionAppBaseName}-mcp-clinical-research-func.azurewebsites.net'
+    keyName: 'clinical-research-pt-key'
   }
   {
     name: 'cosmos-rag'
@@ -167,24 +139,26 @@ resource passthroughSubscription 'Microsoft.ApiManagement/service/subscriptions@
 }
 
 // ============================================================================
-// Per-Server Operations: POST /{server}/mcp and GET /{server}/mcp
-// Each operation has its own inline policy for backend routing
+// Per-Server Operations (generated)
+// - POST /{server}/mcp
+// - GET  /{server}/mcp
+// - GET  /{server}/.well-known/mcp
+// - GET  /{server}/health
 // ============================================================================
 
-// ----- NPI -----
-resource npiPostOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+resource mcpPostOps 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = [for server in mcpServers: {
   parent: passthroughApi
-  name: 'npi-post'
+  name: '${server.name}-post'
   properties: {
-    displayName: 'NPI - POST /mcp'
+    displayName: '${server.name} - POST /mcp'
     method: 'POST'
-    urlTemplate: '/npi/mcp'
-    description: 'MCP message endpoint for NPI server'
+    urlTemplate: '/${server.name}/mcp'
+    description: 'MCP message endpoint'
   }
-}
+}]
 
-resource npiPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: npiPostOp
+resource mcpPostPolicies 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = [for (server, i) in mcpServers: {
+  parent: mcpPostOps[i]
   name: 'policy'
   properties: {
     format: 'rawxml'
@@ -192,11 +166,11 @@ resource npiPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies
 <policies>
   <inbound>
     <base />
-    <set-backend-service backend-id="npi-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{npi-pt-key}}</value></set-header>
+    <set-backend-service backend-id="${server.backendName}" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{${server.keyName}}}</value></set-header>
     <rewrite-uri template="/mcp" copy-unmatched-params="false" />
-    <trace source="mcp-passthrough-npi" severity="information">
-      <message>@($"NPI POST → backend: {context.Request.Url}")</message>
+    <trace source="mcp-pt-${server.name}" severity="information">
+      <message>@($"${server.name} POST → backend: {context.Request.Url}")</message>
     </trace>
   </inbound>
   <backend><base /></backend>
@@ -206,28 +180,28 @@ resource npiPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies
     <return-response>
       <set-status code="502" reason="Backend Error" />
       <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","npi-backend-failure"),new JProperty("detail",context.LastError?.Message),new JProperty("source",context.LastError?.Source),new JProperty("reason",context.LastError?.Reason)).ToString())</set-body>
+      <set-body>@(new JObject(new JProperty("error","${server.name}-backend-failure"),new JProperty("detail",context.LastError?.Message),new JProperty("source",context.LastError?.Source),new JProperty("reason",context.LastError?.Reason)).ToString())</set-body>
     </return-response>
   </on-error>
 </policies>
 '''
   }
   dependsOn: [backends, functionKeys]
-}
+}]
 
-resource npiGetOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+resource mcpGetOps 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = [for server in mcpServers: {
   parent: passthroughApi
-  name: 'npi-get'
+  name: '${server.name}-get'
   properties: {
-    displayName: 'NPI - GET /mcp'
+    displayName: '${server.name} - GET /mcp'
     method: 'GET'
-    urlTemplate: '/npi/mcp'
-    description: 'MCP info endpoint for NPI server'
+    urlTemplate: '/${server.name}/mcp'
+    description: 'MCP info endpoint'
   }
-}
+}]
 
-resource npiGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: npiGetOp
+resource mcpGetPolicies 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = [for (server, i) in mcpServers: {
+  parent: mcpGetOps[i]
   name: 'policy'
   properties: {
     format: 'rawxml'
@@ -235,8 +209,8 @@ resource npiGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@
 <policies>
   <inbound>
     <base />
-    <set-backend-service backend-id="npi-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{npi-pt-key}}</value></set-header>
+    <set-backend-service backend-id="${server.backendName}" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{${server.keyName}}}</value></set-header>
     <rewrite-uri template="/mcp" copy-unmatched-params="false" />
   </inbound>
   <backend><base /></backend>
@@ -246,69 +220,28 @@ resource npiGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@
     <return-response>
       <set-status code="502" reason="Backend Error" />
       <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","npi-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
+      <set-body>@(new JObject(new JProperty("error","${server.name}-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
     </return-response>
   </on-error>
 </policies>
 '''
   }
   dependsOn: [backends, functionKeys]
-}
+}]
 
-// ----- ICD-10 -----
-resource icd10PostOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+resource wellKnownGetOps 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = [for server in mcpServers: {
   parent: passthroughApi
-  name: 'icd10-post'
+  name: '${server.name}-wellknown-get'
   properties: {
-    displayName: 'ICD-10 - POST /mcp'
-    method: 'POST'
-    urlTemplate: '/icd10/mcp'
-    description: 'MCP message endpoint for ICD-10 server'
-  }
-}
-
-resource icd10PostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: icd10PostOp
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <set-backend-service backend-id="icd10-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{icd10-pt-key}}</value></set-header>
-    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <base />
-    <return-response>
-      <set-status code="502" reason="Backend Error" />
-      <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","icd10-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
-    </return-response>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [backends, functionKeys]
-}
-
-resource icd10GetOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: passthroughApi
-  name: 'icd10-get'
-  properties: {
-    displayName: 'ICD-10 - GET /mcp'
+    displayName: '${server.name} - GET /.well-known/mcp'
     method: 'GET'
-    urlTemplate: '/icd10/mcp'
-    description: 'MCP info endpoint for ICD-10 server'
+    urlTemplate: '/${server.name}/.well-known/mcp'
+    description: 'MCP discovery endpoint'
   }
-}
+}]
 
-resource icd10GetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: icd10GetOp
+resource wellKnownGetPolicies 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = [for (server, i) in mcpServers: {
+  parent: wellKnownGetOps[i]
   name: 'policy'
   properties: {
     format: 'rawxml'
@@ -316,9 +249,9 @@ resource icd10GetPolicy 'Microsoft.ApiManagement/service/apis/operations/policie
 <policies>
   <inbound>
     <base />
-    <set-backend-service backend-id="icd10-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{icd10-pt-key}}</value></set-header>
-    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
+    <set-backend-service backend-id="${server.backendName}" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{${server.keyName}}}</value></set-header>
+    <rewrite-uri template="/.well-known/mcp" copy-unmatched-params="false" />
   </inbound>
   <backend><base /></backend>
   <outbound><base /></outbound>
@@ -327,69 +260,28 @@ resource icd10GetPolicy 'Microsoft.ApiManagement/service/apis/operations/policie
     <return-response>
       <set-status code="502" reason="Backend Error" />
       <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","icd10-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
+      <set-body>@(new JObject(new JProperty("error","${server.name}-wellknown-unreachable"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
     </return-response>
   </on-error>
 </policies>
 '''
   }
   dependsOn: [backends, functionKeys]
-}
+}]
 
-// ----- CMS -----
-resource cmsPostOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
+resource healthGetOps 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = [for server in mcpServers: {
   parent: passthroughApi
-  name: 'cms-post'
+  name: '${server.name}-health'
   properties: {
-    displayName: 'CMS - POST /mcp'
-    method: 'POST'
-    urlTemplate: '/cms/mcp'
-    description: 'MCP message endpoint for CMS server'
-  }
-}
-
-resource cmsPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: cmsPostOp
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <set-backend-service backend-id="cms-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{cms-pt-key}}</value></set-header>
-    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <base />
-    <return-response>
-      <set-status code="502" reason="Backend Error" />
-      <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","cms-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
-    </return-response>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [backends, functionKeys]
-}
-
-resource cmsGetOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: passthroughApi
-  name: 'cms-get'
-  properties: {
-    displayName: 'CMS - GET /mcp'
+    displayName: '${server.name} - Health Check'
     method: 'GET'
-    urlTemplate: '/cms/mcp'
-    description: 'MCP info endpoint for CMS server'
+    urlTemplate: '/${server.name}/health'
+    description: 'Health check endpoint'
   }
-}
+}]
 
-resource cmsGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: cmsGetOp
+resource healthGetPolicies 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = [for (server, i) in mcpServers: {
+  parent: healthGetOps[i]
   name: 'policy'
   properties: {
     format: 'rawxml'
@@ -397,379 +289,8 @@ resource cmsGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@
 <policies>
   <inbound>
     <base />
-    <set-backend-service backend-id="cms-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{cms-pt-key}}</value></set-header>
-    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <base />
-    <return-response>
-      <set-status code="502" reason="Backend Error" />
-      <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","cms-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
-    </return-response>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [backends, functionKeys]
-}
-
-// ----- FHIR -----
-resource fhirPostOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: passthroughApi
-  name: 'fhir-post'
-  properties: {
-    displayName: 'FHIR - POST /mcp'
-    method: 'POST'
-    urlTemplate: '/fhir/mcp'
-    description: 'MCP message endpoint for FHIR server'
-  }
-}
-
-resource fhirPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: fhirPostOp
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <set-backend-service backend-id="fhir-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{fhir-pt-key}}</value></set-header>
-    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <base />
-    <return-response>
-      <set-status code="502" reason="Backend Error" />
-      <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","fhir-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
-    </return-response>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [backends, functionKeys]
-}
-
-resource fhirGetOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: passthroughApi
-  name: 'fhir-get'
-  properties: {
-    displayName: 'FHIR - GET /mcp'
-    method: 'GET'
-    urlTemplate: '/fhir/mcp'
-    description: 'MCP info endpoint for FHIR server'
-  }
-}
-
-resource fhirGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: fhirGetOp
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <set-backend-service backend-id="fhir-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{fhir-pt-key}}</value></set-header>
-    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <base />
-    <return-response>
-      <set-status code="502" reason="Backend Error" />
-      <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","fhir-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
-    </return-response>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [backends, functionKeys]
-}
-
-// ----- PubMed -----
-resource pubmedPostOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: passthroughApi
-  name: 'pubmed-post'
-  properties: {
-    displayName: 'PubMed - POST /mcp'
-    method: 'POST'
-    urlTemplate: '/pubmed/mcp'
-    description: 'MCP message endpoint for PubMed server'
-  }
-}
-
-resource pubmedPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: pubmedPostOp
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <set-backend-service backend-id="pubmed-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{pubmed-pt-key}}</value></set-header>
-    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <base />
-    <return-response>
-      <set-status code="502" reason="Backend Error" />
-      <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","pubmed-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
-    </return-response>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [backends, functionKeys]
-}
-
-resource pubmedGetOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: passthroughApi
-  name: 'pubmed-get'
-  properties: {
-    displayName: 'PubMed - GET /mcp'
-    method: 'GET'
-    urlTemplate: '/pubmed/mcp'
-    description: 'MCP info endpoint for PubMed server'
-  }
-}
-
-resource pubmedGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: pubmedGetOp
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <set-backend-service backend-id="pubmed-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{pubmed-pt-key}}</value></set-header>
-    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <base />
-    <return-response>
-      <set-status code="502" reason="Backend Error" />
-      <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","pubmed-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
-    </return-response>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [backends, functionKeys]
-}
-
-// ----- Clinical Trials -----
-resource clinicalTrialsPostOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: passthroughApi
-  name: 'clinical-trials-post'
-  properties: {
-    displayName: 'Clinical Trials - POST /mcp'
-    method: 'POST'
-    urlTemplate: '/clinical-trials/mcp'
-    description: 'MCP message endpoint for Clinical Trials server'
-  }
-}
-
-resource clinicalTrialsPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: clinicalTrialsPostOp
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <set-backend-service backend-id="clinical-trials-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{clinical-trials-pt-key}}</value></set-header>
-    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <base />
-    <return-response>
-      <set-status code="502" reason="Backend Error" />
-      <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","clinical-trials-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
-    </return-response>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [backends, functionKeys]
-}
-
-resource clinicalTrialsGetOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: passthroughApi
-  name: 'clinical-trials-get'
-  properties: {
-    displayName: 'Clinical Trials - GET /mcp'
-    method: 'GET'
-    urlTemplate: '/clinical-trials/mcp'
-    description: 'MCP info endpoint for Clinical Trials server'
-  }
-}
-
-resource clinicalTrialsGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: clinicalTrialsGetOp
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <set-backend-service backend-id="clinical-trials-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{clinical-trials-pt-key}}</value></set-header>
-    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <base />
-    <return-response>
-      <set-status code="502" reason="Backend Error" />
-      <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","clinical-trials-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
-    </return-response>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [backends, functionKeys]
-}
-
-// ----- Cosmos RAG -----
-resource cosmosRagPostOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: passthroughApi
-  name: 'cosmos-rag-post'
-  properties: {
-    displayName: 'Cosmos RAG - POST /mcp'
-    method: 'POST'
-    urlTemplate: '/cosmos-rag/mcp'
-    description: 'MCP message endpoint for Cosmos RAG & Audit server'
-  }
-}
-
-resource cosmosRagPostPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: cosmosRagPostOp
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <set-backend-service backend-id="cosmos-rag-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{cosmos-rag-pt-key}}</value></set-header>
-    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
-    <trace source="mcp-passthrough-cosmos-rag" severity="information">
-      <message>@($"Cosmos RAG POST → backend: {context.Request.Url}")</message>
-    </trace>
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <base />
-    <return-response>
-      <set-status code="502" reason="Backend Error" />
-      <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","cosmos-rag-backend-failure"),new JProperty("detail",context.LastError?.Message),new JProperty("source",context.LastError?.Source),new JProperty("reason",context.LastError?.Reason)).ToString())</set-body>
-    </return-response>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [backends, functionKeys]
-}
-
-resource cosmosRagGetOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: passthroughApi
-  name: 'cosmos-rag-get'
-  properties: {
-    displayName: 'Cosmos RAG - GET /mcp'
-    method: 'GET'
-    urlTemplate: '/cosmos-rag/mcp'
-    description: 'MCP info endpoint for Cosmos RAG & Audit server'
-  }
-}
-
-resource cosmosRagGetPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: cosmosRagGetOp
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <set-backend-service backend-id="cosmos-rag-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{cosmos-rag-pt-key}}</value></set-header>
-    <rewrite-uri template="/mcp" copy-unmatched-params="false" />
-  </inbound>
-  <backend><base /></backend>
-  <outbound><base /></outbound>
-  <on-error>
-    <base />
-    <return-response>
-      <set-status code="502" reason="Backend Error" />
-      <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","cosmos-rag-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
-    </return-response>
-  </on-error>
-</policies>
-'''
-  }
-  dependsOn: [backends, functionKeys]
-}
-
-// ============================================================================
-// Health Check Endpoints - for verifying each backend is reachable
-// ============================================================================
-
-resource npiHealthOp 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: passthroughApi
-  name: 'npi-health'
-  properties: {
-    displayName: 'NPI - Health Check'
-    method: 'GET'
-    urlTemplate: '/npi/health'
-    description: 'Health check for NPI backend'
-  }
-}
-
-resource npiHealthPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: npiHealthOp
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: '''
-<policies>
-  <inbound>
-    <base />
-    <set-backend-service backend-id="npi-pt" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{npi-pt-key}}</value></set-header>
+    <set-backend-service backend-id="${server.backendName}" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{${server.keyName}}}</value></set-header>
     <rewrite-uri template="/health" copy-unmatched-params="false" />
   </inbound>
   <backend><base /></backend>
@@ -779,14 +300,14 @@ resource npiHealthPolicy 'Microsoft.ApiManagement/service/apis/operations/polici
     <return-response>
       <set-status code="502" reason="Backend Error" />
       <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","npi-health-unreachable"),new JProperty("detail",context.LastError?.Message),new JProperty("reason",context.LastError?.Reason)).ToString())</set-body>
+      <set-body>@(new JObject(new JProperty("error","${server.name}-health-unreachable"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
     </return-response>
   </on-error>
 </policies>
 '''
   }
   dependsOn: [backends, functionKeys]
-}
+}]
 
 // ============================================================================
 // Outputs
@@ -796,3 +317,4 @@ output passthroughApiId string = passthroughApi.id
 output passthroughApiPath string = passthroughApi.properties.path
 output passthroughSubscriptionId string = passthroughSubscription.id
 output gatewayUrl string = apimService.properties.gatewayUrl
+
