@@ -78,6 +78,28 @@ log_err() {
   echo "  ❌ $1" >&2
 }
 
+# Retry a command up to N times with exponential backoff
+# Usage: retry <max_attempts> <delay_seconds> <description> <command...>
+retry() {
+  local max_attempts=$1; shift
+  local delay=$1; shift
+  local desc=$1; shift
+  local attempt=1
+  while true; do
+    if "$@"; then
+      return 0
+    fi
+    if [ $attempt -ge $max_attempts ]; then
+      log_err "$desc failed after $max_attempts attempts"
+      return 1
+    fi
+    log_step "$desc failed (attempt $attempt/$max_attempts), retrying in ${delay}s..."
+    sleep $delay
+    delay=$((delay * 2))
+    attempt=$((attempt + 1))
+  done
+}
+
 # ---------------------------------------------------------------------------
 # Resolve configuration
 # ---------------------------------------------------------------------------
@@ -131,6 +153,9 @@ log_step "az acr login --name ${ACR_LOGIN_SERVER%%.*}"
 az acr login --name "${ACR_LOGIN_SERVER%%.*}" 2>&1 | sed 's/^/  /'
 log_ok "ACR login successful"
 
+# Brief pause for ACR token propagation (avoids first-server auth failures)
+sleep 3
+
 # ---------------------------------------------------------------------------
 # Build, Tag, Push, Deploy each server
 # ---------------------------------------------------------------------------
@@ -158,37 +183,42 @@ for SERVER_NAME in "${SERVERS[@]}"; do
 
   # Build
   log_step "Building Docker image..."
+  BUILD_LOG=$(mktemp)
   if ! docker build \
     --platform linux/amd64 \
     --build-arg SERVER_NAME="$SERVER_NAME" \
     -t "$IMAGE_NAME:$IMAGE_TAG" \
     -t "$FULL_IMAGE" \
     -f "$DOCKERFILE" \
-    "$BUILD_CONTEXT" 2>&1 | tail -5 | sed 's/^/    /'; then
+    "$BUILD_CONTEXT" >"$BUILD_LOG" 2>&1; then
     log_err "Docker build failed for $SERVER_NAME"
+    tail -10 "$BUILD_LOG" | sed 's/^/    /'
+    rm -f "$BUILD_LOG"
     FAILED+=("$SERVER_NAME")
     continue
   fi
+  tail -3 "$BUILD_LOG" | sed 's/^/    /'
+  rm -f "$BUILD_LOG"
   log_ok "Image built"
 
-  # Push
+  # Push (retry up to 3 times with 5s initial backoff)
   log_step "Pushing to ACR..."
-  if ! docker push "$FULL_IMAGE" 2>&1 | tail -3 | sed 's/^/    /'; then
-    log_err "Docker push failed for $SERVER_NAME"
+  if ! retry 3 5 "Docker push ($SERVER_NAME)" \
+    docker push "$FULL_IMAGE" 2>&1 | tail -3 | sed 's/^/    /'; then
     FAILED+=("$SERVER_NAME")
     continue
   fi
   log_ok "Image pushed"
 
-  # Update Function App container config
+  # Update Function App container config (retry up to 3 times with 10s initial backoff)
   log_step "Updating Function App container config..."
-  if ! az functionapp config container set \
+  if ! retry 3 10 "Function App update ($SERVER_NAME)" \
+    az functionapp config container set \
     --name "$FUNC_APP_NAME" \
     --resource-group "$RESOURCE_GROUP" \
     --image "$FULL_IMAGE" \
     --registry-server "https://${ACR_LOGIN_SERVER}" \
     --output none 2>&1 | sed 's/^/    /'; then
-    log_err "Function App update failed for $SERVER_NAME"
     FAILED+=("$SERVER_NAME")
     continue
   fi
