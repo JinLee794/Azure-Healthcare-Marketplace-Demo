@@ -12,17 +12,27 @@ This document defines the decision rules and criteria evaluation logic for the P
 | Decision | When to Use | AI Can Recommend? |
 |----------|-------------|-------------------|
 | **APPROVE** | All criteria met, high confidence | ✅ Yes |
-| **PEND** | Missing info, low confidence, or borderline | ✅ Yes |
-| **DENY** | Criteria clearly not met | ❌ No (human only) |
+| **PEND** | Missing info (`INSUFFICIENT`), low confidence, or borderline | ✅ Yes |
+| **DENY** | Mandatory criterion clearly `NOT_MET` with ≥90% confidence | ✅ Yes (human confirms in Subskill 2) |
 
-### Important: AI Never Recommends DENY
+### AI DENY Recommendations
 
-In default mode, the AI will **NEVER** recommend DENY. This is intentional:
-- Denial decisions have significant impact on patient care
-- Denial requires explicit human clinical judgment
-- AI can identify reasons for potential denial but defers to human
+The AI **can** recommend DENY when a **mandatory** policy criterion is clearly `NOT_MET` — meaning the available documentation affirmatively shows the criterion is not satisfied (not just missing information).
 
-If criteria are clearly not met, AI recommends PEND with explanation.
+**DENY conditions (ALL must be true):**
+1. At least one mandatory criterion has status `NOT_MET` (not `INSUFFICIENT`)
+2. The NOT_MET assessment has confidence ≥ 90%
+3. The evidence for NOT_MET is based on documented clinical facts, not absence of documentation
+
+**Key distinction:**
+- `NOT_MET` = documentation clearly shows criterion is violated → **DENY** candidate
+- `INSUFFICIENT` = we lack information to determine → **PEND** (request more info)
+
+**DENY is still a recommendation, not a final decision.** The human reviewer confirms, overrides, or downgrades to PEND in Subskill 2. This preserves the human-in-the-loop guardrail while giving the AI the ability to signal clear policy violations rather than masking them as information gaps.
+
+**Example:**
+- Policy requires failure of a second-generation TKI. Documentation shows only a first-generation TKI was used throughout all treatment phases. This is NOT_MET (not INSUFFICIENT) — the clinical record is clear.
+- Contrast: If the treatment history section was illegible or missing entirely, that would be INSUFFICIENT → PEND.
 
 ---
 
@@ -59,8 +69,12 @@ If criteria are clearly not met, AI recommends PEND with explanation.
 ❌ FAIL: <60% of criteria MET
 ```
 
-**If BORDERLINE:** Recommend PEND for additional documentation
-**If FAIL:** Recommend PEND with specific gaps
+**Before applying thresholds, check for NOT_MET blockers:**
+- If ANY mandatory criterion is `NOT_MET` with confidence ≥90% → Recommend **DENY**
+- If criteria are `INSUFFICIENT` (documentation gaps) → Recommend **PEND**
+
+**If BORDERLINE (no NOT_MET blockers):** Recommend PEND for additional documentation
+**If FAIL (no NOT_MET blockers):** Recommend PEND with specific gaps
 
 ### 5. Confidence Threshold (Required)
 ```
@@ -90,6 +104,9 @@ Evaluate in this order (stop at first failure):
 
 4. **Clinical Criteria**
    - Evaluate each policy criterion
+   - **Check for NOT_MET blockers first:**
+     - If any mandatory criterion is `NOT_MET` with ≥90% confidence → **DENY**
+     - If criteria are `INSUFFICIENT` → continue to threshold check
    - Calculate percentage MET
    - If <60% → PEND (significant gaps)
    - If 60-79% → PEND (borderline, request additional docs)

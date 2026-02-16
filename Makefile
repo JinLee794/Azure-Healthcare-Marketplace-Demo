@@ -48,7 +48,7 @@ define START_SERVER
 	  tail -5 "$(LOG_DIR)/$(2).log" 2>/dev/null || true'
 endef
 
-local-start: local-stop local-start-reference-data local-start-clinical-research local-start-cosmos-rag
+local-start: local-stop local-start-reference-data local-start-clinical-research local-start-cosmos-rag local-start-document-reader
 	@echo "All MCP servers started. Logs: $(LOG_DIR)/<server>.log"
 
 local-start-reference-data:
@@ -59,6 +59,9 @@ local-start-clinical-research:
 
 local-start-cosmos-rag: sync-local-env
 	$(call START_SERVER,cosmos-rag,cosmos-rag,7073)
+
+local-start-document-reader:
+	$(call START_SERVER,document-reader,document-reader,7078)
 
 # -- Seed Cosmos DB with policy PDFs -----------------------------------------
 seed-data: seed-policies
@@ -101,7 +104,7 @@ local-stop:
 	else \
 	  echo "No $(LOG_DIR) directory found. Nothing to stop."; \
 	fi; \
-	for port in 7071 7072 7073; do \
+	for port in 7071 7072 7073 7078; do \
 	  pids=$$(lsof -ti tcp:$$port 2>/dev/null || true); \
 	  if [ -n "$$pids" ]; then \
 	    echo "Stopping listener(s) on port $$port: $$pids"; \

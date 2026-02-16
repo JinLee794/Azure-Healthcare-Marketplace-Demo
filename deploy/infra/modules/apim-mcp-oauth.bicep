@@ -85,8 +85,8 @@ resource apimGatewayUrlNamedValue 'Microsoft.ApiManagement/service/namedValues@2
 // ============================================================================
 // Protected Resource Metadata API (RFC 9728)
 // Exposes:
-// - /.well-known/oauth-protected-resource
-// - /.well-known/oauth-protected-resource/{resource-path}
+// - /.well-known/oauth-protected-resource/{resource-path} (wildcard only)
+// Root PRM removed to prevent passthrough clients from entering OAuth mode.
 // ============================================================================
 
 resource prmApi 'Microsoft.ApiManagement/service/apis@2023-09-01-preview' = {
@@ -95,32 +95,17 @@ resource prmApi 'Microsoft.ApiManagement/service/apis@2023-09-01-preview' = {
   properties: {
     displayName: 'MCP Protected Resource Metadata'
     description: 'OAuth discovery endpoints per RFC 9728'
-    path: '.well-known'
+    path: ''
     protocols: ['https']
     subscriptionRequired: false
   }
 }
 
-resource prmRootOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
-  parent: prmApi
-  name: 'oauth-protected-resource'
-  properties: {
-    displayName: 'Protected Resource Metadata'
-    method: 'GET'
-    urlTemplate: '/oauth-protected-resource'
-    description: 'OAuth discovery endpoint (RFC 9728)'
-  }
-}
-
-resource prmRootPolicy 'Microsoft.ApiManagement/service/apis/operations/policies@2023-09-01-preview' = {
-  parent: prmRootOperation
-  name: 'policy'
-  properties: {
-    format: 'rawxml'
-    value: loadTextContent('../policies/mcp-prm.policy.xml')
-  }
-  dependsOn: [apimGatewayUrlNamedValue, mcpTenantIdNamedValue, mcpClientIdNamedValue]
-}
+// NOTE: Root PRM operation (/.well-known/oauth-protected-resource) intentionally removed.
+// It caused ALL clients (including passthrough /mcp-pt/) to discover OAuth metadata and
+// enter OAuth mode even when only subscription-key auth is needed.
+// The path-based wildcard (/.well-known/oauth-protected-resource/*) is sufficient for
+// OAuth clients accessing /mcp/{server}/mcp paths per RFC 9728.
 
 resource prmPathOperation 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = {
   parent: prmApi
@@ -128,7 +113,7 @@ resource prmPathOperation 'Microsoft.ApiManagement/service/apis/operations@2023-
   properties: {
     displayName: 'Protected Resource Metadata (Path)'
     method: 'GET'
-    urlTemplate: '/oauth-protected-resource/*'
+    urlTemplate: '/.well-known/oauth-protected-resource/*'
     description: 'Path-based OAuth discovery endpoint (RFC 9728 Section 3.1)'
   }
 }
@@ -295,15 +280,15 @@ resource mcpPostPolicies 'Microsoft.ApiManagement/service/apis/operations/polici
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: '''
+    value: replace(replace(replace('''
 <policies>
   <inbound>
     <base />
     <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
       <audiences><audience>{{McpClientId}}</audience></audiences>
     </validate-azure-ad-token>
-    <set-backend-service backend-id="${server.backendId}" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{${server.functionKeyName}}}</value></set-header>
+    <set-backend-service backend-id="__BACKEND_ID__" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{__KEY_NAME__}}</value></set-header>
     <rewrite-uri template="/mcp" copy-unmatched-params="false" />
   </inbound>
   <backend><base /></backend>
@@ -314,7 +299,7 @@ resource mcpPostPolicies 'Microsoft.ApiManagement/service/apis/operations/polici
         <return-response>
           <set-status code="401" reason="Unauthorized" />
           <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/${server.name}/mcp"</value>
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/__SERVER_NAME__/mcp"</value>
           </set-header>
           <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
           <set-body>{"jsonrpc":"2.0","error":{"code":-32001,"message":"Authentication required. Please authenticate using OAuth 2.0."},"id":null}</set-body>
@@ -323,7 +308,7 @@ resource mcpPostPolicies 'Microsoft.ApiManagement/service/apis/operations/polici
     </choose>
   </on-error>
 </policies>
-'''
+''', '__BACKEND_ID__', server.backendId), '__KEY_NAME__', server.functionKeyName), '__SERVER_NAME__', server.name)
   }
   dependsOn: [functionKeyNamedValues, mcpBackends, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue]
 }]
@@ -333,15 +318,15 @@ resource mcpGetPolicies 'Microsoft.ApiManagement/service/apis/operations/policie
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: '''
+    value: replace(replace(replace('''
 <policies>
   <inbound>
     <base />
     <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
       <audiences><audience>{{McpClientId}}</audience></audiences>
     </validate-azure-ad-token>
-    <set-backend-service backend-id="${server.backendId}" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{${server.functionKeyName}}}</value></set-header>
+    <set-backend-service backend-id="__BACKEND_ID__" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{__KEY_NAME__}}</value></set-header>
     <rewrite-uri template="/mcp" copy-unmatched-params="false" />
   </inbound>
   <backend><base /></backend>
@@ -352,7 +337,7 @@ resource mcpGetPolicies 'Microsoft.ApiManagement/service/apis/operations/policie
         <return-response>
           <set-status code="401" reason="Unauthorized" />
           <set-header name="WWW-Authenticate" exists-action="override">
-            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/${server.name}/mcp"</value>
+            <value>Bearer error="invalid_token", resource_metadata="{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/__SERVER_NAME__/mcp"</value>
           </set-header>
           <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
           <set-body>{"jsonrpc":"2.0","error":{"code":-32001,"message":"Authentication required. Please authenticate using OAuth 2.0."},"id":null}</set-body>
@@ -361,7 +346,7 @@ resource mcpGetPolicies 'Microsoft.ApiManagement/service/apis/operations/policie
     </choose>
   </on-error>
 </policies>
-'''
+''', '__BACKEND_ID__', server.backendId), '__KEY_NAME__', server.functionKeyName), '__SERVER_NAME__', server.name)
   }
   dependsOn: [functionKeyNamedValues, mcpBackends, mcpTenantIdNamedValue, mcpClientIdNamedValue, apimGatewayUrlNamedValue]
 }]
@@ -371,22 +356,22 @@ resource wellKnownPolicies 'Microsoft.ApiManagement/service/apis/operations/poli
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: '''
+    value: replace(replace('''
 <policies>
   <inbound>
     <base />
     <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
       <audiences><audience>{{McpClientId}}</audience></audiences>
     </validate-azure-ad-token>
-    <set-backend-service backend-id="${server.backendId}" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{${server.functionKeyName}}}</value></set-header>
+    <set-backend-service backend-id="__BACKEND_ID__" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{__KEY_NAME__}}</value></set-header>
     <rewrite-uri template="/.well-known/mcp" copy-unmatched-params="false" />
   </inbound>
   <backend><base /></backend>
   <outbound><base /></outbound>
   <on-error><base /></on-error>
 </policies>
-'''
+''', '__BACKEND_ID__', server.backendId), '__KEY_NAME__', server.functionKeyName)
   }
   dependsOn: [functionKeyNamedValues, mcpBackends, mcpTenantIdNamedValue, mcpClientIdNamedValue]
 }]
@@ -396,22 +381,22 @@ resource healthPolicies 'Microsoft.ApiManagement/service/apis/operations/policie
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: '''
+    value: replace(replace('''
 <policies>
   <inbound>
     <base />
     <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
       <audiences><audience>{{McpClientId}}</audience></audiences>
     </validate-azure-ad-token>
-    <set-backend-service backend-id="${server.backendId}" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{${server.functionKeyName}}}</value></set-header>
+    <set-backend-service backend-id="__BACKEND_ID__" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{__KEY_NAME__}}</value></set-header>
     <rewrite-uri template="/health" copy-unmatched-params="false" />
   </inbound>
   <backend><base /></backend>
   <outbound><base /></outbound>
   <on-error><base /></on-error>
 </policies>
-'''
+''', '__BACKEND_ID__', server.backendId), '__KEY_NAME__', server.functionKeyName)
   }
   dependsOn: [functionKeyNamedValues, mcpBackends, mcpTenantIdNamedValue, mcpClientIdNamedValue]
 }]

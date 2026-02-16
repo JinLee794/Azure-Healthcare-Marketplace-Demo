@@ -162,15 +162,15 @@ resource mcpPostPolicies 'Microsoft.ApiManagement/service/apis/operations/polici
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: '''
+    value: replace(replace(replace('''
 <policies>
   <inbound>
     <base />
-    <set-backend-service backend-id="${server.backendName}" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{${server.keyName}}}</value></set-header>
+    <set-backend-service backend-id="__BACKEND_NAME__" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{__KEY_NAME__}}</value></set-header>
     <rewrite-uri template="/mcp" copy-unmatched-params="false" />
-    <trace source="mcp-pt-${server.name}" severity="information">
-      <message>@($"${server.name} POST → backend: {context.Request.Url}")</message>
+    <trace source="mcp-pt-__SERVER_NAME__" severity="information">
+      <message>@($"__SERVER_NAME__ POST → backend: {context.Request.Url}")</message>
     </trace>
   </inbound>
   <backend><base /></backend>
@@ -180,11 +180,11 @@ resource mcpPostPolicies 'Microsoft.ApiManagement/service/apis/operations/polici
     <return-response>
       <set-status code="502" reason="Backend Error" />
       <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","${server.name}-backend-failure"),new JProperty("detail",context.LastError?.Message),new JProperty("source",context.LastError?.Source),new JProperty("reason",context.LastError?.Reason)).ToString())</set-body>
+      <set-body>@(new JObject(new JProperty("error","__SERVER_NAME__-backend-failure"),new JProperty("detail",context.LastError?.Message),new JProperty("source",context.LastError?.Source),new JProperty("reason",context.LastError?.Reason)).ToString())</set-body>
     </return-response>
   </on-error>
 </policies>
-'''
+''', '__BACKEND_NAME__', server.backendName), '__KEY_NAME__', server.keyName), '__SERVER_NAME__', server.name)
   }
   dependsOn: [backends, functionKeys]
 }]
@@ -205,12 +205,12 @@ resource mcpGetPolicies 'Microsoft.ApiManagement/service/apis/operations/policie
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: '''
+    value: replace(replace(replace('''
 <policies>
   <inbound>
     <base />
-    <set-backend-service backend-id="${server.backendName}" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{${server.keyName}}}</value></set-header>
+    <set-backend-service backend-id="__BACKEND_NAME__" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{__KEY_NAME__}}</value></set-header>
     <rewrite-uri template="/mcp" copy-unmatched-params="false" />
   </inbound>
   <backend><base /></backend>
@@ -220,11 +220,11 @@ resource mcpGetPolicies 'Microsoft.ApiManagement/service/apis/operations/policie
     <return-response>
       <set-status code="502" reason="Backend Error" />
       <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","${server.name}-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
+      <set-body>@(new JObject(new JProperty("error","__SERVER_NAME__-backend-failure"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
     </return-response>
   </on-error>
 </policies>
-'''
+''', '__BACKEND_NAME__', server.backendName), '__KEY_NAME__', server.keyName), '__SERVER_NAME__', server.name)
   }
   dependsOn: [backends, functionKeys]
 }]
@@ -245,12 +245,12 @@ resource wellKnownGetPolicies 'Microsoft.ApiManagement/service/apis/operations/p
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: '''
+    value: replace(replace(replace('''
 <policies>
   <inbound>
     <base />
-    <set-backend-service backend-id="${server.backendName}" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{${server.keyName}}}</value></set-header>
+    <set-backend-service backend-id="__BACKEND_NAME__" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{__KEY_NAME__}}</value></set-header>
     <rewrite-uri template="/.well-known/mcp" copy-unmatched-params="false" />
   </inbound>
   <backend><base /></backend>
@@ -260,11 +260,11 @@ resource wellKnownGetPolicies 'Microsoft.ApiManagement/service/apis/operations/p
     <return-response>
       <set-status code="502" reason="Backend Error" />
       <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","${server.name}-wellknown-unreachable"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
+      <set-body>@(new JObject(new JProperty("error","__SERVER_NAME__-wellknown-unreachable"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
     </return-response>
   </on-error>
 </policies>
-'''
+''', '__BACKEND_NAME__', server.backendName), '__KEY_NAME__', server.keyName), '__SERVER_NAME__', server.name)
   }
   dependsOn: [backends, functionKeys]
 }]
@@ -285,12 +285,12 @@ resource healthGetPolicies 'Microsoft.ApiManagement/service/apis/operations/poli
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: '''
+    value: replace(replace(replace('''
 <policies>
   <inbound>
     <base />
-    <set-backend-service backend-id="${server.backendName}" />
-    <set-header name="x-functions-key" exists-action="override"><value>{{${server.keyName}}}</value></set-header>
+    <set-backend-service backend-id="__BACKEND_NAME__" />
+    <set-header name="x-functions-key" exists-action="override"><value>{{__KEY_NAME__}}</value></set-header>
     <rewrite-uri template="/health" copy-unmatched-params="false" />
   </inbound>
   <backend><base /></backend>
@@ -300,11 +300,11 @@ resource healthGetPolicies 'Microsoft.ApiManagement/service/apis/operations/poli
     <return-response>
       <set-status code="502" reason="Backend Error" />
       <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
-      <set-body>@(new JObject(new JProperty("error","${server.name}-health-unreachable"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
+      <set-body>@(new JObject(new JProperty("error","__SERVER_NAME__-health-unreachable"),new JProperty("detail",context.LastError?.Message)).ToString())</set-body>
     </return-response>
   </on-error>
 </policies>
-'''
+''', '__BACKEND_NAME__', server.backendName), '__KEY_NAME__', server.keyName), '__SERVER_NAME__', server.name)
   }
   dependsOn: [backends, functionKeys]
 }]

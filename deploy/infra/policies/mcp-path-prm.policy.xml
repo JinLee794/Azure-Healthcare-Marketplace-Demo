@@ -14,6 +14,21 @@
 -->
 <policies>
     <inbound>
+        <!--
+            Passthrough paths (/mcp-pt/) are NOT OAuth-protected.
+            Return 404 so clients don't enter OAuth mode for subscription-key-only endpoints.
+        -->
+        <choose>
+            <when condition="@(context.Request.Url.Path.Contains("/mcp-pt"))">
+                <return-response>
+                    <set-status code="404" reason="Not Found" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-body>{"error":"No protected resource metadata for passthrough endpoints"}</set-body>
+                </return-response>
+            </when>
+        </choose>
         <!-- Return Protected Resource Metadata according to RFC 9728 -->
         <return-response>
             <set-status code="200" reason="OK" />

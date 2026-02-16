@@ -24,7 +24,7 @@ Process prior authorization requests using AI-assisted review with MCP connector
 >
 > **HUMAN REVIEW REQUIRED:** All AI-generated recommendations require review and confirmation by appropriate professionals before becoming final decisions. Users may accept, reject, or override any recommendation with documented justification.
 >
-> **AI DECISION BEHAVIOR:** In default mode, AI recommends APPROVE or PEND only - never recommends DENY. Decision logic is configurable in the skill's rubric.md file.
+> **AI DECISION BEHAVIOR:** AI recommends APPROVE, PEND, or DENY. DENY is recommended when a mandatory criterion is clearly NOT_MET (≥90% confidence, based on documented evidence). All decisions require human confirmation in Subskill 2. Decision logic is configurable in the skill's rubric.md file.
 >
 > **COVERAGE POLICY LIMITATIONS:** Coverage policies are sourced from Medicare LCDs/NCDs via the `mcp-reference-data` server (CMS Coverage tools). If this review is for a commercial or Medicare Advantage plan, payer-specific policies may differ and were not applied.
 

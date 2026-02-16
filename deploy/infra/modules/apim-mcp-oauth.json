@@ -1,0 +1,430 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.39.26.7824",
+      "templateHash": "4558422236291721858"
+    }
+  },
+  "parameters": {
+    "apimServiceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the API Management service"
+      }
+    },
+    "mcpAppId": {
+      "type": "string",
+      "metadata": {
+        "description": "Client ID of the MCP Entra application"
+      }
+    },
+    "mcpAppTenantId": {
+      "type": "string",
+      "metadata": {
+        "description": "Tenant ID of the MCP Entra application"
+      }
+    },
+    "functionAppBaseName": {
+      "type": "string",
+      "metadata": {
+        "description": "Base name for function apps"
+      }
+    }
+  },
+  "variables": {
+    "$fxv#0": "<!--\n    Azure API Management Policy for Path-Based Protected Resource Metadata (RFC 9728)\n\n    Per RFC 9728 Section 3.1, for a protected resource at:\n      https://example.com/mcp/npi/mcp\n    The PRM discovery URL is:\n      https://example.com/.well-known/oauth-protected-resource/mcp/npi/mcp\n\n    This policy extracts the resource path from the operation's URL template\n    and constructs the correct 'resource' property value.\n\n    Note: Authentication is disabled for this endpoint to allow anonymous access\n    as per RFC 9728 requirements.\n-->\n<policies>\n    <inbound>\n        <!--\n            Passthrough paths (/mcp-pt/) are NOT OAuth-protected.\n            Return 404 so clients don't enter OAuth mode for subscription-key-only endpoints.\n        -->\n        <choose>\n            <when condition=\"@(context.Request.Url.Path.Contains(\"/mcp-pt\"))\">\n                <return-response>\n                    <set-status code=\"404\" reason=\"Not Found\" />\n                    <set-header name=\"Content-Type\" exists-action=\"override\">\n                        <value>application/json</value>\n                    </set-header>\n                    <set-body>{\"error\":\"No protected resource metadata for passthrough endpoints\"}</set-body>\n                </return-response>\n            </when>\n        </choose>\n        <!-- Return Protected Resource Metadata according to RFC 9728 -->\n        <return-response>\n            <set-status code=\"200\" reason=\"OK\" />\n            <set-header name=\"Content-Type\" exists-action=\"override\">\n                <value>application/json</value>\n            </set-header>\n            <set-header name=\"Cache-Control\" exists-action=\"override\">\n                <value>public, max-age=3600</value>\n            </set-header>\n            <set-body>@{\n                var gatewayUrl = \"{{APIMGatewayURL}}\".TrimEnd('/');\n\n                var wellKnownPrefix = \"/.well-known/oauth-protected-resource\";\n                var resourcePath = \"\";\n\n                // Extract resource path from the request URL:\n                // /.well-known/oauth-protected-resource{resource-path}\n                var requestPath = context.Request.Url.Path;\n                if (requestPath.StartsWith(wellKnownPrefix)) {\n                    resourcePath = requestPath.Substring(wellKnownPrefix.Length);\n                }\n\n                // Construct the full resource URL\n                var resourceUrl = gatewayUrl + resourcePath;\n\n                return JsonConvert.SerializeObject(new {\n                    // The resource identifier - MUST match the protected resource URL per RFC 9728\n                    resource = resourceUrl,\n\n                    // OAuth 2.0 authorization server endpoints\n                    authorization_servers = new[] {\n                        $\"https://login.microsoftonline.com/{{McpTenantId}}/v2.0\"\n                    },\n\n                    // How the bearer token should be presented\n                    bearer_methods_supported = new[] {\n                        \"header\"\n                    },\n\n                    // Scopes required to access this resource\n                    scopes_supported = new[] {\n                        \"{{McpClientId}}/user_impersonate\"\n                    },\n\n                    // Resource documentation (optional but helpful)\n                    resource_documentation = \"https://github.com/modelcontextprotocol/specification\"\n                });\n            }</set-body>\n        </return-response>\n    </inbound>\n    <backend>\n        <base />\n    </backend>\n    <outbound>\n        <base />\n    </outbound>\n    <on-error>\n        <base />\n    </on-error>\n</policies>\n",
+    "$fxv#1": "<!--\n    Azure API Management Policy for Per-Server Protected Resource Metadata (RFC 9728)\n\n    This policy returns Protected Resource Metadata for a specific MCP server.\n    It extracts the server name from the request path and constructs the correct\n    resource URL to comply with RFC 9728 requirements.\n\n    URL pattern: /mcp/{server}/.well-known/oauth-protected-resource\n    Returns: resource = https://{gateway}/mcp/{server}/mcp\n\n    Note: Authentication is disabled for this endpoint to allow anonymous access\n    as per RFC 9728 requirements - clients need to discover auth info before authenticating.\n-->\n<policies>\n    <inbound>\n        <!-- Return Protected Resource Metadata according to RFC 9728 -->\n        <return-response>\n            <set-status code=\"200\" reason=\"OK\" />\n            <set-header name=\"Content-Type\" exists-action=\"override\">\n                <value>application/json</value>\n            </set-header>\n            <set-header name=\"Cache-Control\" exists-action=\"override\">\n                <value>public, max-age=3600</value>\n            </set-header>\n            <set-body>@{\n                var gatewayUrl = \"{{APIMGatewayURL}}\".TrimEnd('/');\n                var requestPath = context.Request.Url.Path;\n\n                // Extract server name from path: /mcp/{server}/.well-known/oauth-protected-resource\n                // After API path stripping, we get: /{server}/.well-known/oauth-protected-resource\n                var pathParts = requestPath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);\n                var serverName = pathParts.Length > 0 ? pathParts[0] : \"\";\n\n                // Construct the resource URL for this specific MCP server\n                var resourceUrl = $\"{gatewayUrl}/mcp/{serverName}/mcp\";\n\n                return JsonConvert.SerializeObject(new {\n                    // The resource identifier - MUST match the protected resource URL per RFC 9728\n                    resource = resourceUrl,\n\n                    // OAuth 2.0 authorization server endpoints\n                    authorization_servers = new[] {\n                        $\"https://login.microsoftonline.com/{{McpTenantId}}/v2.0\"\n                    },\n\n                    // How the bearer token should be presented\n                    bearer_methods_supported = new[] {\n                        \"header\"\n                    },\n\n                    // Scopes required to access this resource\n                    scopes_supported = new[] {\n                        \"{{McpClientId}}/user_impersonate\"\n                    },\n\n                    // Resource documentation (optional but helpful)\n                    resource_documentation = \"https://github.com/modelcontextprotocol/specification\"\n                });\n            }</set-body>\n        </return-response>\n    </inbound>\n    <backend>\n        <base />\n    </backend>\n    <outbound>\n        <base />\n    </outbound>\n    <on-error>\n        <base />\n    </on-error>\n</policies>\n",
+    "$fxv#2": "<!--\n    Azure API Management Policy for MCP Endpoint Protected Resource Metadata (RFC 9728)\n\n    This policy returns Protected Resource Metadata for a specific MCP server endpoint.\n    It's designed for paths like: /mcp/{server}/mcp/.well-known/oauth-protected-resource\n\n    The 'resource' property MUST match the protected resource URL per RFC 9728.\n    For an MCP endpoint at /mcp/{server}/mcp, the resource is:\n    https://{gateway}/mcp/{server}/mcp\n\n    Note: Authentication is disabled for this endpoint to allow anonymous access\n    as per RFC 9728 requirements - clients need to discover auth info before authenticating.\n-->\n<policies>\n    <inbound>\n        <!-- Return Protected Resource Metadata according to RFC 9728 -->\n        <return-response>\n            <set-status code=\"200\" reason=\"OK\" />\n            <set-header name=\"Content-Type\" exists-action=\"override\">\n                <value>application/json</value>\n            </set-header>\n            <set-header name=\"Cache-Control\" exists-action=\"override\">\n                <value>public, max-age=3600</value>\n            </set-header>\n            <set-body>@{\n                var gatewayUrl = \"{{APIMGatewayURL}}\".TrimEnd('/');\n                var requestPath = context.Request.Url.Path;\n\n                // Extract server name from path: /{server}/mcp/.well-known/oauth-protected-resource\n                // After API path stripping (/mcp prefix removed), we get: /{server}/mcp/.well-known/...\n                var pathParts = requestPath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);\n                var serverName = pathParts.Length > 0 ? pathParts[0] : \"\";\n\n                // Construct the resource URL - MUST match what the client is accessing\n                var resourceUrl = $\"{gatewayUrl}/mcp/{serverName}/mcp\";\n\n                return JsonConvert.SerializeObject(new {\n                    // The resource identifier - matches the MCP endpoint URL\n                    resource = resourceUrl,\n\n                    // OAuth 2.0 authorization server endpoints\n                    authorization_servers = new[] {\n                        $\"https://login.microsoftonline.com/{{McpTenantId}}/v2.0\"\n                    },\n\n                    // How the bearer token should be presented\n                    bearer_methods_supported = new[] {\n                        \"header\"\n                    },\n\n                    // Scopes required to access this resource\n                    scopes_supported = new[] {\n                        \"{{McpClientId}}/user_impersonate\"\n                    },\n\n                    // Resource documentation (optional but helpful)\n                    resource_documentation = \"https://github.com/modelcontextprotocol/specification\"\n                });\n            }</set-body>\n        </return-response>\n    </inbound>\n    <backend>\n        <base />\n    </backend>\n    <outbound>\n        <base />\n    </outbound>\n    <on-error>\n        <base />\n    </on-error>\n</policies>\n",
+    "mcpServers": [
+      {
+        "name": "reference-data",
+        "backendId": "reference-data-backend",
+        "funcAppName": "[format('{0}-mcp-reference-data-func', parameters('functionAppBaseName'))]",
+        "functionKeyName": "reference-data-function-key"
+      },
+      {
+        "name": "clinical-research",
+        "backendId": "clinical-research-backend",
+        "funcAppName": "[format('{0}-mcp-clinical-research-func', parameters('functionAppBaseName'))]",
+        "functionKeyName": "clinical-research-function-key"
+      },
+      {
+        "name": "cosmos-rag",
+        "backendId": "cosmos-rag-backend",
+        "funcAppName": "[format('{0}-cosmos-rag-func', parameters('functionAppBaseName'))]",
+        "functionKeyName": "cosmos-rag-function-key"
+      }
+    ]
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ApiManagement/service/namedValues",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'McpTenantId')]",
+      "properties": {
+        "displayName": "McpTenantId",
+        "value": "[parameters('mcpAppTenantId')]",
+        "secret": false
+      }
+    },
+    {
+      "type": "Microsoft.ApiManagement/service/namedValues",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'McpClientId')]",
+      "properties": {
+        "displayName": "McpClientId",
+        "value": "[parameters('mcpAppId')]",
+        "secret": false
+      }
+    },
+    {
+      "type": "Microsoft.ApiManagement/service/namedValues",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'APIMGatewayURL')]",
+      "properties": {
+        "displayName": "APIMGatewayURL",
+        "value": "[reference(resourceId('Microsoft.ApiManagement/service', parameters('apimServiceName')), '2023-09-01-preview').gatewayUrl]",
+        "secret": false
+      }
+    },
+    {
+      "type": "Microsoft.ApiManagement/service/apis",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'mcp-prm')]",
+      "properties": {
+        "displayName": "MCP Protected Resource Metadata",
+        "description": "OAuth discovery endpoints per RFC 9728",
+        "path": "",
+        "protocols": [
+          "https"
+        ],
+        "subscriptionRequired": false
+      }
+    },
+    {
+      "type": "Microsoft.ApiManagement/service/apis/operations",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'mcp-prm', 'oauth-protected-resource-path')]",
+      "properties": {
+        "displayName": "Protected Resource Metadata (Path)",
+        "method": "GET",
+        "urlTemplate": "/.well-known/oauth-protected-resource/*",
+        "description": "Path-based OAuth discovery endpoint (RFC 9728 Section 3.1)"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/apis', parameters('apimServiceName'), 'mcp-prm')]"
+      ]
+    },
+    {
+      "type": "Microsoft.ApiManagement/service/apis/operations/policies",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}/{2}/{3}', parameters('apimServiceName'), 'mcp-prm', 'oauth-protected-resource-path', 'policy')]",
+      "properties": {
+        "format": "rawxml",
+        "value": "[variables('$fxv#0')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'APIMGatewayURL')]",
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'McpClientId')]",
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'McpTenantId')]",
+        "[resourceId('Microsoft.ApiManagement/service/apis/operations', parameters('apimServiceName'), 'mcp-prm', 'oauth-protected-resource-path')]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "functionKeyNamedValues",
+        "count": "[length(variables('mcpServers'))]"
+      },
+      "type": "Microsoft.ApiManagement/service/namedValues",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}', parameters('apimServiceName'), variables('mcpServers')[copyIndex()].functionKeyName)]",
+      "properties": {
+        "displayName": "[variables('mcpServers')[copyIndex()].functionKeyName]",
+        "secret": true,
+        "value": "[listKeys(format('{0}/host/default', resourceId('Microsoft.Web/sites', variables('mcpServers')[copyIndex()].funcAppName)), '2023-12-01').functionKeys.default]"
+      }
+    },
+    {
+      "copy": {
+        "name": "mcpBackends",
+        "count": "[length(variables('mcpServers'))]"
+      },
+      "type": "Microsoft.ApiManagement/service/backends",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}', parameters('apimServiceName'), variables('mcpServers')[copyIndex()].backendId)]",
+      "properties": {
+        "title": "[format('{0} MCP Backend', variables('mcpServers')[copyIndex()].name)]",
+        "description": "[format('Backend for MCP server: {0}', variables('mcpServers')[copyIndex()].name)]",
+        "url": "[format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('mcpServers')[copyIndex()].funcAppName), '2023-12-01').defaultHostName)]",
+        "protocol": "http",
+        "tls": {
+          "validateCertificateChain": true,
+          "validateCertificateName": true
+        }
+      }
+    },
+    {
+      "type": "Microsoft.ApiManagement/service/apis",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}', parameters('apimServiceName'), 'mcp-oauth')]",
+      "properties": {
+        "displayName": "Healthcare MCP Servers (OAuth)",
+        "description": "Unified API for Healthcare MCP servers with OAuth protection",
+        "path": "mcp",
+        "protocols": [
+          "https"
+        ],
+        "subscriptionRequired": false
+      }
+    },
+    {
+      "copy": {
+        "name": "prmServerOperations",
+        "count": "[length(variables('mcpServers'))]"
+      },
+      "type": "Microsoft.ApiManagement/service/apis/operations",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'mcp-oauth', format('{0}-prm', variables('mcpServers')[copyIndex()].name))]",
+      "properties": {
+        "displayName": "[format('{0} - Protected Resource Metadata', variables('mcpServers')[copyIndex()].name)]",
+        "method": "GET",
+        "urlTemplate": "[format('/{0}/.well-known/oauth-protected-resource', variables('mcpServers')[copyIndex()].name)]",
+        "description": "OAuth discovery endpoint for MCP server (RFC 9728)"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/apis', parameters('apimServiceName'), 'mcp-oauth')]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "prmServerPolicies",
+        "count": "[length(variables('mcpServers'))]"
+      },
+      "type": "Microsoft.ApiManagement/service/apis/operations/policies",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}/{2}/{3}', parameters('apimServiceName'), 'mcp-oauth', format('{0}-prm', variables('mcpServers')[copyIndex()].name), 'policy')]",
+      "properties": {
+        "format": "rawxml",
+        "value": "[variables('$fxv#1')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'APIMGatewayURL')]",
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'McpClientId')]",
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'McpTenantId')]",
+        "[resourceId('Microsoft.ApiManagement/service/apis/operations', parameters('apimServiceName'), 'mcp-oauth', format('{0}-prm', variables('mcpServers')[copyIndex()].name))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "prmEndpointOperations",
+        "count": "[length(variables('mcpServers'))]"
+      },
+      "type": "Microsoft.ApiManagement/service/apis/operations",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'mcp-oauth', format('{0}-endpoint-prm', variables('mcpServers')[copyIndex()].name))]",
+      "properties": {
+        "displayName": "[format('{0} MCP - Protected Resource Metadata', variables('mcpServers')[copyIndex()].name)]",
+        "method": "GET",
+        "urlTemplate": "[format('/{0}/mcp/.well-known/oauth-protected-resource', variables('mcpServers')[copyIndex()].name)]",
+        "description": "OAuth discovery at MCP endpoint path (RFC 9728)"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/apis', parameters('apimServiceName'), 'mcp-oauth')]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "prmEndpointPolicies",
+        "count": "[length(variables('mcpServers'))]"
+      },
+      "type": "Microsoft.ApiManagement/service/apis/operations/policies",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}/{2}/{3}', parameters('apimServiceName'), 'mcp-oauth', format('{0}-endpoint-prm', variables('mcpServers')[copyIndex()].name), 'policy')]",
+      "properties": {
+        "format": "rawxml",
+        "value": "[variables('$fxv#2')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'APIMGatewayURL')]",
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'McpClientId')]",
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'McpTenantId')]",
+        "[resourceId('Microsoft.ApiManagement/service/apis/operations', parameters('apimServiceName'), 'mcp-oauth', format('{0}-endpoint-prm', variables('mcpServers')[copyIndex()].name))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "mcpPostOperations",
+        "count": "[length(variables('mcpServers'))]"
+      },
+      "type": "Microsoft.ApiManagement/service/apis/operations",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'mcp-oauth', format('{0}-mcp-post', variables('mcpServers')[copyIndex()].name))]",
+      "properties": {
+        "displayName": "[format('{0} - POST /mcp', variables('mcpServers')[copyIndex()].name)]",
+        "method": "POST",
+        "urlTemplate": "[format('/{0}/mcp', variables('mcpServers')[copyIndex()].name)]",
+        "description": "MCP message endpoint"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/apis', parameters('apimServiceName'), 'mcp-oauth')]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "mcpGetOperations",
+        "count": "[length(variables('mcpServers'))]"
+      },
+      "type": "Microsoft.ApiManagement/service/apis/operations",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'mcp-oauth', format('{0}-mcp-get', variables('mcpServers')[copyIndex()].name))]",
+      "properties": {
+        "displayName": "[format('{0} - GET /mcp', variables('mcpServers')[copyIndex()].name)]",
+        "method": "GET",
+        "urlTemplate": "[format('/{0}/mcp', variables('mcpServers')[copyIndex()].name)]",
+        "description": "MCP info endpoint"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/apis', parameters('apimServiceName'), 'mcp-oauth')]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "wellKnownOperations",
+        "count": "[length(variables('mcpServers'))]"
+      },
+      "type": "Microsoft.ApiManagement/service/apis/operations",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'mcp-oauth', format('{0}-wellknown-get', variables('mcpServers')[copyIndex()].name))]",
+      "properties": {
+        "displayName": "[format('{0} - GET /.well-known/mcp', variables('mcpServers')[copyIndex()].name)]",
+        "method": "GET",
+        "urlTemplate": "[format('/{0}/.well-known/mcp', variables('mcpServers')[copyIndex()].name)]",
+        "description": "MCP discovery endpoint"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/apis', parameters('apimServiceName'), 'mcp-oauth')]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "healthOperations",
+        "count": "[length(variables('mcpServers'))]"
+      },
+      "type": "Microsoft.ApiManagement/service/apis/operations",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}/{2}', parameters('apimServiceName'), 'mcp-oauth', format('{0}-health', variables('mcpServers')[copyIndex()].name))]",
+      "properties": {
+        "displayName": "[format('{0} - Health Check', variables('mcpServers')[copyIndex()].name)]",
+        "method": "GET",
+        "urlTemplate": "[format('/{0}/health', variables('mcpServers')[copyIndex()].name)]",
+        "description": "Health check endpoint"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/apis', parameters('apimServiceName'), 'mcp-oauth')]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "mcpPostPolicies",
+        "count": "[length(variables('mcpServers'))]"
+      },
+      "type": "Microsoft.ApiManagement/service/apis/operations/policies",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}/{2}/{3}', parameters('apimServiceName'), 'mcp-oauth', format('{0}-mcp-post', variables('mcpServers')[copyIndex()].name), 'policy')]",
+      "properties": {
+        "format": "rawxml",
+        "value": "[replace(replace(replace('<policies>\n  <inbound>\n    <base />\n    <validate-azure-ad-token tenant-id=\"{{McpTenantId}}\" failed-validation-httpcode=\"401\" failed-validation-error-message=\"Unauthorized\">\n      <audiences><audience>{{McpClientId}}</audience></audiences>\n    </validate-azure-ad-token>\n    <set-backend-service backend-id=\"__BACKEND_ID__\" />\n    <set-header name=\"x-functions-key\" exists-action=\"override\"><value>{{__KEY_NAME__}}</value></set-header>\n    <rewrite-uri template=\"/mcp\" copy-unmatched-params=\"false\" />\n  </inbound>\n  <backend><base /></backend>\n  <outbound><base /></outbound>\n  <on-error>\n    <choose>\n      <when condition=\"@(context.LastError != null)\">\n        <return-response>\n          <set-status code=\"401\" reason=\"Unauthorized\" />\n          <set-header name=\"WWW-Authenticate\" exists-action=\"override\">\n            <value>Bearer error=\"invalid_token\", resource_metadata=\"{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/__SERVER_NAME__/mcp\"</value>\n          </set-header>\n          <set-header name=\"Content-Type\" exists-action=\"override\"><value>application/json</value></set-header>\n          <set-body>{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32001,\"message\":\"Authentication required. Please authenticate using OAuth 2.0.\"},\"id\":null}</set-body>\n        </return-response>\n      </when>\n    </choose>\n  </on-error>\n</policies>\n', '__BACKEND_ID__', variables('mcpServers')[copyIndex()].backendId), '__KEY_NAME__', variables('mcpServers')[copyIndex()].functionKeyName), '__SERVER_NAME__', variables('mcpServers')[copyIndex()].name)]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'APIMGatewayURL')]",
+        "functionKeyNamedValues",
+        "mcpBackends",
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'McpClientId')]",
+        "[resourceId('Microsoft.ApiManagement/service/apis/operations', parameters('apimServiceName'), 'mcp-oauth', format('{0}-mcp-post', variables('mcpServers')[copyIndex()].name))]",
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'McpTenantId')]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "mcpGetPolicies",
+        "count": "[length(variables('mcpServers'))]"
+      },
+      "type": "Microsoft.ApiManagement/service/apis/operations/policies",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}/{2}/{3}', parameters('apimServiceName'), 'mcp-oauth', format('{0}-mcp-get', variables('mcpServers')[copyIndex()].name), 'policy')]",
+      "properties": {
+        "format": "rawxml",
+        "value": "[replace(replace(replace('<policies>\n  <inbound>\n    <base />\n    <validate-azure-ad-token tenant-id=\"{{McpTenantId}}\" failed-validation-httpcode=\"401\" failed-validation-error-message=\"Unauthorized\">\n      <audiences><audience>{{McpClientId}}</audience></audiences>\n    </validate-azure-ad-token>\n    <set-backend-service backend-id=\"__BACKEND_ID__\" />\n    <set-header name=\"x-functions-key\" exists-action=\"override\"><value>{{__KEY_NAME__}}</value></set-header>\n    <rewrite-uri template=\"/mcp\" copy-unmatched-params=\"false\" />\n  </inbound>\n  <backend><base /></backend>\n  <outbound><base /></outbound>\n  <on-error>\n    <choose>\n      <when condition=\"@(context.LastError != null)\">\n        <return-response>\n          <set-status code=\"401\" reason=\"Unauthorized\" />\n          <set-header name=\"WWW-Authenticate\" exists-action=\"override\">\n            <value>Bearer error=\"invalid_token\", resource_metadata=\"{{APIMGatewayURL}}/.well-known/oauth-protected-resource/mcp/__SERVER_NAME__/mcp\"</value>\n          </set-header>\n          <set-header name=\"Content-Type\" exists-action=\"override\"><value>application/json</value></set-header>\n          <set-body>{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32001,\"message\":\"Authentication required. Please authenticate using OAuth 2.0.\"},\"id\":null}</set-body>\n        </return-response>\n      </when>\n    </choose>\n  </on-error>\n</policies>\n', '__BACKEND_ID__', variables('mcpServers')[copyIndex()].backendId), '__KEY_NAME__', variables('mcpServers')[copyIndex()].functionKeyName), '__SERVER_NAME__', variables('mcpServers')[copyIndex()].name)]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'APIMGatewayURL')]",
+        "functionKeyNamedValues",
+        "mcpBackends",
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'McpClientId')]",
+        "[resourceId('Microsoft.ApiManagement/service/apis/operations', parameters('apimServiceName'), 'mcp-oauth', format('{0}-mcp-get', variables('mcpServers')[copyIndex()].name))]",
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'McpTenantId')]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "wellKnownPolicies",
+        "count": "[length(variables('mcpServers'))]"
+      },
+      "type": "Microsoft.ApiManagement/service/apis/operations/policies",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}/{2}/{3}', parameters('apimServiceName'), 'mcp-oauth', format('{0}-wellknown-get', variables('mcpServers')[copyIndex()].name), 'policy')]",
+      "properties": {
+        "format": "rawxml",
+        "value": "[replace(replace('<policies>\n  <inbound>\n    <base />\n    <validate-azure-ad-token tenant-id=\"{{McpTenantId}}\" failed-validation-httpcode=\"401\" failed-validation-error-message=\"Unauthorized\">\n      <audiences><audience>{{McpClientId}}</audience></audiences>\n    </validate-azure-ad-token>\n    <set-backend-service backend-id=\"__BACKEND_ID__\" />\n    <set-header name=\"x-functions-key\" exists-action=\"override\"><value>{{__KEY_NAME__}}</value></set-header>\n    <rewrite-uri template=\"/.well-known/mcp\" copy-unmatched-params=\"false\" />\n  </inbound>\n  <backend><base /></backend>\n  <outbound><base /></outbound>\n  <on-error><base /></on-error>\n</policies>\n', '__BACKEND_ID__', variables('mcpServers')[copyIndex()].backendId), '__KEY_NAME__', variables('mcpServers')[copyIndex()].functionKeyName)]"
+      },
+      "dependsOn": [
+        "functionKeyNamedValues",
+        "mcpBackends",
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'McpClientId')]",
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'McpTenantId')]",
+        "[resourceId('Microsoft.ApiManagement/service/apis/operations', parameters('apimServiceName'), 'mcp-oauth', format('{0}-wellknown-get', variables('mcpServers')[copyIndex()].name))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "healthPolicies",
+        "count": "[length(variables('mcpServers'))]"
+      },
+      "type": "Microsoft.ApiManagement/service/apis/operations/policies",
+      "apiVersion": "2023-09-01-preview",
+      "name": "[format('{0}/{1}/{2}/{3}', parameters('apimServiceName'), 'mcp-oauth', format('{0}-health', variables('mcpServers')[copyIndex()].name), 'policy')]",
+      "properties": {
+        "format": "rawxml",
+        "value": "[replace(replace('<policies>\n  <inbound>\n    <base />\n    <validate-azure-ad-token tenant-id=\"{{McpTenantId}}\" failed-validation-httpcode=\"401\" failed-validation-error-message=\"Unauthorized\">\n      <audiences><audience>{{McpClientId}}</audience></audiences>\n    </validate-azure-ad-token>\n    <set-backend-service backend-id=\"__BACKEND_ID__\" />\n    <set-header name=\"x-functions-key\" exists-action=\"override\"><value>{{__KEY_NAME__}}</value></set-header>\n    <rewrite-uri template=\"/health\" copy-unmatched-params=\"false\" />\n  </inbound>\n  <backend><base /></backend>\n  <outbound><base /></outbound>\n  <on-error><base /></on-error>\n</policies>\n', '__BACKEND_ID__', variables('mcpServers')[copyIndex()].backendId), '__KEY_NAME__', variables('mcpServers')[copyIndex()].functionKeyName)]"
+      },
+      "dependsOn": [
+        "functionKeyNamedValues",
+        "[resourceId('Microsoft.ApiManagement/service/apis/operations', parameters('apimServiceName'), 'mcp-oauth', format('{0}-health', variables('mcpServers')[copyIndex()].name))]",
+        "mcpBackends",
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'McpClientId')]",
+        "[resourceId('Microsoft.ApiManagement/service/namedValues', parameters('apimServiceName'), 'McpTenantId')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "prmEndpoint": {
+      "type": "string",
+      "value": "[format('{0}/.well-known/oauth-protected-resource', reference(resourceId('Microsoft.ApiManagement/service', parameters('apimServiceName')), '2023-09-01-preview').gatewayUrl)]"
+    },
+    "mcpApiId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.ApiManagement/service/apis', parameters('apimServiceName'), 'mcp-oauth')]"
+    },
+    "mcpApiName": {
+      "type": "string",
+      "value": "mcp-oauth"
+    },
+    "mcpApiPath": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ApiManagement/service/apis', parameters('apimServiceName'), 'mcp-oauth'), '2023-09-01-preview').path]"
+    }
+  }
+}

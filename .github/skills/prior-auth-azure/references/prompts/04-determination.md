@@ -74,10 +74,15 @@ Apply the rubric's evaluation order — **stop at first failure**:
 - If policy found → continue
 
 **2d. Clinical Criteria Threshold**
-- Calculate percentage of criteria MET
-- If < 60% → PEND (significant gaps)
-- If 60-79% → PEND (borderline, request additional documentation)
-- If ≥ 80% → continue to confidence check
+- **First, check for NOT_MET blockers:**
+  - Scan `criteria_evaluation` for any criterion with `status: NOT_MET` AND `confidence ≥ 90`
+  - If found → this is a DENY candidate (mandatory criterion is clearly violated by documented evidence)
+  - If NOT_MET criteria exist but confidence < 90 → treat as borderline, PEND
+- **Then apply threshold (if no NOT_MET blockers):**
+  - Calculate percentage of criteria MET
+  - If < 60% → PEND (significant gaps)
+  - If 60-79% → PEND (borderline, request additional documentation)
+  - If ≥80% → continue to confidence check
 
 **2e. Confidence Assessment**
 - Calculate overall confidence using rubric formula:
@@ -95,25 +100,33 @@ Based on the evaluation:
 - Provider verified (NPI valid and active)
 - All ICD-10 and CPT codes valid
 - Coverage policy found and applicable
-- ≥ 80% of required criteria MET
-- Overall confidence ≥ 60%
+- No mandatory criteria are `NOT_MET`
+- ≥80% of required criteria MET
+- Overall confidence ≥60%
 
 **PEND** — Any of the following:
 - Provider not verified → request credentialing docs
 - Any codes invalid → request code clarification
 - No coverage policy found → request medical director review
-- < 80% criteria met → request additional documentation
+- Criteria are `INSUFFICIENT` (documentation gaps) → request additional documentation
+- < 80% criteria met (but no NOT_MET blockers) → request additional documentation
 - Confidence < 60% → request clarification
 - Borderline case → request medical director review
 
-**NEVER DENY** — AI never recommends DENY in default mode. If criteria are clearly not met, recommend PEND with detailed explanation of what evidence is missing.
+**DENY** — ALL of the following are true:
+- At least one mandatory policy criterion is `NOT_MET` (not `INSUFFICIENT`)
+- The NOT_MET assessment has confidence ≥ 90%
+- The evidence is based on documented clinical facts showing the criterion is clearly violated
+- This is not a missing-information problem — the documentation affirmatively shows the requirement is not satisfied
+
+**Key distinction:** `NOT_MET` means the record clearly shows the criterion is violated (DENY candidate). `INSUFFICIENT` means we lack information to judge (PEND for more docs). Do not conflate these — a known policy violation is not an information gap.
 
 ### Step 4: Document Rationale
 
 Produce a structured rationale:
 
 ```
-Decision: APPROVE | PEND
+Decision: APPROVE | PEND | DENY
 Confidence: HIGH (≥80%) | MEDIUM (60-79%) | LOW (<60%)
 Confidence Score: 0-100
 
@@ -126,6 +139,12 @@ Supporting Evidence:
 Gaps (if PEND):
   - [Gap 1]: [What's needed] — Critical: Yes/No
   - [Gap 2]: [What's needed] — Critical: Yes/No
+
+Denial Basis (if DENY):
+  - Unmet Criterion: [Criterion name]
+  - Evidence: [Clinical facts showing criterion is NOT_MET]
+  - Policy Reference: [Section/clause]
+  - Confidence: [X]%
 
 Criteria Met: X/N (Y%)
 ```
@@ -141,7 +160,7 @@ Add `recommendation` block to `waypoints/assessment.json`:
 ```json
 {
   "recommendation": {
-    "decision": "APPROVE | PEND",
+    "decision": "APPROVE | PEND | DENY",
     "confidence": "HIGH | MEDIUM | LOW",
     "confidence_score": 0-100,
     "rationale": "Clear, evidence-based justification",

@@ -189,7 +189,7 @@ module aiFoundry 'modules/ai-foundry.bicep' = {
     aiServicesName: '${baseName}-aiservices-${uniqueSuffix}'
     aiProjectName: '${baseName}-project-${uniqueSuffix}'
     agentSubnetId: vnet.outputs.agentSubnetId
-    enableNetworkInjection: true
+    enableNetworkInjection: false
     publicNetworkAccess: publicNetworkAccess
     modelDeployments: modelDeployments
     // Connection dependency names (for outputs only — connections created in main.bicep)
@@ -330,7 +330,6 @@ module privateEndpoints 'modules/private-endpoints.bicep' = {
     uniqueSuffix: uniqueSuffix
     tags: tags
   }
-  dependsOn: [projectCapabilityHost]
 }
 
 // ============================================================================
@@ -513,16 +512,35 @@ var storageResourceName = take('${storageBaseName}${storageSuffix}', 24)
 var aiSearchResourceName = toLower('${replace(baseName, '-', '')}search${uniqueSuffix}')
 
 // ============================================================================
+// EXISTING RESOURCE REFERENCES — for connections and capability host
+// Using parent property with existing references per Bicep best practices.
+// Ref: foundry-samples/41-standard-agent-setup
+// ============================================================================
+
+#disable-next-line BCP081
+resource aiServicesExisting 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' existing = {
+  name: aiServicesResourceName
+}
+
+#disable-next-line BCP081
+resource aiProjectExisting 'Microsoft.CognitiveServices/accounts/projects@2025-04-01-preview' existing = {
+  name: aiProjectResourceName
+  parent: aiServicesExisting
+}
+
+// ============================================================================
 // PROJECT CONNECTIONS — created AFTER role assignments, BEFORE capability host
 // Following foundry-samples/15-private-network-standard-agent-setup pattern:
 // connections are child resources of the project. The capability host references
 // them by name, so they must exist first.
+// Uses parent property with existing references per Bicep best practices.
 // ============================================================================
 
 // Cosmos DB connection — thread storage for agents
 #disable-next-line BCP081
 resource cosmosConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = {
-  name: '${aiServicesResourceName}/${aiProjectResourceName}/${cosmosDbResourceName}'
+  name: cosmosDbResourceName
+  parent: aiProjectExisting
   properties: {
     category: 'CosmosDB'
     target: dependentResources.outputs.cosmosDbEndpoint
@@ -543,7 +561,8 @@ resource cosmosConnection 'Microsoft.CognitiveServices/accounts/projects/connect
 // Azure Storage connection — file storage for agents
 #disable-next-line BCP081
 resource storageConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = {
-  name: '${aiServicesResourceName}/${aiProjectResourceName}/${storageResourceName}'
+  name: storageResourceName
+  parent: aiProjectExisting
   properties: {
     category: 'AzureStorageAccount'
     target: dependentResources.outputs.storageBlobEndpoint
@@ -564,7 +583,8 @@ resource storageConnection 'Microsoft.CognitiveServices/accounts/projects/connec
 // AI Search connection — vector store for agents
 #disable-next-line BCP081
 resource searchConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = {
-  name: '${aiServicesResourceName}/${aiProjectResourceName}/${aiSearchResourceName}'
+  name: aiSearchResourceName
+  parent: aiProjectExisting
   properties: {
     category: 'CognitiveSearch'
     target: 'https://${aiSearchResourceName}.search.windows.net'
@@ -584,40 +604,36 @@ resource searchConnection 'Microsoft.CognitiveServices/accounts/projects/connect
 
 // ============================================================================
 // CAPABILITY HOSTS — deployed AFTER connections and role assignments
+// Uses dedicated module following foundry-samples canonical pattern.
 // Account-level capability host must exist before the project-level one.
 // The project capability host references connections by name and requires the
 // project principal to have Storage, Cosmos DB, and Search RBAC permissions.
+// Ref: foundry-samples/41-standard-agent-setup/modules-standard/add-project-capability-host.bicep
 // ============================================================================
 
-// Account-level capability host (required before project-level)
-#disable-next-line BCP081
-resource accountCapabilityHost 'Microsoft.CognitiveServices/accounts/capabilityHosts@2025-04-01-preview' = {
-  name: '${aiServicesResourceName}/caphost-account'
-  properties: {
-    #disable-next-line BCP037
-    capabilityHostKind: 'Agents'
+module addProjectCapabilityHost 'modules/add-project-capability-host.bicep' = {
+  name: 'capabilityHost-configuration-deployment'
+  params: {
+    accountName: aiServicesResourceName
+    projectName: aiProjectResourceName
+    projectCapHost: capabilityHostResourceName
+    cosmosDBConnection: cosmosDbResourceName
+    azureStorageConnection: storageResourceName
+    aiSearchConnection: aiSearchResourceName
   }
   dependsOn: [
     aiFoundry
+    dependentResources
+    privateEndpoints           // PEs must exist first — caphost needs private connectivity to backing resources
     cosmosConnection
     storageConnection
     searchConnection
-  ]
-}
-
-// Project-level capability host
-#disable-next-line BCP081
-resource projectCapabilityHost 'Microsoft.CognitiveServices/accounts/projects/capabilityHosts@2025-04-01-preview' = {
-  name: '${aiServicesResourceName}/${aiProjectResourceName}/${capabilityHostResourceName}'
-  properties: {
-    #disable-next-line BCP037
-    capabilityHostKind: 'Agents'
-    vectorStoreConnections: [aiSearchResourceName]
-    storageConnections: [storageResourceName]
-    threadStorageConnections: [cosmosDbResourceName]
-  }
-  dependsOn: [
-    accountCapabilityHost
+    projectCosmosReaderRole
+    projectCosmosContributorRole
+    projectStorageBlobRole
+    aiServicesStorageRole
+    projectSearchRole
+    projectSearchServiceRole
   ]
 }
 
