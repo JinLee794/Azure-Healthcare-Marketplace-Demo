@@ -5,7 +5,7 @@ Research similar clinical trials, FDA guidance documents, and published protocol
 
 ## Prerequisites
 **Required Files:** `waypoints/intervention_metadata.json`
-**Required Tools:** ClinicalTrials.gov MCP Server (via Azure APIM)
+**Required Tools:** `mcp-clinical-research` server (ClinicalTrials tools)
 
 ---
 
@@ -44,7 +44,7 @@ Exit and return to main menu.
 
 ### Step 2: Search Similar Trials
 
-**Inform user:** "Searching ClinicalTrials.gov for similar trials via Clinical Trials MCP..."
+**Inform user:** "Searching ClinicalTrials.gov via mcp-clinical-research (ClinicalTrials tools)..."
 
 Use the `trials_search` MCP tool to find relevant trials:
 
@@ -57,7 +57,7 @@ trials_search(
 )
 ```
 
-**After success:** "✅ Clinical Trials MCP completed - Found [N] similar trials"
+**After success:** "✅ ClinicalTrials search completed - Found [N] similar trials"
 
 **Search Strategy:**
 1. Primary search: Exact condition + intervention type

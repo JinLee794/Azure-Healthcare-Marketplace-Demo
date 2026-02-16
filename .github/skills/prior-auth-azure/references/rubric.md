@@ -153,7 +153,7 @@ All overrides must include:
 
 ### Demo Mode
 When using sample files with demo NPI (1234567890):
-- Skip NPI MCP lookup for demo provider only
+- Skip NPI lookup for demo provider only
 - All other MCP calls execute normally
 - Proceed with validation as if NPI verified
 

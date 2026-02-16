@@ -5,30 +5,21 @@ Collect prior authorization request information, validate credentials and codes,
 
 ## Prerequisites
 
-### Required MCP Servers (via Azure APIM)
+### Required MCP Servers (Consolidated Architecture)
 
-This subskill uses 3 MCP connectors for healthcare data validation:
+This subskill uses **2 consolidated MCP servers** for healthcare data validation:
 
-1. **NPI MCP Connector** - Provider verification
-   - **Tools:** `lookup_npi(npi="...")`, `validate_npi(npi="...")`, `search_providers(...)`
-   - **Use Cases:** Verify provider credentials, specialty, license state, active status
-   - **Success Notification:** `✅👨‍⚕️ NPI MCP Connector invoked successfully`
+1. **`mcp-reference-data`** — NPI + ICD-10 + CMS Coverage (12 tools, single endpoint)
+   - **NPI Tools:** `lookup_npi(npi="...")`, `validate_npi(npi="...")`, `search_providers(...)`
+   - **ICD-10 Tools:** `validate_icd10(code="...")`, `lookup_icd10(code="...")`, `search_icd10(query="...")`, `get_icd10_chapter(code_prefix="...")`
+   - **CMS Tools:** `search_coverage(query="...", coverage_type="all", limit=10)`, `check_medical_necessity(cpt_code="...", icd10_codes=[...])`, `get_coverage_by_cpt(cpt_code="...")`, `get_coverage_by_icd10(icd10_code="...")`, `get_mac_jurisdiction(state="...")`
+   - **Success Notification:** `✅ mcp-reference-data invoked successfully`
 
-2. **ICD-10 MCP Connector** - Diagnosis code validation
-   - **Tools:** `validate_icd10(code="...")`, `lookup_icd10(code="...")`, `search_icd10(query="...")`, `get_icd10_chapter(code_prefix="...")`
-   - **Use Cases:** Validate ICD-10 codes (one per call), get detailed code information, search by description
-   - **Success Notification:** `✅🔢 ICD-10 MCP Connector invoked successfully`
-
-3. **CMS Coverage MCP Connector** - Policy lookup
-   - **Tools:** `search_coverage(query="...", coverage_type="all", limit=10)`, `check_medical_necessity(cpt_code="...", icd10_codes=[...])`, `get_coverage_by_cpt(cpt_code="...")`, `get_coverage_by_icd10(icd10_code="...")`, `get_mac_jurisdiction(state="...")`
-   - **Use Cases:** Find applicable LCDs/NCDs, check medical necessity for CPT+ICD-10 combination, get MAC jurisdiction
-   - **Success Notification:** `✅📋 CMS Coverage MCP Connector invoked successfully`
-
-4. **PubMed MCP Connector** - Evidence-based literature (optional, enhances recommendations)
-   - **Tools:** `search_pubmed(query="...")`, `search_clinical_queries(query="...", category="therapy")`, `get_article(pmid="...")`, `get_article_abstract(pmid="...")`
-   - **Use Cases:** Search for evidence supporting medical necessity, find clinical guidelines, retrieve therapy/diagnosis studies
-   - **Success Notification:** `✅📚 PubMed MCP Connector invoked successfully`
-   - **Note:** Optional — if unavailable, skip literature search and note in assessment
+2. **`mcp-clinical-research`** — FHIR + PubMed + ClinicalTrials (20 tools, single endpoint)
+   - **PubMed Tools:** `search_pubmed(query="...")`, `search_clinical_queries(query="...", category="therapy")`, `get_article(pmid="...")`, `get_article_abstract(pmid="...")`
+   - **FHIR Tools:** `search_patients(identifier="...")`, `get_patient_conditions(patient_id="...")`, `get_patient_medications(patient_id="...")`, `get_patient_observations(patient_id="...")`
+   - **Success Notification:** `✅ mcp-clinical-research invoked successfully`
+   - **Note:** Optional — PubMed enhances evidence, FHIR enriches clinical context. If unavailable, skip and note in assessment
 
 ---
 
@@ -114,7 +105,7 @@ Execute MCP calls in parallel for optimal performance:
 
 **2a. NPI Validation**
 
-Display: "Verifying provider credentials via NPI MCP Connector..."
+Display: "Verifying provider credentials via mcp-reference-data (NPI tools)..."
 
 ```python
 lookup_npi(npi="[provider_npi]")
@@ -123,14 +114,14 @@ lookup_npi(npi="[provider_npi]")
 - Confirm specialty matches service
 - Check license state
 
-After successful call, display: "✅👨‍⚕️ NPI MCP Connector completed successfully - Provider: [Name], Specialty: [Specialty], Status: Active"
+After successful call, display: "✅ NPI validation completed - Provider: [Name], Specialty: [Specialty], Status: Active"
 
 **If provider not found:**
 Display error: "Provider NPI [number] not found or inactive. Per rubric.md policy, requests without verified provider will result in PENDING status (request credentialing documentation)."
 
 **2b. ICD-10 Validation**
 
-Display: "Validating diagnosis codes via ICD-10 MCP Connector..."
+Display: "Validating diagnosis codes via mcp-reference-data (ICD-10 tools)..."
 
 ```python
 validate_icd10(code="E11.9")  # Call once per code
@@ -142,11 +133,11 @@ For each valid code, get details:
 lookup_icd10(code="E11.9")  # Single code only
 ```
 
-After successful call, display: "✅🔢 ICD-10 MCP Connector completed successfully - Validated [N] codes"
+After successful call, display: "✅ ICD-10 validation completed - Validated [N] codes"
 
 **2c. CMS Coverage Policy Search**
 
-Display: "Searching coverage policies via CMS Coverage MCP Connector..."
+Display: "Searching coverage policies via mcp-reference-data (CMS tools)..."
 
 ```python
 search_coverage(
@@ -156,11 +147,11 @@ search_coverage(
 ```
 - Find applicable LCDs/NCDs for service
 
-After successful call, display: "✅📋 CMS Coverage MCP Connector completed successfully - Found policy: [Policy ID] - [Title]"
+After successful call, display: "✅ CMS Coverage search completed - Found policy: [Policy ID] - [Title]"
 
 **2d. CMS Medical Necessity Check**
 
-Display: "Checking medical necessity via CMS Coverage MCP Connector..."
+Display: "Checking medical necessity via mcp-reference-data (CMS tools)..."
 
 ```python
 check_medical_necessity(
@@ -171,7 +162,7 @@ check_medical_necessity(
 - Determine if the procedure is medically necessary for the given diagnoses per Medicare policy
 - Returns coverage determination with supporting policy references
 
-After successful call, display: "✅📋 CMS Medical Necessity Check completed - [Covered/Not Covered]: [Policy basis]"
+After successful call, display: "✅ CMS Medical Necessity Check completed - [Covered/Not Covered]: [Policy basis]"
 
 **2e. CMS Coverage by CPT** (optional, for additional detail)
 
@@ -190,9 +181,9 @@ get_coverage_by_icd10(icd10_code="[primary diagnosis code]")
 **Important:** Also display contextual limitation notice:
 > "Note: Coverage policies are sourced from Medicare LCDs/NCDs. If this review is for a commercial or Medicare Advantage plan, payer-specific policies may differ."
 
-**2g. FHIR Patient History** (optional — when FHIR MCP is available and member has FHIR record)
+**2g. FHIR Patient History** (optional — when `mcp-clinical-research` FHIR tools are available and member has FHIR record)
 
-Display: "Retrieving patient history via FHIR MCP Connector..."
+Display: "Retrieving patient history via mcp-clinical-research (FHIR tools)..."
 
 If a member ID is available, search for the patient and pull relevant history:
 
@@ -207,7 +198,7 @@ get_patient_medications(patient_id="[fhir_id]", status="active")
 get_patient_observations(patient_id="[fhir_id]", category="laboratory", count=10)
 ```
 
-After successful calls, display: "✅🏥 FHIR MCP completed - Retrieved [N] active conditions, [N] medications, [N] recent observations"
+After successful calls, display: "✅ FHIR patient data retrieved - [N] active conditions, [N] medications, [N] recent observations"
 
 **How FHIR data is used:**
 - Cross-reference reported diagnoses in PA form with active conditions in EHR
@@ -215,7 +206,7 @@ After successful calls, display: "✅🏥 FHIR MCP completed - Retrieved [N] act
 - Enrich clinical extraction (Step 4) with lab values and encounter history
 - Stored in `assessment.json` under `fhir_patient_context` field
 
-**Graceful degradation:** If FHIR MCP is unavailable or no patient record found, skip and rely solely on submitted clinical documentation. Note in assessment that FHIR enrichment was not performed.
+**Graceful degradation:** If the `mcp-clinical-research` server is unavailable or no patient record found, skip and rely solely on submitted clinical documentation. Note in assessment that FHIR enrichment was not performed.
 
 ---
 
@@ -269,7 +260,7 @@ Calculate extraction confidence (0-100%):
 
 ### Step 5a: PubMed Evidence Search (Optional — Strengthens Recommendation)
 
-Display: "Searching PubMed for evidence supporting medical necessity..."
+Display: "Searching PubMed for evidence via mcp-clinical-research (PubMed tools)..."
 
 Search for published literature supporting the requested service for the given diagnoses:
 
@@ -288,7 +279,7 @@ If relevant articles are found, retrieve key abstracts:
 get_article_abstract(pmid="[top PMID]")
 ```
 
-After successful call, display: "✅📚 PubMed MCP completed - Found [N] relevant studies supporting [service] for [condition]"
+After successful call, display: "✅ PubMed search completed - Found [N] relevant studies supporting [service] for [condition]"
 
 **How evidence is used:**
 - Strengthens criteria evaluation with published support
@@ -296,7 +287,7 @@ After successful call, display: "✅📚 PubMed MCP completed - Found [N] releva
 - Referenced in `outputs/audit_justification.md` for regulatory documentation
 - If no relevant literature found, note as a gap but do not downgrade recommendation solely for this reason
 
-**Graceful degradation:** If PubMed MCP is unavailable, skip this step and note in the assessment that literature search was not performed. Continue with criteria mapping.
+**Graceful degradation:** If `mcp-clinical-research` PubMed tools are unavailable, skip this step and note in the assessment that literature search was not performed. Continue with criteria mapping.
 
 ### Step 6: Map Evidence to Policy Criteria
 
@@ -518,9 +509,9 @@ Ready to continue? (Yes/No)
 
 ## Error Handling
 
-### MCP Connector Unavailable
+### MCP Server Unavailable
 
-Display error: "MCP Connector Unavailable - Cannot access required healthcare data connectors. This skill requires all three MCP connectors (CMS Coverage, ICD-10, NPI) to function. Please configure the missing connectors and try again."
+Display error: "MCP Server Unavailable - Cannot access required healthcare data servers. This skill requires the `mcp-reference-data` server (NPI + ICD-10 + CMS tools) to function. Please configure the missing server and try again."
 
 Exit subskill and return to main menu.
 

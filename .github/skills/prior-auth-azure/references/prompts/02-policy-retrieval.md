@@ -2,7 +2,7 @@
 
 > **Bead:** `bd-pa-001-intake` — Steps 2c, 3
 > **Purpose:** Optimize coverage policy search queries and evaluate retrieved policy relevance
-> **When to load:** During bead `bd-pa-001-intake`, before CMS Coverage MCP calls (typically before Step 2c in Subskill 1)
+> **When to load:** During bead `bd-pa-001-intake`, before CMS coverage tool calls (typically before Step 2c in Subskill 1)
 > **Release after:** Context Checkpoint 1 (best policy captured in `waypoints/assessment.json`)
 
 ---
@@ -100,7 +100,7 @@ If codes are missing but diagnosis and medication are available, proceed without
 
 ## Step 3: Policy Result Evaluation
 
-After the CMS Coverage MCP returns results, evaluate each policy for relevance.
+After the CMS coverage tools return results, evaluate each policy for relevance.
 
 ### Evaluation Process
 

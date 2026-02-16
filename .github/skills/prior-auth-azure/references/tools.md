@@ -1,10 +1,66 @@
 # Healthcare MCP Tool Reference
 
-A quick reference guide for the Clinical Trials, CMS Coverage, ICD-10, NPI, and FHIR MCP connectors available via Azure APIM.
+A quick reference guide for all tools available across the **3 consolidated MCP servers**. Each server bundles multiple tool domains into a single Azure Function endpoint.
+
+> **Architecture Note:** The project consolidated ~7 individual MCP servers into 3:
+> - **`mcp-reference-data`** (12 tools) — NPI + ICD-10 + CMS Coverage
+> - **`mcp-clinical-research`** (20 tools) — FHIR + PubMed + ClinicalTrials
+> - **`cosmos-rag`** (6 tools) — Document RAG + Audit Trail
 
 ---
 
-## Clinical Trials
+## `mcp-reference-data` — Reference Data Server (12 tools)
+
+Consolidated server for healthcare reference data: provider verification, diagnosis code validation, and Medicare coverage policies.
+
+### NPI Tools
+
+| Tool | Purpose |
+|------|---------|
+| `lookup_npi` | Look up a specific provider by their 10-digit NPI number. Returns name, specialty, address, credentials. |
+| `search_providers` | Search providers by name, location, specialty, or organization. Supports wildcards. Filter by individual (NPI-1) or organization (NPI-2). |
+| `validate_npi` | Validate NPI format (Luhn check with 80840 prefix) and existence in CMS registry. |
+
+---
+
+### CMS Coverage Tools
+
+| Tool | Purpose |
+|------|---------|
+| `search_coverage` | Search Medicare coverage determinations (LCD/NCD). |
+| `get_coverage_by_cpt` | Get Medicare coverage details for a CPT/HCPCS code. |
+| `get_coverage_by_icd10` | Get Medicare coverage details related to an ICD-10 code. |
+| `check_medical_necessity` | Check likely medical necessity for CPT + ICD-10 combinations. |
+| `get_mac_jurisdiction` | Resolve MAC jurisdiction by state/ZIP for regional policy context. |
+
+---
+
+### ICD-10 Tools
+
+| Tool | Purpose |
+|------|---------|
+| `validate_icd10` | Validate an ICD-10-CM code for format correctness and existence in official code set. |
+| `lookup_icd10` | Get comprehensive info for a specific code: description, chapter, billability status. |
+| `search_icd10` | Search diagnosis codes by clinical description, symptom, condition, or partial code. |
+| `get_icd10_chapter` | Get chapter information and example codes for a code prefix (e.g., 'E11' for diabetes). |
+
+---
+
+### NPI Tools
+
+| Tool | Purpose |
+|------|---------|
+| `lookup_npi` | Look up a specific provider by their 10-digit NPI number. Returns name, specialty, address, credentials. |
+| `search_providers` | Search providers by name, location, specialty, or organization. Supports wildcards. Filter by individual (NPI-1) or organization (NPI-2). |
+| `validate_npi` | Validate NPI format (Luhn check with 80840 prefix) and existence in CMS registry. |
+
+---
+
+## `mcp-clinical-research` — Clinical Research Server (20 tools)
+
+Consolidated server for clinical research data: FHIR patient records, PubMed literature, and ClinicalTrials.gov.
+
+### Clinical Trials Tools
 
 | Tool | Purpose |
 |------|---------|
@@ -17,53 +73,7 @@ A quick reference guide for the Clinical Trials, CMS Coverage, ICD-10, NPI, and 
 
 ---
 
-## CMS Coverage
-
-| Tool | Purpose |
-|------|---------|
-| `search_coverage` | Search Medicare coverage determinations (LCD/NCD). |
-| `get_coverage_by_cpt` | Get Medicare coverage details for a CPT/HCPCS code. |
-| `get_coverage_by_icd10` | Get Medicare coverage details related to an ICD-10 code. |
-| `check_medical_necessity` | Check likely medical necessity for CPT + ICD-10 combinations. |
-| `get_mac_jurisdiction` | Resolve MAC jurisdiction by state/ZIP for regional policy context. |
-
----
-
-## ICD-10
-
-| Tool | Purpose |
-|------|---------|
-| `validate_icd10` | Validate an ICD-10-CM code for format correctness and existence in official code set. |
-| `lookup_icd10` | Get comprehensive info for a specific code: description, chapter, billability status. |
-| `search_icd10` | Search diagnosis codes by clinical description, symptom, condition, or partial code. |
-| `get_icd10_chapter` | Get chapter information and example codes for a code prefix (e.g., 'E11' for diabetes). |
-
----
-
-## NPI
-
-| Tool | Purpose |
-|------|---------|
-| `lookup_npi` | Look up a specific provider by their 10-digit NPI number. Returns name, specialty, address, credentials. |
-| `search_providers` | Search providers by name, location, specialty, or organization. Supports wildcards. Filter by individual (NPI-1) or organization (NPI-2). |
-| `validate_npi` | Validate NPI format (Luhn check with 80840 prefix) and existence in CMS registry. |
-
----
-
-## PubMed
-
-| Tool | Purpose |
-|------|---------|
-| `search_pubmed` | Search PubMed/MEDLINE for biomedical literature. Returns article IDs and metadata. Supports MeSH and boolean queries. |
-| `get_article` | Get detailed info about a specific PubMed article (title, abstract, authors, MeSH terms, keywords). |
-| `get_articles_batch` | Get details for multiple articles at once (up to 50 PMIDs). |
-| `get_article_abstract` | Get the abstract text for a PubMed article. |
-| `find_related_articles` | Find articles related to a specific PubMed article. |
-| `search_clinical_queries` | Search using clinical study category filters (therapy, diagnosis, prognosis, etiology, clinical prediction guides). |
-
----
-
-## FHIR Operations (Azure API for FHIR)
+### FHIR Tools
 
 | Tool | Purpose |
 |------|---------|
@@ -78,20 +88,30 @@ A quick reference guide for the Clinical Trials, CMS Coverage, ICD-10, NPI, and 
 
 ---
 
+## `cosmos-rag` — Document RAG & Audit Trail Server (6 tools)
+
+Cosmos DB-backed server for hybrid document search (vector + BM25) and immutable audit trail.
+
+| Tool | Purpose |
+|------|---------|
+| `index_document` | Index a document for RAG retrieval. Chunks content, generates embeddings, stores in Cosmos DB. |
+| `hybrid_search` | Search indexed documents using hybrid retrieval (vector + BM25 with RRF fusion). Best for natural language queries. |
+| `vector_search` | Search indexed documents using pure vector similarity. Best when semantic meaning matters more than keywords. |
+| `record_audit_event` | Record an immutable audit event for a healthcare workflow (compliance/traceability). |
+| `get_audit_trail` | Retrieve audit trail for a specific workflow, ordered by timestamp. |
+| `get_session_history` | Query audit trail across workflows by type and time range. |
+
+---
+
 ## Azure APIM Endpoints
 
-All MCP servers are accessible via Azure API Management:
+All MCP servers are accessible via Azure API Management. Each consolidated server exposes a single `/mcp` endpoint:
 
-> **Note:** Route shape may vary by deployment profile. Use configured `MCP_*_URL` values as source of truth.
-
-| Server | Endpoint |
-|--------|----------|
-| CMS Coverage | `https://healthcare-mcp.azure-api.net/cms/mcp` (or `/cms-coverage/mcp`) |
-| NPI Registry | `https://healthcare-mcp.azure-api.net/npi/mcp` (or `/npi-registry/mcp`) |
-| ICD-10 Codes | `https://healthcare-mcp.azure-api.net/icd10/mcp` |
-| Clinical Trials | `https://healthcare-mcp.azure-api.net/clinical-trials/mcp` |
-| PubMed | `https://healthcare-mcp.azure-api.net/pubmed/mcp` |
-| FHIR Operations | `https://healthcare-mcp.azure-api.net/fhir/mcp` |
+| Server | APIM Endpoint | Tools |
+|--------|---------------|-------|
+| `mcp-reference-data` | `https://healthcare-mcp.azure-api.net/reference-data/mcp` | NPI, ICD-10, CMS (12) |
+| `mcp-clinical-research` | `https://healthcare-mcp.azure-api.net/clinical-research/mcp` | FHIR, PubMed, ClinicalTrials (20) |
+| `cosmos-rag` | `https://healthcare-mcp.azure-api.net/cosmos-rag/mcp` | RAG, Audit (6) |
 
 ### Authentication
 
@@ -101,8 +121,8 @@ All endpoints require Azure AD authentication:
 # Get access token
 az account get-access-token --scope api://healthcare-mcp/.default
 
-# Use with MCP request
-curl -X POST https://healthcare-mcp.azure-api.net/cms-coverage/mcp \
+# Use with consolidated MCP server (all tools on one endpoint)
+curl -X POST https://healthcare-mcp.azure-api.net/reference-data/mcp \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'

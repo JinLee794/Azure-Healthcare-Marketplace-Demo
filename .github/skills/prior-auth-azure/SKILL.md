@@ -26,37 +26,35 @@ Process prior authorization requests using AI-assisted review with MCP connector
 >
 > **AI DECISION BEHAVIOR:** In default mode, AI recommends APPROVE or PEND only - never recommends DENY. Decision logic is configurable in the skill's rubric.md file.
 >
-> **COVERAGE POLICY LIMITATIONS:** Coverage policies are sourced from Medicare LCDs/NCDs via CMS Coverage MCP Connector. If this review is for a commercial or Medicare Advantage plan, payer-specific policies may differ and were not applied.
+> **COVERAGE POLICY LIMITATIONS:** Coverage policies are sourced from Medicare LCDs/NCDs via the `mcp-reference-data` server (CMS Coverage tools). If this review is for a commercial or Medicare Advantage plan, payer-specific policies may differ and were not applied.
 
 ---
 
 ## Prerequisites
 
-### Required MCP Servers (via Azure APIM)
+### Required MCP Servers (Consolidated Architecture)
 
-1. **NPI MCP Connector** - Provider verification
-   - **Endpoint:** `Configured via MCP_NPI_URL (APIM route varies by deployment, e.g., /npi/mcp or /npi-registry/mcp)`
-   - **Tools:** `lookup_npi(npi="...")`, `validate_npi(npi="...")`, `search_providers(...)`
-   - **Use Cases:** Verify provider credentials, specialty, license state, active status
+The project uses **3 consolidated MCP servers** (down from ~7 individual servers). Each server bundles multiple tool domains into a single Azure Function endpoint.
 
-2. **ICD-10 MCP Connector** - Diagnosis code validation
-   - **Endpoint:** `Configured via MCP_ICD10_URL (APIM route varies by deployment, e.g., /icd10/mcp)`
-   - **Tools:** `validate_icd10(code="...")`, `lookup_icd10(code="...")`, `search_icd10(query="...")`, `get_icd10_chapter(code_prefix="...")`
-   - **Use Cases:** Validate ICD-10 codes (one per call), get detailed code information, search by description
+1. **`mcp-reference-data`** — NPI + ICD-10 + CMS Coverage (12 tools)
+   - **Endpoint:** Single Azure Function (`/mcp`) — routed via APIM or local at `http://localhost:7071/mcp`
+   - **NPI Tools:** `lookup_npi(npi="...")`, `validate_npi(npi="...")`, `search_providers(...)`
+   - **ICD-10 Tools:** `validate_icd10(code="...")`, `lookup_icd10(code="...")`, `search_icd10(query="...")`, `get_icd10_chapter(code_prefix="...")`
+   - **CMS Tools:** `search_coverage(query="...", coverage_type="all", limit=10)`, `check_medical_necessity(cpt_code="...", icd10_codes=[...])`, `get_coverage_by_cpt(cpt_code="...")`, `get_coverage_by_icd10(icd10_code="...")`, `get_mac_jurisdiction(state="...")`
+   - **Use Cases:** Provider verification, diagnosis code validation, coverage policy lookup, medical necessity checks
 
-3. **CMS Coverage MCP Connector** - Policy lookup
-   - **Endpoint:** `Configured via MCP_CMS_URL (APIM route varies by deployment, e.g., /cms/mcp or /cms-coverage/mcp)`
-   - **Tools:** `search_coverage(query="...", coverage_type="all", limit=10)`, `check_medical_necessity(cpt_code="...", icd10_codes=[...])`, `get_coverage_by_cpt(cpt_code="...")`, `get_coverage_by_icd10(icd10_code="...")`, `get_mac_jurisdiction(state="...")`
-   - **Use Cases:** Find applicable LCDs/NCDs, check medical necessity for CPT+ICD-10 combination, get MAC jurisdiction
+2. **`mcp-clinical-research`** — FHIR + PubMed + ClinicalTrials (20 tools)
+   - **Endpoint:** Single Azure Function (`/mcp`) — routed via APIM or local at `http://localhost:7072/mcp`
+   - **PubMed Tools:** `search_pubmed(query="...")`, `search_clinical_queries(query="...", category="therapy")`, `get_article(pmid="...")`, `get_article_abstract(pmid="...")`, `get_articles_batch(pmids=[...])`, `find_related_articles(pmid="...")`
+   - **FHIR Tools:** `search_patients(identifier="...")`, `get_patient(patient_id="...")`, `get_patient_conditions(patient_id="...")`, `get_patient_medications(patient_id="...")`, `get_patient_observations(patient_id="...")`, `get_patient_encounters(patient_id="...")`, `search_practitioners(...)`, `validate_resource(...)`
+   - **ClinicalTrials Tools:** `search_trials(...)`, `get_trial(nct_id="...")`, `get_trial_eligibility(nct_id="...")`, `get_trial_locations(nct_id="...")`, `search_by_condition(...)`, `get_trial_results(nct_id="...")`
+   - **Use Cases:** Evidence search via PubMed, FHIR patient data enrichment, clinical trial discovery
+   - **Note:** PubMed and FHIR tools are optional for prior auth — they enhance but are not required
 
-4. **PubMed MCP Connector** - Evidence-based literature (optional, enhances recommendations)
-   - **Endpoint:** `Configured via MCP_PUBMED_URL (APIM route varies by deployment, e.g., /pubmed/mcp)`
-   - **Tools:** `search_pubmed(query="...")`, `search_clinical_queries(query="...", category="therapy")`, `get_article(pmid="...")`, `get_article_abstract(pmid="...")`
-   - **Use Cases:** Search for evidence supporting medical necessity, find clinical guidelines, retrieve therapy/diagnosis studies
-5. **FHIR MCP Connector** - Patient history enrichment (optional, enhances clinical context)
-   - **Endpoint:** `Configured via MCP_FHIR_URL (APIM route varies by deployment, e.g., /fhir/mcp)`
-   - **Tools:** `search_patients(identifier=\"...\")`, `get_patient_conditions(patient_id=\"...\")`, `get_patient_medications(patient_id=\"...\")`, `get_patient_observations(patient_id=\"...\")`
-   - **Use Cases:** Cross-reference PA request with EHR data, verify diagnoses and prior treatments, enrich clinical extraction with lab results
+3. **`cosmos-rag`** — Document RAG & Audit Trail (6 tools)
+   - **Endpoint:** Single Azure Function (`/mcp`) — routed via APIM or local at `http://localhost:7073/mcp`
+   - **Tools:** `index_document(...)`, `hybrid_search(query="...")`, `vector_search(query="...")`, `record_audit_event(...)`, `get_audit_trail(workflow_id="...")`, `get_session_history(workflow_type="...")`
+   - **Use Cases:** Coverage policy document retrieval via RAG, workflow audit trail for compliance
 ---
 
 ## Workflow Overview
@@ -66,9 +64,9 @@ flowchart TD
     subgraph PA["Prior Authorization Workflow"]
         subgraph SUB1["Subskill 1: Intake & Assessment (3-4 min)"]
             S1A["1. Collect request details<br/>(member, service, provider)"]
-            S1B["2. Parallel MCP validation:<br/>• NPI Registry → Provider credentials<br/>• ICD-10 → Diagnosis codes<br/>• CMS Coverage → Applicable policies + medical necessity"]
+            S1B["2. Parallel MCP validation via mcp-reference-data:<br/>• NPI tools → Provider credentials<br/>• ICD-10 tools → Diagnosis codes<br/>• CMS tools → Applicable policies + medical necessity"]
             S1C["3. Extract clinical data from documentation"]
-            S1Lit["4. PubMed evidence search (optional)<br/>• Literature supporting medical necessity"]
+            S1Lit["4. PubMed evidence search (optional)<br/>via mcp-clinical-research"]
             S1D["5. Map evidence to policy criteria"]
             S1E["6. Generate recommendation (APPROVE/PEND)"]
             S1A --> S1B --> S1C --> S1Lit --> S1D --> S1E
@@ -98,17 +96,16 @@ flowchart TD
 
 ### Subskill 1: Intake & Assessment (3-4 minutes)
 - Collects PA request details (member, service, provider, clinical docs)
-- Validates provider credentials via **NPI MCP**
-- Validates and retrieves ICD-10 code details via **ICD-10 MCP**
+- Validates provider credentials, ICD-10 codes, and coverage policies via **`mcp-reference-data`** (NPI + ICD-10 + CMS — parallel execution)
 - Validates CPT/HCPCS codes via **WebFetch to CMS Fee Schedule**
-- Searches coverage policies and checks medical necessity via **CMS Coverage MCP**
 - Extracts structured clinical data from documentation
-- Searches for supporting literature via **PubMed MCP** (optional, strengthens evidence)
+- Searches for supporting literature via **`mcp-clinical-research`** PubMed tools (optional, strengthens evidence)
+- Enriches clinical context via **`mcp-clinical-research`** FHIR tools (optional)
 - Maps clinical evidence to policy criteria
 - Performs medical necessity assessment
 - Generates recommendation (APPROVE/PEND)
 - **Output:** `waypoints/assessment.json` (consolidated)
-- **Data Sources:** NPI MCP, ICD-10 MCP, CMS Coverage MCP (parallel), CMS Fee Schedule (web), PubMed MCP
+- **Data Sources:** `mcp-reference-data` (NPI + ICD-10 + CMS, parallel), CMS Fee Schedule (web), `mcp-clinical-research` (PubMed + FHIR, optional)
 
 ### Subskill 2: Decision & Notification (1-2 minutes)
 - Reads assessment from Subskill 1
@@ -142,7 +139,7 @@ Would you like to use sample PA request files for demonstration?
 Sample files are in: data/sample_cases/prior_auth_baseline/
 ```
 
-- **Demo mode note:** When sample files are used, the sample data contains demo NPI and sample member ID. This combination triggers demo mode, which skips the NPI MCP lookup for this specific provider only. All other MCP calls execute normally.
+- **Demo mode note:** When sample files are used, the sample data contains demo NPI and sample member ID. This combination triggers demo mode, which skips the NPI lookup for this specific provider only. All other MCP calls execute normally.
 
 ---
 
@@ -288,8 +285,8 @@ When invoking MCP tools, always inform the user:
 
 **Example:**
 ```
-Searching CMS Coverage MCP for applicable policies...
-✅ CMS Coverage MCP completed - Found policy: L34567 - Knee Arthroplasty LCD
+Searching mcp-reference-data for applicable coverage policies...
+✅ CMS coverage search completed - Found policy: L34567 - Knee Arthroplasty LCD
 ```
 
 ### Common Mistakes to Avoid
@@ -341,7 +338,7 @@ Before completing workflow, verify:
 
 Sample case files are included in `data/sample_cases/prior_auth_baseline/` for demonstration purposes. When using sample files, the skill operates in demo mode which:
 
-- Skips NPI MCP lookup for the sample provider only
+- Skips NPI lookup for the sample provider only
 - Executes all other MCP calls (ICD-10, CMS Coverage) normally
 - Demonstrates the complete workflow with a pre-configured case
 
@@ -435,15 +432,18 @@ Each case variant includes:
 
 ```yaml
 mcp_servers:
-  npi-registry:
-    url: https://healthcare-mcp.azure-api.net/npi-registry
+  mcp-reference-data:
+    url: https://healthcare-mcp.azure-api.net/reference-data
     auth: azure_ad_token
-  icd10-codes:
-    url: https://healthcare-mcp.azure-api.net/icd10
+    # Serves: NPI lookup, ICD-10 validation, CMS coverage (12 tools)
+  mcp-clinical-research:
+    url: https://healthcare-mcp.azure-api.net/clinical-research
     auth: azure_ad_token
-  cms-coverage:
-    url: https://healthcare-mcp.azure-api.net/cms-coverage
+    # Serves: FHIR, PubMed, ClinicalTrials.gov (20 tools)
+  cosmos-rag:
+    url: https://healthcare-mcp.azure-api.net/cosmos-rag
     auth: azure_ad_token
+    # Serves: Document RAG, audit trail (6 tools)
 ```
 
 ### FHIR Integration
