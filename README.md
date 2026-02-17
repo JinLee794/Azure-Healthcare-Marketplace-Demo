@@ -36,11 +36,11 @@ This accelerator demonstrates how to build **healthcare AI agents on Azure** usi
 
 It provides:
 
-1. **MCP Servers** — Six production-shaped Azure Function servers exposing healthcare tools (NPI lookup, ICD-10 validation, CMS coverage, FHIR operations, PubMed, clinical trials) via the [Model Context Protocol](https://modelcontextprotocol.io/docs)
-2. **Agent Workflows** — Multi-step orchestration for prior authorization, clinical trial matching, and literature search — with audit trails and human-in-the-loop checkpoints
-3. **Skills Layer** — Domain knowledge injected into AI agent context for FHIR development, prior auth review, and health data services
+1. **Consolidated MCP Servers** — Four domain-grouped Azure Function servers exposing 39 healthcare tools (NPI, ICD-10, CMS, FHIR, PubMed, Clinical Trials, Cosmos DB RAG, document reading) via the [Model Context Protocol](https://modelcontextprotocol.io/docs)
+2. **Agent Workflows** — Multi-step orchestration for prior authorization, clinical trial matching, literature search, and patient data — with audit trails and human-in-the-loop checkpoints
+3. **Skills & Prompt Engineering Layer** — Six domain skills with phase-aligned prompt modules, lazy context loading, bead-based progress tracking, and rubric-driven decision logic
 4. **Azure-Native Security** — APIM gateway with OAuth 2.0 / Entra ID, managed identity throughout, Private Link, HIPAA-ready Bicep infrastructure
-5. **Multiple Agent Surfaces** — Works with GitHub Copilot, Azure AI Foundry Agents, and custom orchestration UIs
+5. **Multiple Agent Surfaces** — Works with GitHub Copilot, Azure AI Foundry Agents, and custom orchestration UIs (Gradio + CLI)
 
 ### What Makes This Different
 
@@ -50,6 +50,7 @@ It provides:
 | **Data access** | Mock responses | Live FHIR, NPI, CMS, PubMed, ClinicalTrials.gov APIs |
 | **Compliance** | Hand-waved | Private Link, audit logging, HIPAA-tagged infrastructure |
 | **Tooling protocol** | Bespoke function calling | Model Context Protocol (MCP) — open, portable, model-agnostic |
+| **Prompt engineering** | Monolithic system prompt | Phase-aligned prompt modules with lazy loading and context checkpoints |
 | **Deployment** | localhost only | `azd up` → full Azure deployment with APIM, Functions, AHDS |
 | **Auditability** | None | Waypoint-based audit trail with bead tracking per workflow step |
 
@@ -74,7 +75,7 @@ It provides:
 ### For Developers
 
 - **Open protocol** — MCP servers work with any MCP-compatible client, not locked to one vendor
-- **Local-first development** — run all six servers locally with `make local-start`
+- **Local-first development** — run all four servers locally with `make local-start`
 - **Evals built in** — contract validation, latency benchmarks, and native framework evaluation out of the box
 
 ---
@@ -93,13 +94,11 @@ flowchart TB
         APIM["Azure API Management<br/>OAuth 2.0 | Rate Limiting | Audit"]
     end
 
-    subgraph mcp["MCP Server Layer \u2014 Azure Functions"]
-        NPI["NPI Lookup"]
-        ICD["ICD-10 Validation"]
-        CMS["CMS Coverage"]
-        FHIR_MCP["FHIR Operations"]
-        PUB["PubMed"]
-        CT["Clinical Trials"]
+    subgraph mcp["MCP Server Layer — Azure Functions (Consolidated)"]
+        REF["mcp-reference-data<br/>(12 tools: NPI + ICD-10 + CMS)"]
+        CLIN["mcp-clinical-research<br/>(20 tools: FHIR + PubMed + Trials)"]
+        RAG["cosmos-rag<br/>(6 tools: RAG + Audit)"]
+        DOC["document-reader<br/>(1 tool: File I/O)"]
     end
 
     subgraph data["Azure Health Data Services + External APIs"]
@@ -109,41 +108,202 @@ flowchart TB
         CMSAPI["CMS Coverage Data"]
         NCBI["NCBI E-Utilities"]
         CTGOV["ClinicalTrials.gov"]
+        COSMOS["Cosmos DB<br/>(RAG + Audit)"]
     end
 
     CP --> APIM
     AI --> APIM
     DEV --> APIM
 
-    APIM --> NPI
-    APIM --> ICD
-    APIM --> CMS
-    APIM --> FHIR_MCP
-    APIM --> PUB
-    APIM --> CT
+    APIM --> REF
+    APIM --> CLIN
+    APIM --> RAG
+    APIM --> DOC
 
-    NPI --> NPPES
-    ICD --> NLM
-    CMS --> CMSAPI
-    FHIR_MCP --> FHIR
-    PUB --> NCBI
-    CT --> CTGOV
+    REF --> NPPES
+    REF --> NLM
+    REF --> CMSAPI
+    CLIN --> FHIR
+    CLIN --> NCBI
+    CLIN --> CTGOV
+    RAG --> COSMOS
 ```
 
 ---
 
 ## MCP Servers
 
-Each server is an Azure Function exposing healthcare tools via JSON-RPC over HTTP (MCP Streamable HTTP transport).
+The project uses **4 consolidated MCP servers** — each bundles multiple tool domains into a single Azure Function endpoint, reducing deployment surface and simplifying routing. All servers implement MCP Protocol 2025-06-18 with Streamable HTTP transport.
 
-| Server | Tools | Upstream Data Source |
-|--------|-------|---------------------|
-| **NPI Lookup** | `lookup_npi`, `search_providers`, `validate_npi` | CMS NPPES Registry |
-| **ICD-10 Validation** | `validate_icd10`, `lookup_icd10`, `search_icd10` | NLM Clinical Tables API |
-| **CMS Coverage** | `search_coverage`, `get_coverage_by_cpt`, `check_medical_necessity` | CMS coverage knowledge base |
-| **FHIR Operations** | `search_patients`, `get_patient`, `get_patient_conditions`, `get_patient_observations` | Azure Health Data Services (FHIR R4) |
-| **PubMed** | `search_pubmed`, `get_article`, `find_related_articles` | NCBI E-Utilities |
-| **Clinical Trials** | `search_trials`, `get_trial`, `get_trial_eligibility` | ClinicalTrials.gov API v2 |
+| Server | Port | Tools | Domains | Upstream Data Sources |
+|--------|------|-------|---------|----------------------|
+| **mcp-reference-data** | 7071 | 12 | NPI, ICD-10, CMS | NPPES Registry, NLM Clinical Tables, CMS Coverage KB |
+| **mcp-clinical-research** | 7072 | 20 | FHIR, PubMed, Clinical Trials | Azure FHIR R4, NCBI E-Utilities, ClinicalTrials.gov v2 |
+| **cosmos-rag** | 7073 | 6 | Document RAG, Audit Trail | Azure Cosmos DB (DiskANN vectors + BM25 full-text) |
+| **document-reader** | 7078 | 1 | File I/O | Local filesystem |
+
+<details>
+<summary><strong>mcp-reference-data</strong> — 12 tools</summary>
+
+| Domain | Tool | Description |
+|--------|------|-------------|
+| NPI | `lookup_npi` | Look up provider by NPI number |
+| NPI | `search_providers` | Search providers by name, specialty, location |
+| NPI | `validate_npi` | Validate NPI via Luhn algorithm |
+| ICD-10 | `validate_icd10` | Validate ICD-10-CM code format and existence |
+| ICD-10 | `lookup_icd10` | Look up code description, category, related codes |
+| ICD-10 | `search_icd10` | Search codes by keyword |
+| ICD-10 | `get_icd10_chapter` | Get codes in a chapter by prefix |
+| CMS | `search_coverage` | Search Medicare LCD/NCD coverage policies |
+| CMS | `check_medical_necessity` | Check if procedure is medically necessary for diagnosis |
+| CMS | `get_coverage_by_cpt` | Get coverage policies for a CPT/HCPCS code |
+| CMS | `get_coverage_by_icd10` | Get coverage policies for a diagnosis code |
+| CMS | `get_mac_jurisdiction` | Get MAC jurisdiction by state |
+
+</details>
+
+<details>
+<summary><strong>mcp-clinical-research</strong> — 20 tools</summary>
+
+| Domain | Tool | Description |
+|--------|------|-------------|
+| FHIR | `search_patients` | Search patients by name, DOB, identifier |
+| FHIR | `get_patient` | Get patient by FHIR resource ID |
+| FHIR | `get_patient_conditions` | Get patient's active conditions |
+| FHIR | `get_patient_medications` | Get patient's medications |
+| FHIR | `get_patient_observations` | Get patient's observations (labs, vitals) |
+| FHIR | `get_patient_encounters` | Get patient's encounters |
+| FHIR | `search_practitioners` | Search healthcare practitioners |
+| FHIR | `validate_resource` | Validate a FHIR resource |
+| PubMed | `search_pubmed` | Search PubMed for medical literature |
+| PubMed | `search_clinical_queries` | Search with clinical study filters (therapy, diagnosis) |
+| PubMed | `get_article` | Get article details by PMID |
+| PubMed | `get_article_abstract` | Get article abstract by PMID |
+| PubMed | `get_articles_batch` | Batch retrieve multiple articles |
+| PubMed | `find_related_articles` | Find related articles by PMID |
+| Trials | `search_trials` | Search clinical trials by criteria |
+| Trials | `search_by_condition` | Find recruiting trials for a condition near a location |
+| Trials | `get_trial` | Get trial details by NCT ID |
+| Trials | `get_trial_eligibility` | Get trial eligibility criteria |
+| Trials | `get_trial_locations` | Get trial recruiting locations |
+| Trials | `get_trial_results` | Get results for completed trials |
+
+</details>
+
+<details>
+<summary><strong>cosmos-rag</strong> — 6 tools</summary>
+
+| Tool | Description |
+|------|-------------|
+| `index_document` | Chunk, embed (text-embedding-3-large), and index documents for RAG |
+| `hybrid_search` | Hybrid retrieval: vector (DiskANN) + BM25 full-text with RRF fusion |
+| `vector_search` | Pure vector similarity search |
+| `record_audit_event` | Record immutable audit event for compliance |
+| `get_audit_trail` | Query audit trail by workflow ID |
+| `get_session_history` | Query audit history across workflows by type and time range |
+
+</details>
+
+<details>
+<summary><strong>document-reader</strong> — 1 tool</summary>
+
+| Tool | Description |
+|------|-------------|
+| `read_document` | Read local files: text/structured content or base64 for PDFs/images. Workspace-safe by default. |
+
+</details>
+
+---
+
+## Skills & Prompt Engineering
+
+The project uses a **skills layer** that injects domain knowledge, structured prompt modules, and decision rubrics into AI agent context. Skills are designed for composability — each can be used independently in GitHub Copilot, Azure AI Foundry, or custom agents.
+
+### Skills Catalog
+
+| Skill | Description | MCP Servers Used |
+|-------|-------------|------------------|
+| **prior-auth-azure** | End-to-end PA review with two-subskill workflow, 5 prompt modules, rubric | mcp-reference-data, mcp-clinical-research, cosmos-rag |
+| **pa-report-formatter** | Formats assessment/decision data into professional reports with Material Design iconography | None (formatting only) |
+| **clinical-trial-protocol** | Multi-phase clinical trial protocol generation with literature-backed evidence | mcp-clinical-research |
+| **document-reader** | Load local documents (PDFs, images, JSON/CSV) for agent consumption | document-reader |
+| **azure-fhir-developer** | FHIR R4 development patterns with Azure-specific auth and coding systems | mcp-clinical-research |
+| **azure-health-data-services** | DICOM imaging, MedTech device data, and FHIR integration on Azure | mcp-clinical-research |
+
+### Prompt Engineering Architecture
+
+Unlike monolithic system prompts, this project uses a **phase-aligned, lazy-loaded prompt architecture** that manages context windows efficiently and ensures consistent, auditable decision-making.
+
+```mermaid
+flowchart TD
+    subgraph skill["Skill (e.g., prior-auth-azure)"]
+        SKILL_MD["SKILL.md<br/>Workflow definition + bead tracking"]
+        REF["references/<br/>Subskill instructions + tools guide"]
+        PROMPTS["references/prompts/<br/>Phase-aligned prompt modules"]
+        RUBRIC["references/rubric.md<br/>Decision rules + criteria"]
+        TEMPLATES["templates/<br/>Output templates"]
+    end
+
+    subgraph beads["Bead-Based Progress Tracking"]
+        B1["bd-001: Intake"] --> B2["bd-002: Clinical"]
+        B2 --> B3["bd-003: Recommend"]
+        B3 --> B4["bd-004: Decision"]
+        B4 --> B5["bd-005: Notify"]
+    end
+
+    subgraph context["Context Management"]
+        CP1["Checkpoint 1<br/>Raw data → structured waypoint"]
+        CP2["Checkpoint 2<br/>Analysis → criteria evaluation"]
+        CP3["Checkpoint 3<br/>Rubric → recommendation"]
+        CP4["Checkpoint 4<br/>Human decision → final record"]
+    end
+
+    SKILL_MD --> beads
+    PROMPTS --> beads
+    beads --> context
+```
+
+#### Key Design Principles
+
+1. **Lazy module loading** — Prompt modules load only when their workflow phase (bead) starts. Each bead defines which modules to read and which to ignore, keeping context usage minimal.
+
+2. **Context checkpoints** — Waypoint files compress raw data (MCP results, clinical docs, policy text) into structured JSON summaries. Downstream phases read the waypoint, not the raw inputs, preventing context overflow.
+
+3. **Rubric-driven decisions** — Decision logic is externalized into `rubric.md` files. The AI reads the rubric at decision time rather than relying on training data, making criteria transparent, versioned, and auditable.
+
+4. **Bead tracking** — Each workflow phase is tracked as a "bead" with `not-started → in-progress → completed` lifecycle. Bead state persists in waypoint files for resume-from-checkpoint capability.
+
+5. **Context scope rules** — Each bead explicitly defines what data to read and what to ignore, preventing context pollution from upstream phases.
+
+#### Prompt Module Structure (Prior Auth Example)
+
+```
+.github/skills/prior-auth-azure/
+├── SKILL.md                           # Workflow definition, bead lifecycle, MCP tool guide
+├── references/
+│   ├── 01-intake-assessment.md        # Subskill 1 instructions
+│   ├── 02-decision-notification.md    # Subskill 2 instructions
+│   ├── rubric.md                      # Decision criteria and rules
+│   ├── tools.md                       # MCP tool usage guide
+│   └── prompts/                       # Phase-aligned prompt modules (lazy-loaded)
+│       ├── 01-extraction.md           #   Loaded at bead 001 (intake)
+│       ├── 02-policy-retrieval.md     #   Loaded at bead 001 (intake)
+│       ├── 03-clinical-assessment.md  #   Loaded at bead 002 (clinical)
+│       ├── 04-determination.md        #   Loaded at bead 003 (recommend)
+│       └── 05-output-formatting.md    #   Loaded at bead 005 (notify)
+└── templates/
+    └── prior-auth-request.json        # Request template
+```
+
+#### Module Loading Timeline
+
+| Phase (Bead) | Modules Loaded | Released After |
+|--------------|----------------|----------------|
+| Intake (001) | `01-extraction.md` + `02-policy-retrieval.md` | Waypoint write (CP1) |
+| Clinical (002) | `03-clinical-assessment.md` | Waypoint update (CP2) |
+| Recommend (003) | `04-determination.md` + `rubric.md` | Waypoint finalize (CP3) |
+| Decision (004) | *(none — human review)* | Decision write (CP4) |
+| Notify (005) | `05-output-formatting.md` | Workflow complete |
 
 ---
 
@@ -151,24 +311,24 @@ Each server is an Azure Function exposing healthcare tools via JSON-RPC over HTT
 
 ### Prior Authorization Review
 
-The flagship workflow demonstrates end-to-end PA processing:
+The flagship workflow demonstrates end-to-end PA processing using four specialized agents with concurrent execution and structured audit trails:
 
 ```mermaid
 flowchart LR
-    A["PA Request"] --> B["Intake &<br/>Validation"]
-    B --> C["NPI + ICD-10 + CMS<br/>Parallel MCP Calls"]
-    C --> D["Clinical Evidence<br/>Mapping"]
-    D --> E["AI Recommendation<br/>+ Audit Trail"]
-    E --> F["Human Decision<br/>(Approve / Pend / Deny)"]
-    F --> G["Notification<br/>Letters"]
+    A["PA Request"] --> B["Compliance Gate<br/>(NPI + ICD-10 +<br/>RAG Policy Retrieval)"]
+    B --> C["Clinical Review +<br/>Coverage Analysis<br/>(concurrent agents)"]
+    C --> D["Synthesis Agent →<br/>Recommendation"]
+    D --> E["Human Decision<br/>(Approve / Pend / Deny)"]
+    E --> F["Notification<br/>Letters"]
 ```
 
-Each step produces auditable waypoint artifacts. The workflow supports resume-from-checkpoint if interrupted.
+**Agents:** Compliance Agent (NPI + ICD-10 validation) → Clinical Reviewer (FHIR + PubMed + Trials) + Coverage Agent (CMS + RAG policies) run concurrently → Synthesis Agent (rubric-driven recommendation). Each phase produces auditable waypoint artifacts. The workflow supports resume-from-checkpoint via bead tracking if interrupted.
 
 ### Also Included
 
-- **Clinical Trial Matching** — multi-step protocol generation with literature-backed evidence
-- **Literature Search** — PubMed-powered research workflows
+- **Clinical Trial Matching** — Multi-phase protocol generation with FHIR patient data, PubMed evidence, and ClinicalTrials.gov integration
+- **Literature Search** — PubMed-powered research workflows with clinical query filters
+- **Patient Data** — FHIR-based patient data retrieval and clinical summarization
 
 ---
 
@@ -183,7 +343,7 @@ Each step produces auditable waypoint artifacts. The workflow supports resume-fr
 ### Run Locally
 
 ```bash
-# Start all six MCP servers
+# Start all four MCP servers (ports 7071, 7072, 7073, 7078)
 make local-start
 
 # If you deployed with azd, sync local runtime endpoints from azd outputs
@@ -210,17 +370,15 @@ This provisions APIM, Azure Functions, Azure Health Data Services, and all suppo
 
 ### Use in VS Code with Copilot
 
-MCP servers are configured via `.vscode/mcp.json`:
+Configure MCP servers in `.vscode/mcp.json`:
 
 ```jsonc
 {
   "servers": {
-    "healthcare-npi":    { "type": "http", "url": "http://localhost:7071/mcp" },
-    "healthcare-icd10":  { "type": "http", "url": "http://localhost:7072/mcp" },
-    "healthcare-cms":    { "type": "http", "url": "http://localhost:7073/mcp" },
-    "healthcare-fhir":   { "type": "http", "url": "http://localhost:7074/mcp" },
-    "healthcare-pubmed": { "type": "http", "url": "http://localhost:7075/mcp" },
-    "healthcare-trials": { "type": "http", "url": "http://localhost:7076/mcp" }
+    "healthcare-reference-data":    { "type": "http", "url": "http://localhost:7071/mcp" },
+    "healthcare-clinical-research": { "type": "http", "url": "http://localhost:7072/mcp" },
+    "healthcare-cosmos-rag":        { "type": "http", "url": "http://localhost:7073/mcp" },
+    "healthcare-document-reader":   { "type": "http", "url": "http://localhost:7078/mcp" }
   }
 }
 ```
@@ -236,26 +394,37 @@ Does CPT 27447 require prior auth? Validate the provider NPI and check CMS cover
 ## Project Structure
 
 ```
-healthcare-for-microsoft/
-├── .github/skills/           # Domain knowledge for AI agent context
-│   ├── prior-auth-azure/     #   Prior authorization review skill
-│   ├── azure-fhir-developer/ #   FHIR R4 development skill
+healthcare-agent-accelerator/
+├── .github/skills/                # Domain skills for AI agent context
+│   ├── prior-auth-azure/          #   PA review (2 subskills, 5 prompt modules, rubric)
+│   │   ├── SKILL.md               #     Workflow + bead tracking + MCP tool guide
+│   │   ├── references/prompts/    #     Phase-aligned lazy-loaded prompt modules
+│   │   ├── references/rubric.md   #     Externalized decision criteria
+│   │   └── templates/             #     Request/output templates
+│   ├── pa-report-formatter/       #   Report formatting with Material Design icons
+│   ├── clinical-trial-protocol/   #   Multi-phase trial protocol generation
+│   ├── document-reader/           #   Local file ingestion (PDF, image, CSV, JSON)
+│   ├── azure-fhir-developer/     #   FHIR R4 patterns + Azure auth
 │   └── azure-health-data-services/
 ├── src/
-│   ├── mcp-servers/          # Six Python Azure Function MCP servers
-│   │   ├── npi-lookup/
-│   │   ├── icd10-validation/
-│   │   ├── cms-coverage/
-│   │   ├── fhir-operations/
-│   │   ├── pubmed/
-│   │   └── clinical-trials/
-│   └── agents/               # Multi-agent orchestration (CLI + Gradio UIs)
-│       └── workflows/        #   prior-auth, clinical-trial, literature-search
-├── deploy/                   # Azure Bicep infrastructure (APIM, Functions, AHDS)
-├── scripts/                  # Local launchers, APIM tests, post-deploy config
-├── docs/                     # Architecture, getting started, OAuth/PRM guides
-├── foundry-integration/      # Azure AI Foundry agent registration
-└── samples/                  # Standalone reference implementations
+│   ├── mcp-servers/               # Four consolidated MCP servers
+│   │   ├── mcp-reference-data/    #   NPI + ICD-10 + CMS (12 tools, port 7071)
+│   │   ├── mcp-clinical-research/ #   FHIR + PubMed + Trials (20 tools, port 7072)
+│   │   ├── cosmos-rag/            #   RAG + Audit Trail (6 tools, port 7073)
+│   │   ├── document-reader/       #   File I/O (1 tool, port 7078)
+│   │   └── shared/                #   MCPServer base class + shared utilities
+│   └── agents/                    # Multi-agent orchestration (CLI + Gradio UIs)
+│       └── workflows/             #   prior_auth, clinical_trials, literature_search, patient_data
+├── data/                          # Evaluation cases, policies, sample outputs
+│   ├── cases/                     #   10 PA case variants with ground truth
+│   ├── policies/                  #   Coverage policy PDFs for RAG indexing
+│   └── samples/                   #   Reference output examples
+├── deploy/                        # Azure Bicep infrastructure (APIM, Functions, AHDS)
+├── scripts/                       # Local launchers, evals, setup CLI, deployment
+│   └── setup-cli/                 #   Interactive setup wizard (make setup)
+├── tests/                         # Integration tests and evaluation framework
+├── docs/                          # Architecture, getting started, OAuth/PRM guides
+└── AGENTS.md                      # Operational guide for coding agents
 ```
 
 ---
@@ -268,7 +437,7 @@ healthcare-for-microsoft/
 | **Identity** | No secrets in code | Managed Identity on all Function Apps |
 | **Network** | Private endpoints | Private Link for FHIR, Cosmos DB, Key Vault |
 | **Encryption** | TLS 1.2+ in transit, AES at rest | Azure-managed encryption |
-| **Audit** | Full request logging | APIM diagnostic logs → Log Analytics |
+| **Audit** | Full request logging | APIM diagnostic logs → Log Analytics + Cosmos DB audit trail |
 | **Access** | Role-based access control | FHIR Data Contributor, Cosmos DB RBAC |
 | **Compliance** | HIPAA-ready infrastructure | BAA-eligible services, HIPAA tags in Bicep |
 

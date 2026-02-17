@@ -66,41 +66,48 @@ Source files:
 
 ```mermaid
 flowchart TD
-    A[Input: PA request + clinical docs] --> B["bd-pa-001-intake\nSubskill 1: Collect + Validate"]
-    B --> C{Parallel validation}
+    A[Input: PA request + clinical docs] --> B["bd-pa-001-intake\nCompliance Agent"]
 
-    C --> NPI[NPI MCP]
-    C --> ICD[ICD-10 MCP]
-    C --> CMS[CMS Coverage MCP]
-    B --> CPT[CPT/HCPCS validation]
-    B --> R[Read rubric.md]
+    B --> RAG["RAG policy retrieval\n(cosmos-rag hybrid_search)"]
+    B --> VAL{"Parallel MCP validation\n(mcp-reference-data)"}
+    VAL --> NPI["NPI verification"]
+    VAL --> ICD["ICD-10 validation"]
 
-    NPI --> D["bd-pa-002-clinical\nClinical evidence mapping"]
-    ICD --> D
-    CMS --> D
-    CPT --> D
-    R --> D
+    RAG --> GATE
+    NPI --> GATE
+    ICD --> GATE
+    GATE{"Compliance\ngate"} -->|Fail| PEND_EARLY["PEND with compliance gaps"]
+    GATE -->|Pass| CP1["Context Checkpoint 1\nwaypoints/assessment.json"]
 
-    D --> E["bd-pa-003-recommend\nRecommendation + waypoints/assessment.json"]
-    E --> F["bd-pa-004-decision\nSubskill 2: Human decision"]
+    CP1 --> CONC
+    subgraph CONC["bd-pa-002-clinical — Concurrent Agents"]
+        CR["Clinical Reviewer Agent\nFHIR + PubMed + Trials\n(mcp-clinical-research)"]
+        CA["Coverage Agent\nCMS policies + RAG\n(mcp-reference-data + cosmos-rag)"]
+    end
+
+    CONC --> CP2["Context Checkpoint 2"]
+    CP2 --> E["bd-pa-003-recommend\nSynthesis Agent\n(reads rubric.md · no MCP tools)"]
+    E --> WP["waypoints/assessment.json\n+ outputs/audit_justification.md"]
+
+    WP --> F["bd-pa-004-decision\nSubskill 2: Human review"]
     F --> G{Human decision}
     G --> H[APPROVE]
     G --> I[PEND]
-    G --> J[DENY or OVERRIDE]
-    H --> K["bd-pa-005-notify\nwaypoints/decision.json + letters"]
+    G --> J[DENY / OVERRIDE]
+    H --> K["bd-pa-005-notify\nwaypoints/decision.json\n+ determination.json + letters"]
     I --> K
     J --> K
 ```
 
 ### Prior Auth Bead Tracking
 
-| Bead ID | Phase | Status Persisted In |
-|---------|-------|---------------------|
-| `bd-pa-001-intake` | Collect + MCP validation | `waypoints/assessment.json` |
-| `bd-pa-002-clinical` | Clinical extraction + evidence mapping | `waypoints/assessment.json` |
-| `bd-pa-003-recommend` | Recommendation + audit doc | `waypoints/assessment.json` |
-| `bd-pa-004-decision` | Human review + decision | `waypoints/decision.json` |
-| `bd-pa-005-notify` | Notification letters | `waypoints/decision.json` |
+| Bead ID | Phase | Agent | Status Persisted In |
+|---------|-------|-------|---------------------|
+| `bd-pa-001-intake` | RAG retrieval + NPI/ICD-10 compliance gate | Compliance Agent | `waypoints/assessment.json` |
+| `bd-pa-002-clinical` | Clinical review + CMS coverage (concurrent) | Clinical Reviewer + Coverage Agent | `waypoints/assessment.json` |
+| `bd-pa-003-recommend` | Synthesis → recommendation + audit doc | Synthesis Agent | `waypoints/assessment.json` |
+| `bd-pa-004-decision` | Human review + decision capture | Human | `waypoints/decision.json` |
+| `bd-pa-005-notify` | Determination JSON + notification letters | (code generation) | `waypoints/decision.json` |
 
 ## 5) Clinical Trial Protocol Skill Flow
 
