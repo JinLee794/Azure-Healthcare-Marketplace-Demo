@@ -26,7 +26,6 @@ Usage:
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -55,7 +54,6 @@ def _create_entities(local: bool = False) -> list:
 
     The DevUI discovers entities and shows their composition structure.
     """
-    from agent_framework.azure import AzureOpenAIResponsesClient
     from agent_framework_orchestrations import ConcurrentBuilder, SequentialBuilder
     from azure.identity import AzureCliCredential, DefaultAzureCredential
 
@@ -72,12 +70,11 @@ def _create_entities(local: bool = False) -> list:
         create_trials_research_agent,
     )
     from .config import AgentConfig
+    from .llm_client import cli_process_timeout, create_chat_client
     from .tools import (
         CLINICAL_TRIALS_TOOLS_ALL,
         FHIR_TOOLS_ALL,
-        ICD10_TOOLS_COMPLIANCE,
         ICD10_TOOLS_SEARCH,
-        NPI_TOOLS_COMPLIANCE,
         NPI_TOOLS_SEARCH,
         PUBMED_TOOLS_ALL,
         REFERENCE_DATA_COMPLIANCE,
@@ -97,11 +94,7 @@ def _create_entities(local: bool = False) -> list:
     )
 
     # ── Azure OpenAI client ────────────────────────────────────────
-    endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
-    deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o")
-    api_version = os.getenv("AZURE_OPENAI_API_VERSION", "preview")
-
-    if not endpoint:
+    if not config.openai.endpoint:
         raise OSError(
             "AZURE_OPENAI_ENDPOINT is not set. "
             "Create src/agents/.env with:\n"
@@ -110,22 +103,14 @@ def _create_entities(local: bool = False) -> list:
         )
 
     try:
-        credential = DefaultAzureCredential()
-        client = AzureOpenAIResponsesClient(
-            azure_endpoint=endpoint,
-            azure_deployment=deployment,
-            credential=credential,
-            api_version=api_version,
+        client = create_chat_client(
+            config, local=local, credential=DefaultAzureCredential(process_timeout=cli_process_timeout())
         )
     except Exception:
         # Fall back to AzureCliCredential if DefaultAzureCredential fails
         logger.warning("DefaultAzureCredential failed, trying AzureCliCredential")
-        credential = AzureCliCredential()
-        client = AzureOpenAIResponsesClient(
-            azure_endpoint=endpoint,
-            azure_deployment=deployment,
-            credential=credential,
-            api_version=api_version,
+        client = create_chat_client(
+            config, local=local, credential=AzureCliCredential(process_timeout=cli_process_timeout())
         )
 
     # ── Shared HTTP client for APIM subscription key ───────────────
@@ -161,7 +146,7 @@ def _create_entities(local: bool = False) -> list:
     # Matches src/agents/workflows/prior_auth.py:
     #   Phase 1: Compliance gate (NPI + ICD-10 validation)
     #   Phase 2: Concurrent(Clinical Reviewer + Coverage)
-    #   Phase 3: Synthesis (aggregation → APPROVE/PEND)
+    #   Phase 3: Synthesis (aggregation → APPROVE/PEND/DENY)
     compliance_agent = create_compliance_agent(
         client=client,
         tools=[
@@ -177,7 +162,17 @@ def _create_entities(local: bool = False) -> list:
     coverage_agent = create_coverage_agent(
         client=client,
         tools=[
-            ref_data("Reference Data (Coverage)", ICD10_TOOLS_SEARCH + ["search_coverage", "get_coverage_by_cpt", "get_coverage_by_icd10", "check_medical_necessity", "get_mac_jurisdiction"]),
+            ref_data(
+                "Reference Data (Coverage)",
+                [
+                    *ICD10_TOOLS_SEARCH,
+                    "search_coverage",
+                    "get_coverage_by_cpt",
+                    "get_coverage_by_icd10",
+                    "check_medical_necessity",
+                    "get_mac_jurisdiction",
+                ],
+            ),
         ],
     )
     synthesis_agent = create_synthesis_agent(client=client)

@@ -11,6 +11,9 @@ description = "Azure-native healthcare marketplace with MCP servers, skills, and
 requires-python = ">=3.9"
 readme = "README.md"
 license = { text = "MIT" }
+dependencies = [
+    "rich>=15.0.0",
+]
 
 # ── Ruff (linter + formatter) ───────────────────────────────────────────────
 [tool.ruff]
@@ -44,10 +47,12 @@ indent-style = "space"
 
 # ── Pytest ──────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["tests", "src"]
+testpaths = ["tests"]
+norecursedirs = [".git", ".venv", "node_modules", ".python_packages", ".runs", "__pycache__"]
+pythonpath = ["src"]
 python_files = ["test_*.py", "*_test.py"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --ignore=tests/local"
 markers = [
     "integration: MCP server integration tests (require running servers)",
 ]
@@ -58,3 +63,15 @@ python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
+
+# ── Dev / test dependency group (PEP 735) ──────────────────────────────────
+# Deliberately minimal: the root unit suite must resolve and run without
+# Azure SDKs, the Microsoft Agent Framework, or any running MCP server.
+#
+# Sync with:  uv sync --group dev
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "httpx>=0.27.0",
+    "ruff>=0.6.0",
+]
